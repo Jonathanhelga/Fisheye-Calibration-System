@@ -2,8 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// Stand-in for a not-yet-built panel. Delete this wrapper once the real
-// panel component exists and reference the real one from Main.qml instead.
+
 Rectangle {
     property alias title: heading.text
 

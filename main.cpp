@@ -1,7 +1,7 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
-#include <QQmlContext>
-
+#include <QQuickStyle>
+#include <QStyleHints>
 #include "Bridge.h"
 
 // Ground-up QML rebuild of the calibration app (see moil-fisheye-calibration-system/cpp).
@@ -9,12 +9,11 @@
 // with QML bolted on; this one is QML-first from the start.
 int main(int argc, char *argv[]) {
     QGuiApplication app(argc, argv);
+    QQuickStyle::setStyle("Basic");
+
+    app.styleHints()->setColorScheme(Qt::ColorScheme::Light);
 
     QQmlApplicationEngine engine;
-
-    //  one bridge per panel (AxisBridge, CameraBridge, ...) exposed the same way.
-    Bridge bridge;
-    engine.rootContext()->setContextProperty("bridge", &bridge);
 
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed,

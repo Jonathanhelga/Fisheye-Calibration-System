@@ -6,14 +6,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Quick)
+# QuickControls2 is needed for QQuickStyle (selecting the "Basic" style in main.cpp).
+find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2)
 
 qt_standard_project_setup(REQUIRES 6.5)
 qt_policy(SET QTP0004 NEW)
 
 qt_add_executable(fisheye_cali_jojo
     main.cpp
-    Bridge.cpp Bridge.h
 )
 
 # Registers qml/Main.qml (and everything else added here later) as the
@@ -26,8 +26,13 @@ qt_add_qml_module(fisheye_cali_jojo
         qml/Main.qml
         qml/PanelPlaceholder.qml
         qml/HistogramPanel.qml
+        qml/ServerUrlPanel.qml
+        qml/LabeledField.qml
+    SOURCES
+        Bridge.cpp Bridge.h
 )
 
 target_link_libraries(fisheye_cali_jojo PRIVATE
     Qt6::Quick
+    Qt6::QuickControls2
 )

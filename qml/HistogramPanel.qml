@@ -2,10 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-// Replaces the two hand-copied "Histogram1"/"Histogram2" QGroupBox blocks
-// in the old mainwindow_main.ui with one component parameterized by
-// channel. Compass checkboxes and curve wiring still need to be ported;
-// this is the shell.
+// Replaces the two hand-copied "Histogram1"/"Histogram2" QGroupBox blocks in the old mainwindow_main.ui.
 Rectangle {
     id: root
     property int channel: 1
@@ -29,9 +26,6 @@ Rectangle {
             Layout.fillHeight: true
             spacing: 8
 
-            // A nested layout defaults to Layout.fillWidth: true, so this
-            // button column would swell past its 140 and eat the plot's
-            // space. It is a fixed-width sidebar, so opt out of growing.
             ColumnLayout {
                 Layout.preferredWidth: 140
                 Layout.fillWidth: false
@@ -41,9 +35,7 @@ Rectangle {
             }
 
             Rectangle {
-                // A bare Rectangle is implicitly 0x0, and fillWidth splits
-                // leftover space in proportion to preferred width, so
-                // without this the plot collapses to nothing.
+                // A bare Rectangle is implicitly 0x0
                 Layout.preferredWidth: 400
                 Layout.preferredHeight: 160
                 Layout.fillWidth: true

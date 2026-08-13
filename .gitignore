@@ -1,3 +1,12 @@
 build/
+.vscode/
 CONFIGURATION.md
 RUNNING.md
+
+BASIC_INFO.md
+CLAUDE.md
+SCROLLING.md
+STYLING.md
+.cache
+
+.DS_Store
