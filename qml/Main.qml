@@ -14,22 +14,21 @@ ApplicationWindow {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 12
-        spacing: 12
+        anchors.margins: Theme.panelGap
+        spacing: Theme.panelGap
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: Theme.panelGap
 
             ColumnLayout {
                 Layout.preferredWidth: 420
-                spacing: 12
+                spacing: Theme.panelGap
                 
                 ServerUrlPanel {
                     Layout.fillWidth: true
                 }
-                PanelPlaceholder {
-                    title: "Axis Control Panel"
+                AxisControlPanel {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                 }
@@ -39,18 +38,17 @@ ApplicationWindow {
                 title: "Camera Panel"
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.preferredWidth: 600
+                Layout.preferredWidth: 500
             }
 
             ColumnLayout {
                 Layout.preferredWidth: 380
-                spacing: 12
+                spacing: Theme.panelGap
 
                 PanelPlaceholder {
                     title: "Centering"
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    Layout.preferredHeight: 200
                 }
                 PanelPlaceholder {
                     title: "Calibration Result / 3D Validation"

@@ -20,16 +20,24 @@ qt_add_executable(fisheye_cali_jojo
 # Registers qml/Main.qml (and everything else added here later) as the
 # "FisheyeCaliJojo" QML module, compiled into the binary instead of read
 # from disk at runtime. Add new .qml files to QML_FILES as panels are built.
+set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
+
 qt_add_qml_module(fisheye_cali_jojo
     URI FisheyeCaliJojo
     VERSION 1.0
     QML_FILES
+        qml/Theme.qml
         qml/Main.qml
         qml/PanelPlaceholder.qml
         qml/HistogramPanel.qml
         qml/ServerUrlPanel.qml
         qml/LabeledField.qml
+        qml/InlineField.qml
+        qml/SectionFrame.qml
         qml/StatusDot.qml
+        qml/AxisControlPanel.qml
+        qml/AxisReadout.qml
+        qml/DpadDirectionControl.qml
     SOURCES
         Bridge.cpp Bridge.h
         ServerProbe.cpp ServerProbe.h

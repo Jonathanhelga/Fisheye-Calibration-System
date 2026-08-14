@@ -12,21 +12,25 @@ Rectangle {
     property int monitorPort: 8001
     property int cameraPort: 8002
 
-    implicitWidth: 240
-    implicitHeight: 175
-    color: "#f4f6f8"
-    border.color: "#b9c1c8"
-    radius: 4
+    implicitWidth: 280
+    implicitHeight: content.implicitHeight + 2 * Theme.panelMargin
+    Layout.minimumWidth: implicitWidth
+
+    color: Theme.panelBackground
+    border.color: Theme.panelBorder
+    radius: Theme.radius
 
     ColumnLayout {
+        id: content
+
         anchors.fill: parent
-        anchors.margins: 6
-        spacing: 5
+        anchors.margins: Theme.panelMargin
+        spacing: Theme.rowSpacing
 
         Label {
             text: "HTTP Server"
             font.bold: true
-            color: "#2f6fbf"
+            color: Theme.accent
         }
 
         LabeledField {
@@ -44,9 +48,9 @@ Rectangle {
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 5
+            spacing: Theme.rowSpacing
 
-            LabeledField{
+            LabeledField {
                 Layout.fillWidth: true
                 label: "Axis Port"
                 text: root.axisPort
@@ -59,7 +63,7 @@ Rectangle {
                 }
             }
 
-            LabeledField{
+            LabeledField {
                 Layout.fillWidth: true
                 label: "Monitor Port"
                 text: root.monitorPort
@@ -72,7 +76,7 @@ Rectangle {
                 }
             }
 
-            LabeledField{
+            LabeledField {
                 Layout.fillWidth: true
                 label: "Camera Port"
                 text: root.cameraPort
@@ -88,30 +92,27 @@ Rectangle {
 
         Button {
             id: submitUrl
+
             Layout.fillWidth: true
-            Layout.topMargin: 4
             text: "Update"
 
-            // Never disabled while probing: probeAll() supersedes its own
-            // in-flight requests, so a double press is already safe.
             onClicked: ServerProbe.probeAll(root.host, root.axisPort,
                                             root.monitorPort, root.cameraPort)
 
             background: Rectangle {
-                implicitHeight: 30
-                radius: 4
-                color: submitUrl.down ? "#2f6fbf"
-                : (submitUrl.hovered ? "#5a93d4" : "#7fb3e6")
+                implicitHeight: Theme.controlHeight
+                radius: Theme.radius
+                color: submitUrl.down ? Theme.accent
+                     : (submitUrl.hovered ? Theme.accentHover : Theme.accentIdle)
             }
 
             contentItem: Text {
                 text: submitUrl.text
-                color: "white"
+                color: Theme.textOnAccent
                 font.bold: true
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
             }
         }
-        Item { Layout.fillHeight: true }
     }
 }
