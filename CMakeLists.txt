@@ -7,7 +7,8 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # QuickControls2 is needed for QQuickStyle (selecting the "Basic" style in main.cpp).
-find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2)
+# Network is needed for the reachability probes in ServerProbe.
+find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2 Network)
 
 qt_standard_project_setup(REQUIRES 6.5)
 qt_policy(SET QTP0004 NEW)
@@ -28,11 +29,14 @@ qt_add_qml_module(fisheye_cali_jojo
         qml/HistogramPanel.qml
         qml/ServerUrlPanel.qml
         qml/LabeledField.qml
+        qml/StatusDot.qml
     SOURCES
         Bridge.cpp Bridge.h
+        ServerProbe.cpp ServerProbe.h
 )
 
 target_link_libraries(fisheye_cali_jojo PRIVATE
     Qt6::Quick
     Qt6::QuickControls2
+    Qt6::Network
 )

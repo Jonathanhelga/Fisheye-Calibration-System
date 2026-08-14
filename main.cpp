@@ -3,6 +3,7 @@
 #include <QQuickStyle>
 #include <QStyleHints>
 #include "Bridge.h"
+#include "ServerProbe.h"
 
 // Ground-up QML rebuild of the calibration app (see moil-fisheye-calibration-system/cpp).
 // No QMainWindow/QQuickWidget host here on purpose: the old app was Widgets-first

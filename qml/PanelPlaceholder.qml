@@ -5,10 +5,6 @@ import QtQuick.Layouts
 
 Rectangle {
     property alias title: heading.text
-
-    // A bare Rectangle has an implicit size of 0x0, which makes a layout
-    // collapse it to nothing when it only says Layout.fillWidth/fillHeight.
-    // Give every placeholder a real intrinsic size to grow from.
     implicitWidth: 240
     implicitHeight: 120
 
