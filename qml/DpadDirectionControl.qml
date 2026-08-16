@@ -15,10 +15,7 @@ Item {
     signal directionClicked(string direction)
 
     readonly property int columnCount: horizontalEnabled ? 3 : 1
-    readonly property int cellSize: Math.max(
-        Theme.padButtonSize,
-        Math.floor(Math.min((width - (columnCount - 1) * Theme.labelSpacing) / columnCount,
-                            (height - 2 * Theme.labelSpacing) / 3)))
+    readonly property int cellSize: Theme.padButtonSize
 
     implicitWidth: columnCount * Theme.padButtonSize + (columnCount - 1) * Theme.labelSpacing
     implicitHeight: 3 * Theme.padButtonSize + 2 * Theme.labelSpacing

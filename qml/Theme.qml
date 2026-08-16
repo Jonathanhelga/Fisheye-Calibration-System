@@ -6,6 +6,7 @@ QtObject {
 
     readonly property FontMetrics metrics: FontMetrics { font: Qt.application.font }
     readonly property real unit: Math.round(metrics.height)
+    readonly property real charUnit: Math.round(metrics.averageCharacterWidth)
     //spacing
     readonly property int spaceXs: Math.round(unit * 0.25)    // 4
     readonly property int spaceSm: Math.round(unit * 0.5)     // 8
@@ -16,8 +17,8 @@ QtObject {
     readonly property int radius:        Math.round(unit * 0.25)
     readonly property int controlHeight: Math.round(unit * 2)
     readonly property int padButtonSize: Math.round(unit * 2.5)
-    readonly property int readoutWidth:  Math.round(unit * 3)
-    readonly property int fieldMinWidth: Math.round(unit * 5)  
+    readonly property int readoutWidth:  Math.round(charUnit * 7)
+    readonly property int fieldMinWidth: Math.round(charUnit * 5)
 
     // text
     readonly property int fontCaption: Math.round(unit * 0.7)
@@ -29,9 +30,12 @@ QtObject {
     readonly property int minPanelHeight:       Math.round(unit * 35)
     readonly property int minHistogramHeight:   Math.round(unit * 7)
 
-    readonly property real ratioLeft:   0.35 
+    readonly property real ratioLeft:   0.35
     readonly property real ratioCenter: 0.42
     readonly property real ratioRight:  0.23
+
+    readonly property real ratioWorkRow:   0.62
+    readonly property real ratioHistogram: 0.19
 
 
     readonly property int animFast: 120

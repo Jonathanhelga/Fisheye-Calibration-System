@@ -74,7 +74,7 @@ Rectangle {
                     Layout.fillWidth: true
                     Layout.minimumWidth: 0
                     Layout.preferredWidth: 0
-                    text: root.stepMode ? qsTr("moves by the amount below"): qsTr("drives to the mechanical limit")
+                    text: root.stepMode ? qsTr("moves by the step"): qsTr(" mechanical limit")
                     color: Theme.textCaption
                     font.pixelSize: Theme.captionFontSize
                     elide: Text.ElideRight
@@ -104,7 +104,6 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.horizontalStretchFactor: 2
-                Layout.minimumWidth: Theme.dpadMinWidth(3)
 
                 Label {
                     Layout.alignment: Qt.AlignHCenter
@@ -152,7 +151,6 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.horizontalStretchFactor: 1
-                Layout.minimumWidth: Theme.dpadMinWidth(1)
 
                 Label {
                     Layout.alignment: Qt.AlignHCenter
@@ -185,7 +183,6 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.horizontalStretchFactor: 2
-                Layout.minimumWidth: Theme.dpadMinWidth(3)
 
                 Label {
                     Layout.alignment: Qt.AlignHCenter

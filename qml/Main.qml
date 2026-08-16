@@ -8,16 +8,17 @@ ApplicationWindow {
     id: window
     width:  Screen.desktopAvailableWidth
     height: Screen.desktopAvailableHeight
-    minimumWidth:   (Theme.minColumnLeft + Theme.minColumnCenter + Theme.minColumnRight + 4 * Theme.spaceMd) * 0.5
-    minimumHeight:  (Theme.minPanelHeight + 2 * Theme.minHistogramHeight + 4 * Theme.spaceMd) * 0.5
 
     visible: true
     title: "Fisheye Calibration - Jojo Version"
 
     ColumnLayout {
+        id: rootColumn
         anchors.fill: parent
         anchors.margins: Theme.spaceMd
         spacing: Theme.spaceMd
+
+        readonly property real free: Math.max(0, window.height - 4 * Theme.spaceMd)
 
         RowLayout {
             id: workRow
@@ -25,8 +26,8 @@ ApplicationWindow {
             Layout.fillHeight:  true
             readonly property real free: Math.max(0, window.width - 4 * Theme.spaceMd)
             spacing: Theme.spaceMd
-            
-            Layout.preferredHeight: 1000
+
+            Layout.preferredHeight: rootColumn.free * Theme.ratioWorkRow
             Layout.minimumHeight: Theme.minPanelHeight
 
             ColumnLayout {
@@ -45,14 +46,12 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.preferredWidth: workRow.free * Theme.ratioCenter
-                Layout.minimumWidth: Theme.minColumnCenter
             }
 
             ColumnLayout {
                 Layout.fillWidth:   true
                 Layout.fillHeight:  true
                 Layout.preferredWidth: workRow.free * Theme.ratioRight
-                Layout.minimumWidth: Theme.minColumnRight
                 spacing: Theme.spaceMd
 
                 PanelPlaceholder {
@@ -77,14 +76,14 @@ ApplicationWindow {
             channel: 1
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.preferredHeight: 380
+            Layout.preferredHeight: rootColumn.free * Theme.ratioHistogram
             Layout.minimumHeight: Theme.minHistogramHeight
         }
         HistogramPanel {
             channel: 2
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.preferredHeight: 380
+            Layout.preferredHeight: rootColumn.free * Theme.ratioHistogram
             Layout.minimumHeight: Theme.minHistogramHeight
         }
     }

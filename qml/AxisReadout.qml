@@ -17,8 +17,7 @@ RowLayout {
 
     Rectangle {
         Layout.fillWidth: true
-        Layout.minimumWidth: Theme.readoutWidth
-        implicitWidth: readout.implicitWidth + 2 * Theme.fieldPadding
+        implicitWidth: 2 * Theme.fieldPadding
         implicitHeight: Theme.controlHeight
         color: Theme.fieldBackground
         border.color: Theme.panelBorder

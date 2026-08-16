@@ -38,7 +38,6 @@ ColumnLayout {
     TextField {
         id: input
         Layout.fillWidth: true
-        Layout.minimumWidth: Theme.fieldMinWidth
         color: input.enabled ? Theme.textPrimary : Theme.textDisabled
         font.bold: true
         onTextEdited: if (acceptableInput) field.edited(text)

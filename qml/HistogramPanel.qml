@@ -33,7 +33,6 @@ Rectangle {
 
             ColumnLayout {
                 Layout.fillWidth: false
-                Layout.minimumWidth: Theme.unit * 9
                 Layout.alignment: Qt.AlignTop
                 spacing: Theme.rowSpacing
 
@@ -44,8 +43,6 @@ Rectangle {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.minimumWidth: Theme.unit * 12
-                Layout.minimumHeight: Theme.unit * 5
                 color: Theme.fieldBackground
                 border.color: Theme.panelBorder
                 radius: Theme.radius
