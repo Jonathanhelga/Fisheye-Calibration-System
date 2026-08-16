@@ -1,25 +1,27 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-
+import FisheyeCaliJojo
 
 Rectangle {
     property alias title: heading.text
-    implicitWidth: 240
-    implicitHeight: 120
 
-    color: "#f4f6f8"
-    border.color: "#c7cfd6"
-    radius: 4
+    implicitWidth: Theme.unit * 16
+    implicitHeight: Theme.unit * 8
+
+    color: Theme.panelBackground
+    border.color: Theme.panelBorder
+    radius: Theme.radius
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 8
+        anchors.margins: Theme.panelMargin
 
         Label {
             id: heading
             font.bold: true
-            color: "#2f6fbf"
+            font.pixelSize: Theme.fontTitle
+            color: Theme.accent
         }
         Item { Layout.fillHeight: true }
     }

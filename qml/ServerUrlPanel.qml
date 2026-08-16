@@ -12,9 +12,7 @@ Rectangle {
     property int monitorPort: 8001
     property int cameraPort: 8002
 
-    implicitWidth: 280
     implicitHeight: content.implicitHeight + 2 * Theme.panelMargin
-    Layout.minimumWidth: implicitWidth
 
     color: Theme.panelBackground
     border.color: Theme.panelBorder

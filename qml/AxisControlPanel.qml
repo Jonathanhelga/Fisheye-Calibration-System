@@ -12,11 +12,16 @@ Rectangle {
     property real yawStep: 1.0
     property real pitchStep: 1.0
 
-    signal commandRequested(string endpoint, real distance)
+    readonly property bool stepMode: travelMode.currentIndex === 1
+
+    signal commandRequested(string endpoint, string mode, real distance)
+
+    function requestMove(endpoint, step) {
+        commandRequested(endpoint, stepMode ? "step" : "max", stepMode ? step : 0)
+    }
 
     implicitWidth: content.implicitWidth + 2 * Theme.panelMargin
     implicitHeight: content.implicitHeight + 2 * Theme.panelMargin
-    Layout.minimumWidth: implicitWidth
 
     color: Theme.panelBackground
     border.color: Theme.panelBorder
@@ -30,7 +35,6 @@ Rectangle {
         spacing: Theme.rowSpacing
 
         Label {
-            Layout.alignment: Qt.AlignVCenter
             text: "Axis Control"
             font.bold: true
             color: Theme.accent
@@ -40,11 +44,55 @@ Rectangle {
             Layout.fillWidth: true
             spacing: Theme.rowSpacing
 
-            AxisReadout { label: "X"; value: "?" }
-            AxisReadout { label: "Y"; value: "?" }
-            AxisReadout { label: "Z"; value: "?" }
-            AxisReadout { label: "Yaw"; value: "?" }
-            AxisReadout { label: "Pitch"; value: "?" }
+            AxisReadout { Layout.fillWidth: true; label: "X"; value: "?" }
+            AxisReadout { Layout.fillWidth: true; label: "Y"; value: "?" }
+            AxisReadout { Layout.fillWidth: true; label: "Z"; value: "?" }
+            AxisReadout { Layout.fillWidth: true; label: "Yaw"; value: "?" }
+            AxisReadout { Layout.fillWidth: true; label: "Pitch"; value: "?" }
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.rowSpacing
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.rowSpacing
+
+                Label {
+                    text: qsTr("Travel")
+                    color: Theme.textCaption
+                    font.pixelSize: Theme.captionFontSize
+                }
+
+                SegmentedControl {
+                    id: travelMode
+                    model: [qsTr("Max"), qsTr("Step")]
+                    currentIndex: 0
+                }
+
+                Label {
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
+                    Layout.preferredWidth: 0
+                    text: root.stepMode ? qsTr("moves by the amount below"): qsTr("drives to the mechanical limit")
+                    color: Theme.textCaption
+                    font.pixelSize: Theme.captionFontSize
+                    elide: Text.ElideRight
+                }
+            }
+            RowLayout{
+                Layout.fillWidth: true
+                spacing: Theme.rowSpacing
+                Label {
+                    text: qsTr("Speed")
+                    color: Theme.textCaption
+                    font.pixelSize: Theme.captionFontSize
+                }
+                ComboBox {
+                    Layout.preferredHeight: Theme.controlHeight
+                    model: [ "High", "Normal", "Slow"]
+                }
+            }
         }
 
         RowLayout {
@@ -54,9 +102,9 @@ Rectangle {
 
             SectionFrame {
                 Layout.fillWidth: true
+                Layout.fillHeight: true
                 Layout.horizontalStretchFactor: 2
-                Layout.minimumWidth: 3 * Theme.padButtonSize + 2 * Theme.fieldPadding
-                Layout.alignment: Qt.AlignTop
+                Layout.minimumWidth: Theme.dpadMinWidth(3)
 
                 Label {
                     Layout.alignment: Qt.AlignHCenter
@@ -67,20 +115,21 @@ Rectangle {
 
                 DpadDirectionControl {
                     Layout.alignment: Qt.AlignHCenter
+                    danger: !root.stepMode
                     centerText: "X Y"
 
                     onDirectionClicked: (direction) => {
                         const vertical = direction === "up" || direction === "down"
                         const endpoint = ({ up: "y_up", down: "y_down",
                                             left: "x_left", right: "x_right" })[direction]
-                        root.commandRequested(
-                            endpoint, vertical ? root.yStep : root.xStep)
+                        root.requestMove(endpoint, vertical ? root.yStep : root.xStep)
                     }
                 }
 
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: Theme.rowSpacing
+                    enabled: root.stepMode
 
                     LabeledField {
                         Layout.fillWidth: true
@@ -101,9 +150,10 @@ Rectangle {
             }
             SectionFrame {
                 Layout.fillWidth: true
+                Layout.fillHeight: true
                 Layout.horizontalStretchFactor: 1
-                Layout.minimumWidth: 3 * Theme.padButtonSize + 2 * Theme.fieldPadding
-                Layout.alignment: Qt.AlignTop
+                Layout.minimumWidth: Theme.dpadMinWidth(1)
+
                 Label {
                     Layout.alignment: Qt.AlignHCenter
                     text: "Translation (Z)"
@@ -114,14 +164,16 @@ Rectangle {
                 DpadDirectionControl {
                     Layout.alignment: Qt.AlignHCenter
                     horizontalEnabled: false
+                    danger: !root.stepMode
                     centerText: "Z"
 
-                    onDirectionClicked: (direction) => root.commandRequested(
+                    onDirectionClicked: (direction) => root.requestMove(
                         direction === "up" ? "z_forward" : "z_back", root.zStep)
                 }
 
                 LabeledField {
                     Layout.fillWidth: true
+                    enabled: root.stepMode
                     label: "Z (mm)"
                     text: root.zStep
                     validator: DoubleValidator { bottom: 0 }
@@ -131,9 +183,9 @@ Rectangle {
 
             SectionFrame {
                 Layout.fillWidth: true
+                Layout.fillHeight: true
                 Layout.horizontalStretchFactor: 2
-                Layout.minimumWidth: 3 * Theme.padButtonSize + 2 * Theme.fieldPadding
-                Layout.alignment: Qt.AlignTop
+                Layout.minimumWidth: Theme.dpadMinWidth(3)
 
                 Label {
                     Layout.alignment: Qt.AlignHCenter
@@ -144,20 +196,21 @@ Rectangle {
 
                 DpadDirectionControl {
                     Layout.alignment: Qt.AlignHCenter
+                    danger: !root.stepMode
                     centerText: "YAW\nPITCH"
 
                     onDirectionClicked: (direction) => {
                         const vertical = direction === "up" || direction === "down"
                         const endpoint = ({ up: "pitch_up", down: "pitch_down",
                                             left: "yaw_left", right: "yaw_right" })[direction]
-                        root.commandRequested(
-                            endpoint, vertical ? root.pitchStep : root.yawStep)
+                        root.requestMove(endpoint, vertical ? root.pitchStep : root.yawStep)
                     }
                 }
 
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: Theme.rowSpacing
+                    enabled: root.stepMode
 
                     LabeledField {
                         Layout.fillWidth: true

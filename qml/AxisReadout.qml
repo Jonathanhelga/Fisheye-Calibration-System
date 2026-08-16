@@ -7,8 +7,6 @@ RowLayout {
     property alias label: caption.text
     property alias value: readout.text
 
-    Layout.fillWidth: true
-
     spacing: Theme.labelSpacing
 
     Label {

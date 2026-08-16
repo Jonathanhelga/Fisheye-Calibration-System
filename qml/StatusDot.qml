@@ -7,24 +7,22 @@ Rectangle {
 
     property int status: ServerProbe.Unknown
 
-    implicitWidth: 8
-    implicitHeight: 8
-    width: implicitWidth
-    height: implicitHeight
+    implicitWidth: Math.round(Theme.unit * 0.5)
+    implicitHeight: implicitWidth
     radius: width / 2
     antialiasing: true
 
-    color: status === ServerProbe.Ok      ? "#3aa76d"
-         : status === ServerProbe.Failed  ? "#c0483c"
-         : status === ServerProbe.Partial ? "#e0a02a"
-                                          : "#c6ced5"
+    color: status === ServerProbe.Ok      ? Theme.statusOk
+         : status === ServerProbe.Failed  ? Theme.statusFailed
+         : status === ServerProbe.Partial ? Theme.statusPartial
+                                          : Theme.statusUnknown
 
     SequentialAnimation on opacity {
         running: dot.status === ServerProbe.Checking
         loops: Animation.Infinite
 
-        NumberAnimation { to: 0.3; duration: 450; easing.type: Easing.InOutQuad }
-        NumberAnimation { to: 1.0; duration: 450; easing.type: Easing.InOutQuad }
+        NumberAnimation { to: 0.3; duration: Theme.animSlow; easing.type: Easing.InOutQuad }
+        NumberAnimation { to: 1.0; duration: Theme.animSlow; easing.type: Easing.InOutQuad }
 
         onRunningChanged: if (!running) dot.opacity = 1
     }

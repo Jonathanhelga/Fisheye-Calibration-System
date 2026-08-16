@@ -6,44 +6,54 @@ import FisheyeCaliJojo
 // Wireframe of the old mainwindow_main.ui panel layout.
 ApplicationWindow {
     id: window
-    Bridge { id: bridge }
-    width: 1400
-    height: 900
+    width:  Screen.desktopAvailableWidth
+    height: Screen.desktopAvailableHeight
+    minimumWidth:   (Theme.minColumnLeft + Theme.minColumnCenter + Theme.minColumnRight + 4 * Theme.spaceMd) * 0.5
+    minimumHeight:  (Theme.minPanelHeight + 2 * Theme.minHistogramHeight + 4 * Theme.spaceMd) * 0.5
+
     visible: true
     title: "Fisheye Calibration - Jojo Version"
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Theme.panelGap
-        spacing: Theme.panelGap
+        anchors.margins: Theme.spaceMd
+        spacing: Theme.spaceMd
 
         RowLayout {
-            Layout.fillWidth: true
-            spacing: Theme.panelGap
+            id: workRow
+            Layout.fillWidth:   true
+            Layout.fillHeight:  true
+            readonly property real free: Math.max(0, window.width - 4 * Theme.spaceMd)
+            spacing: Theme.spaceMd
+            
+            Layout.preferredHeight: 1000
+            Layout.minimumHeight: Theme.minPanelHeight
 
             ColumnLayout {
-                Layout.preferredWidth: 420
-                spacing: Theme.panelGap
-                
-                ServerUrlPanel {
-                    Layout.fillWidth: true
-                }
-                AxisControlPanel {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                }
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.preferredWidth: workRow.free * Theme.ratioLeft
+                Layout.minimumWidth: Theme.minColumnLeft
+                spacing: Theme.spaceMd
+
+                ServerUrlPanel {  Layout.fillWidth: true }
+                AxisControlPanel { Layout.fillWidth: true; Layout.fillHeight: true }
             }
 
             PanelPlaceholder {
                 title: "Camera Panel"
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.preferredWidth: 500
+                Layout.preferredWidth: workRow.free * Theme.ratioCenter
+                Layout.minimumWidth: Theme.minColumnCenter
             }
 
             ColumnLayout {
-                Layout.preferredWidth: 380
-                spacing: Theme.panelGap
+                Layout.fillWidth:   true
+                Layout.fillHeight:  true
+                Layout.preferredWidth: workRow.free * Theme.ratioRight
+                Layout.minimumWidth: Theme.minColumnRight
+                spacing: Theme.spaceMd
 
                 PanelPlaceholder {
                     title: "Centering"
@@ -66,20 +76,16 @@ ApplicationWindow {
         HistogramPanel {
             channel: 1
             Layout.fillWidth: true
-            Layout.preferredHeight: 260
+            Layout.fillHeight: true
+            Layout.preferredHeight: 380
+            Layout.minimumHeight: Theme.minHistogramHeight
         }
         HistogramPanel {
             channel: 2
             Layout.fillWidth: true
-            Layout.preferredHeight: 260
+            Layout.fillHeight: true
+            Layout.preferredHeight: 380
+            Layout.minimumHeight: Theme.minHistogramHeight
         }
-
-        // Label {
-        //     text: "bridge.clickCount (proves C++ <-> QML wiring works): " + bridge.clickCount
-        // }
-        // Button {
-        //     text: "Ping Bridge"
-        //     onClicked: bridge.handleClick()
-        // }
     }
 }

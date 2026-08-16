@@ -24,7 +24,7 @@ ColumnLayout {
 
         Label {
             id: caption
-            color: Theme.textCaption
+            color: field.enabled ? Theme.textCaption : Theme.textDisabled
             font.pixelSize: Theme.captionFontSize
         }
 
@@ -38,15 +38,20 @@ ColumnLayout {
     TextField {
         id: input
         Layout.fillWidth: true
-        color: Theme.textPrimary
+        Layout.minimumWidth: Theme.fieldMinWidth
+        color: input.enabled ? Theme.textPrimary : Theme.textDisabled
         font.bold: true
         onTextEdited: if (acceptableInput) field.edited(text)
 
         background: Rectangle {
             implicitHeight: Theme.controlHeight
-            color: Theme.fieldBackground
+            color: input.enabled ? Theme.fieldBackground : Theme.fieldDisabledBackground
             border.color: input.activeFocus ? Theme.accent : Theme.panelBorder
             radius: Theme.radius
+
+            Behavior on color {
+                ColorAnimation { duration: Theme.animFast }
+            }
         }
     }
 }

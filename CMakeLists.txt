@@ -32,8 +32,8 @@ qt_add_qml_module(fisheye_cali_jojo
         qml/HistogramPanel.qml
         qml/ServerUrlPanel.qml
         qml/LabeledField.qml
-        qml/InlineField.qml
         qml/SectionFrame.qml
+        qml/SegmentedControl.qml
         qml/StatusDot.qml
         qml/AxisControlPanel.qml
         qml/AxisReadout.qml
