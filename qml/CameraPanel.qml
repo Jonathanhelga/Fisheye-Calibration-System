@@ -16,19 +16,10 @@ Rectangle {
     property bool busy: false
     property string pendingMode: ""
 
-    property int positiveCenterX: -1
-    property int positiveCenterY: -1
-    property int negativeCenterX: -1
-    property int negativeCenterY: -1
-    property int centerRoi: 100
-
-    readonly property int activeCenterX: viewSelector.currentIndex === 1 ? positiveCenterX
-                                       : viewSelector.currentIndex === 2 ? negativeCenterX
-                                                                         : -1
-
-    readonly property int activeCenterY: viewSelector.currentIndex === 1 ? positiveCenterY
-                                       : viewSelector.currentIndex === 2 ? negativeCenterY
-                                                                         : -1
+    property int centerX: -1
+    property int centerY: -1
+    property int roiRadius: 0
+    property bool centerLocked: false
 
     readonly property bool hasPositive: positivePath !== ""
     readonly property bool hasNegative: negativePath !== ""
@@ -65,19 +56,6 @@ Rectangle {
     function requestCapture(mode) {
         pendingMode = mode
         captureRequested(mode)
-    }
-
-    function setCenter(mode, x, y) {
-        if (mode === "Positive") {
-            positiveCenterX = x
-            positiveCenterY = y
-        } else if (mode === "Negative") {
-            negativeCenterX = x
-            negativeCenterY = y
-        } else {
-            return
-        }
-        centerPicked(mode, x, y)
     }
 
     function showView(mode) {
@@ -209,16 +187,6 @@ Rectangle {
                 label: qsTr("Zoom")
                 value: preview.loaded ? Math.round(preview.zoom * 100) + "%" : "?"
             }
-
-            AxisReadout {
-                Layout.preferredWidth: Math.round(Theme.charUnit * 10)
-
-                label: qsTr("ROI")
-                editable: true
-                value: root.centerRoi
-                validator: IntValidator { bottom: 1; top: 9999 }
-                onEdited: (text) => root.centerRoi = parseInt(text)
-            }
         }
 
         ImagePreview {
@@ -233,15 +201,16 @@ Rectangle {
                 ? qsTr("No %1 shot yet").arg(root.patternMode.toLowerCase())
                 : qsTr("No image. Press Capture.")
 
-            pickEnabled: root.patternMode !== ""
+            pickEnabled: root.patternMode !== "" && !root.centerLocked
             hint: pickEnabled ? qsTr("Click to set the %1 center").arg(root.patternMode.toLowerCase())
-                              : qsTr("Preview only. Switch to Pos or Neg to set the center.")
+                : root.centerLocked ? qsTr("Center is locked. Unlock it in the Centering panel.")
+                                    : qsTr("Preview only. Switch to Pos or Neg to set the center.")
 
-            centerX: root.activeCenterX
-            centerY: root.activeCenterY
-            roiRadius: root.centerRoi
+            centerX: root.centerX
+            centerY: root.centerY
+            roiRadius: root.roiRadius
 
-            onPicked: (x, y) => root.setCenter(root.patternMode, x, y)
+            onPicked: (x, y) => root.centerPicked(root.patternMode, x, y)
         }
 
         RowLayout {

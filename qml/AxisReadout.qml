@@ -7,9 +7,9 @@ RowLayout {
     id: field
 
     property alias label: caption.text
-    property alias value: readout.text
-    property alias validator: readout.validator
-    property bool editable: false
+    property alias value: box.value
+    property alias validator: box.validator
+    property alias editable: box.editable
 
     signal edited(string value)
 
@@ -21,23 +21,9 @@ RowLayout {
         font.pixelSize: Theme.captionFontSize
     }
 
-    Rectangle {
+    ValueField {
+        id: box
         Layout.fillWidth: true
-        implicitWidth: readout.implicitWidth + 2 * Theme.fieldPadding
-        implicitHeight: Theme.controlHeight
-        color: Theme.fieldBackground
-        border.color: readout.activeFocus ? Theme.accent : Theme.panelBorder
-        radius: Theme.radius
-
-        TextInput {
-            id: readout
-            anchors.centerIn: parent
-            color: Theme.textPrimary
-            font.bold: true
-            readOnly: !field.editable
-            activeFocusOnPress: field.editable
-            selectByMouse: field.editable
-            onTextEdited: if (acceptableInput) field.edited(text)
-        }
+        onEdited: (value) => field.edited(value)
     }
 }

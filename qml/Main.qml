@@ -12,6 +12,15 @@ ApplicationWindow {
     visible: true
     title: "Fisheye Calibration - Jojo Version"
 
+    minimumWidth: Theme.minColumnLeft
+                + Theme.minColumnCenter
+                + rightColumn.Layout.minimumWidth
+                + 4 * Theme.spaceMd
+
+    minimumHeight: workRow.Layout.minimumHeight
+                 + 2 * Theme.minHistogramHeight
+                 + 4 * Theme.spaceMd
+
     ColumnLayout {
         id: rootColumn
         anchors.fill: parent
@@ -28,7 +37,7 @@ ApplicationWindow {
             spacing: Theme.spaceMd
 
             Layout.preferredHeight: rootColumn.free * Theme.ratioWorkRow
-            Layout.minimumHeight: Theme.minPanelHeight
+            Layout.minimumHeight: Math.max(Theme.minPanelHeight, rightColumn.Layout.minimumHeight)
 
             ColumnLayout {
                 Layout.fillWidth: true
@@ -42,24 +51,40 @@ ApplicationWindow {
             }
 
             CameraPanel {
+                id: camera
+
                 singlePath: "/Users/jonathanhelga/Desktop/Fisheye_Calibration-Jojo_Version/tools/sample_shot.png"
 
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.preferredWidth: workRow.free * Theme.ratioCenter
-                Layout.minimumWidth: Theme.minColumnCenter
+                Layout.minimumWidth: Math.max(Theme.minColumnCenter, camera.implicitWidth)
+
+                roiRadius: centering.centerRoi
+                centerLocked: centering.locked
+                centerX: camera.patternMode === "Positive" ? centering.positiveCpx
+                       : camera.patternMode === "Negative" ? centering.negativeCpx
+                                                           : -1
+                centerY: camera.patternMode === "Positive" ? centering.positiveCpy
+                       : camera.patternMode === "Negative" ? centering.negativeCpy
+                                                           : -1
+
+                onCenterPicked: (mode, x, y) => centering.setCenter(mode, x, y)
             }
 
             ColumnLayout {
+                id: rightColumn
                 Layout.fillWidth:   true
                 Layout.fillHeight:  true
                 Layout.preferredWidth: workRow.free * Theme.ratioRight
+                Layout.minimumWidth: Math.max(Theme.minColumnRight, centering.implicitWidth)
+                Layout.minimumHeight: rightColumn.implicitHeight
                 spacing: Theme.spaceMd
 
-                PanelPlaceholder {
-                    title: "Centering"
+                CenteringPanel {
+                    id: centering
                     Layout.fillWidth: true
-                    Layout.fillHeight: true
+                    Layout.minimumHeight: centering.implicitHeight
                 }
                 PanelPlaceholder {
                     title: "Calibration Result / 3D Validation"
