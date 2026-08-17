@@ -60,6 +60,7 @@ QtObject {
 
     readonly property color previewBackground: "#22272c"
     readonly property color previewOverlay: "#99000000"
+    readonly property color previewMarker: "#ff2d2d"
 
     readonly property color accent: "#2f6fbf"
     readonly property color accentHover: "#5a93d4"

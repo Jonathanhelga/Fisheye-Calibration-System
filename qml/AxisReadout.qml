@@ -4,8 +4,14 @@ import QtQuick.Layouts
 import FisheyeCaliJojo
 
 RowLayout {
+    id: field
+
     property alias label: caption.text
     property alias value: readout.text
+    property alias validator: readout.validator
+    property bool editable: false
+
+    signal edited(string value)
 
     spacing: Theme.labelSpacing
 
@@ -17,17 +23,21 @@ RowLayout {
 
     Rectangle {
         Layout.fillWidth: true
-        implicitWidth: 2 * Theme.fieldPadding
+        implicitWidth: readout.implicitWidth + 2 * Theme.fieldPadding
         implicitHeight: Theme.controlHeight
         color: Theme.fieldBackground
-        border.color: Theme.panelBorder
+        border.color: readout.activeFocus ? Theme.accent : Theme.panelBorder
         radius: Theme.radius
 
-        Text {
+        TextInput {
             id: readout
             anchors.centerIn: parent
             color: Theme.textPrimary
             font.bold: true
+            readOnly: !field.editable
+            activeFocusOnPress: field.editable
+            selectByMouse: field.editable
+            onTextEdited: if (acceptableInput) field.edited(text)
         }
     }
 }

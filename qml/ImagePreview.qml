@@ -18,8 +18,17 @@ Rectangle {
     readonly property real padLeft: (width - image.paintedWidth) / 2
     readonly property real padTop: (height - image.paintedHeight) / 2
 
+    readonly property real loupeMagnification: 18
+
     property int hoverX: -1
     property int hoverY: -1
+
+    property int centerX: -1
+    property int centerY: -1
+    property int roiRadius: 0
+
+    readonly property bool hasCenter: loaded && centerX >= 0 && centerY >= 0 && roiRadius > 0
+    readonly property real markerThickness: Math.max(1, Math.round(Theme.unit / 8))
 
     signal picked(int x, int y)
 
@@ -79,6 +88,81 @@ Rectangle {
         onClicked: (mouse) => {
             if (root.pickEnabled)
                 root.picked(toSourceX(mouse.x), toSourceY(mouse.y))
+        }
+    }
+
+    Item {
+        id: roi
+
+        readonly property real half: root.roiRadius * root.zoom
+
+        visible: root.hasCenter
+
+        x: root.padLeft + (root.centerX + 0.5) * root.zoom - half
+        y: root.padTop + (root.centerY + 0.5) * root.zoom - half
+        width: 2 * half
+        height: 2 * half
+
+        Rectangle {
+            anchors.fill: parent
+            color: "transparent"
+            border.color: Theme.previewMarker
+            border.width: root.markerThickness
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            radius: width / 2
+            color: "transparent"
+            border.color: Theme.previewMarker
+            border.width: root.markerThickness
+            antialiasing: true
+        }
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: roi.width * Math.SQRT2
+            height: root.markerThickness
+            color: Theme.previewMarker
+            rotation: 45
+            antialiasing: true
+        }
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: roi.width * Math.SQRT2
+            height: root.markerThickness
+            color: Theme.previewMarker
+            rotation: -45
+            antialiasing: true
+        }
+    }
+
+    Rectangle {
+        id: loupe
+
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.margins: Theme.spaceXs
+
+        width: Theme.unit * 10
+        height: width
+        radius: Theme.radius
+        color: Theme.previewBackground
+        border.color: Theme.panelBorder
+        clip: true
+
+        visible: root.loaded && root.hoverX >= 0
+
+        readonly property real pixelScale: root.zoom * root.loupeMagnification
+
+        Image {
+            source: root.source
+            width: root.sourceWidth * loupe.pixelScale
+            height: root.sourceHeight * loupe.pixelScale
+            x: loupe.width / 2 - root.hoverX * loupe.pixelScale
+            y: loupe.height / 2 - root.hoverY * loupe.pixelScale
+            smooth: false
         }
     }
 

@@ -42,6 +42,8 @@ ApplicationWindow {
             }
 
             CameraPanel {
+                singlePath: "/Users/jonathanhelga/Desktop/Fisheye_Calibration-Jojo_Version/tools/sample_shot.png"
+
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.preferredWidth: workRow.free * Theme.ratioCenter
