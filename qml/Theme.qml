@@ -34,8 +34,8 @@ QtObject {
     readonly property real ratioCenter: 0.42
     readonly property real ratioRight:  0.23
 
-    readonly property real ratioWorkRow:   0.62
-    readonly property real ratioHistogram: 0.19
+    readonly property real ratioWorkRow:   0.60
+    readonly property real ratioHistogram: 0.20
 
 
     readonly property int animFast: 120
