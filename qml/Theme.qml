@@ -58,6 +58,9 @@ QtObject {
     readonly property color fieldBackground: "#ffffff"
     readonly property color fieldDisabledBackground: "#e9edf1"
 
+    readonly property color previewBackground: "#22272c"
+    readonly property color previewOverlay: "#99000000"
+
     readonly property color accent: "#2f6fbf"
     readonly property color accentHover: "#5a93d4"
     readonly property color accentIdle: "#7fb3e6"
@@ -75,4 +78,5 @@ QtObject {
     readonly property color textCaption: "#8a939c"
     readonly property color textOnAccent: "#ffffff"
     readonly property color textDisabled: "#b6bec6"
+    readonly property color textOnPreview: "#dfe4e9"
 }

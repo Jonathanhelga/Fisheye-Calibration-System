@@ -38,6 +38,9 @@ qt_add_qml_module(fisheye_cali_jojo
         qml/AxisControlPanel.qml
         qml/AxisReadout.qml
         qml/DpadDirectionControl.qml
+        qml/ActionButton.qml
+        qml/ImagePreview.qml
+        qml/CameraPanel.qml
     SOURCES
         Bridge.cpp Bridge.h
         ServerProbe.cpp ServerProbe.h

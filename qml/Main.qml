@@ -41,11 +41,11 @@ ApplicationWindow {
                 AxisControlPanel { Layout.fillWidth: true; Layout.fillHeight: true }
             }
 
-            PanelPlaceholder {
-                title: "Camera Panel"
+            CameraPanel {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.preferredWidth: workRow.free * Theme.ratioCenter
+                Layout.minimumWidth: Theme.minColumnCenter
             }
 
             ColumnLayout {

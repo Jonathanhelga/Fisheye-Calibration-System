@@ -14,9 +14,32 @@ Rectangle {
 
     readonly property bool stepMode: travelMode.currentIndex === 1
 
+    property string activeMotion: ""
+
+    readonly property bool moving: activeMotion !== ""
+
+    readonly property var motionNames: ({
+        x_left:     qsTr("X left"),
+        x_right:    qsTr("X right"),
+        y_up:       qsTr("Y up"),
+        y_down:     qsTr("Y down"),
+        z_forward:  qsTr("Z upward"),
+        z_back:     qsTr("Z backward"),
+        yaw_left:   qsTr("Yaw left"),
+        yaw_right:  qsTr("Yaw right"),
+        pitch_up:   qsTr("Pitch up"),
+        pitch_down: qsTr("Pitch down")
+    })
+
+    readonly property string motionText: moving
+        ? qsTr("Moving %1").arg(motionNames[activeMotion] || activeMotion)
+        : qsTr("Idle")
+
     signal commandRequested(string endpoint, string mode, real distance)
+    signal stopRequested()
 
     function requestMove(endpoint, step) {
+        activeMotion = endpoint
         commandRequested(endpoint, stepMode ? "step" : "max", stepMode ? step : 0)
     }
 
@@ -34,10 +57,31 @@ Rectangle {
         anchors.margins: Theme.panelMargin
         spacing: Theme.rowSpacing
 
-        Label {
-            text: "Axis Control"
-            font.bold: true
-            color: Theme.accent
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.rowSpacing
+
+            Label {
+                text: "Axis Control"
+                font.bold: true
+                color: Theme.accent
+            }
+
+            StatusDot {
+                Layout.alignment: Qt.AlignVCenter
+                status: root.moving ? ServerProbe.Checking : ServerProbe.Unknown
+                color: root.moving ? Theme.statusOk : Theme.statusUnknown
+            }
+
+            Label {
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                Layout.preferredWidth: 0
+                text: root.motionText
+                color: root.moving ? Theme.textPrimary : Theme.textCaption
+                font.pixelSize: Theme.captionFontSize
+                elide: Text.ElideRight
+            }
         }
 
         RowLayout {
@@ -91,6 +135,39 @@ Rectangle {
                 ComboBox {
                     Layout.preferredHeight: Theme.controlHeight
                     model: [ "High", "Normal", "Slow"]
+                }
+            }
+            Button {
+                id: stopButton
+
+                Layout.preferredWidth: Math.round(Theme.charUnit * 12)
+                Layout.preferredHeight: Theme.controlHeight
+                Layout.alignment: Qt.AlignRight
+
+                text: qsTr("STOP")
+                onClicked: {
+                    root.activeMotion = ""
+                    root.stopRequested()
+                }
+
+                background: Rectangle {
+                    radius: Theme.radius
+                    color: stopButton.down ? Theme.dangerHover
+                         : stopButton.hovered ? Theme.dangerHover
+                         : Theme.danger
+
+                    Behavior on color {
+                        ColorAnimation { duration: Theme.animFast }
+                    }
+                }
+
+                contentItem: Text {
+                    text: stopButton.text
+                    color: Theme.textOnAccent
+                    font.pixelSize: Theme.fontTitle
+                    font.bold: true
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
                 }
             }
         }
