@@ -28,7 +28,7 @@ QtObject {
     readonly property int minColumnCenter:      Math.round(unit * 28)
     readonly property int minColumnRight:       Math.round(unit * 12)
     readonly property int minPanelHeight:       Math.round(unit * 35)
-    readonly property int minHistogramHeight:   Math.round(unit * 7)
+    readonly property int minHistogramHeight:   Math.round(unit * 10)
 
     readonly property real ratioLeft:   0.35
     readonly property real ratioCenter: 0.42
@@ -61,6 +61,8 @@ QtObject {
     readonly property color previewBackground: "#22272c"
     readonly property color previewOverlay: "#99000000"
     readonly property color previewMarker: "#ff2d2d"
+    readonly property color previewGrid: "#4ddfe4e9"
+    readonly property color previewGuide: "#b3dfe4e9"
 
     readonly property color accent: "#2f6fbf"
     readonly property color accentHover: "#5a93d4"

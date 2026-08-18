@@ -16,13 +16,22 @@ Button {
     readonly property color labelColor: tone === "neutral" ? Theme.textPrimary
                                                            : Theme.textOnAccent
 
-    implicitHeight: Theme.controlHeight
-    implicitWidth: Math.round(Theme.charUnit * 10)
+    leftPadding:   Theme.spaceMd
+    rightPadding:  Theme.spaceMd
+    topPadding:    Theme.spaceXs
+    bottomPadding: Theme.spaceXs
+
+    implicitHeight: Math.max(Theme.controlHeight,
+                             implicitContentHeight + topPadding + bottomPadding)
+    implicitWidth: Math.max(Math.round(Theme.charUnit * 10),
+                            implicitContentWidth + leftPadding + rightPadding)
 
     background: Rectangle {
         radius: Theme.radius
-        border.color: control.tone === "neutral" ? Theme.panelBorder : "transparent"
+        border.color: control.tone === "neutral" && !control.checked ? Theme.panelBorder
+                                                                    : "transparent"
         color: !control.enabled ? Theme.fieldDisabledBackground
+             : control.checked ? (control.down || control.hovered ? Theme.accentHover : Theme.accent)
              : control.down || control.hovered ? control.activeColor
                                                : control.baseColor
 
@@ -33,9 +42,11 @@ Button {
 
     contentItem: Text {
         text: control.text
-        color: control.enabled ? control.labelColor : Theme.textDisabled
+        color: !control.enabled ? Theme.textDisabled
+             : control.checked ? Theme.textOnAccent
+                               : control.labelColor
         font.pixelSize: Theme.fontTitle
-        font.bold: control.tone !== "neutral"
+        font.bold: control.tone !== "neutral" || control.checked
         elide: Text.ElideRight
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter

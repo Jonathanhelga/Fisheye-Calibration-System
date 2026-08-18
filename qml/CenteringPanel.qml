@@ -64,7 +64,7 @@ Rectangle {
         centerChanged(target, x, y)
     }
 
-    implicitWidth: content.implicitWidth + 2 * Theme.panelMargin
+    implicitWidth: content.implicitWidth + 2 * Theme.panelMargin + Theme.rowSpacing
     implicitHeight: content.implicitHeight + 2 * Theme.panelMargin
 
     color: Theme.panelBackground

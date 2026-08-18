@@ -1,5 +1,8 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 import FisheyeCaliJojo
 
 Rectangle {
@@ -7,8 +10,11 @@ Rectangle {
 
     property url source
     property bool pickEnabled: false
+    property bool showGrid: false
     property string emptyText: qsTr("No image")
     property string hint
+    property string badgeText
+    property bool badgeActive: false
 
     readonly property int sourceWidth: image.sourceSize.width
     readonly property int sourceHeight: image.sourceSize.height
@@ -29,6 +35,7 @@ Rectangle {
 
     readonly property bool hasCenter: loaded && centerX >= 0 && centerY >= 0 && roiRadius > 0
     readonly property real markerThickness: Math.max(1, Math.round(Theme.unit / 8))
+    readonly property real hairline: 1
 
     signal picked(int x, int y)
 
@@ -43,6 +50,7 @@ Rectangle {
     Image {
         id: image
         anchors.fill: parent
+        anchors.margins: root.border.width + root.radius * (1 - 1 / Math.SQRT2)
         source: root.source
         fillMode: Image.PreserveAspectFit
         asynchronous: true
@@ -88,6 +96,57 @@ Rectangle {
         onClicked: (mouse) => {
             if (root.pickEnabled)
                 root.picked(toSourceX(mouse.x), toSourceY(mouse.y))
+        }
+    }
+
+    Item {
+        id: guides
+
+        visible: root.showGrid && root.loaded
+
+        x: root.padLeft
+        y: root.padTop
+        width: image.paintedWidth
+        height: image.paintedHeight
+
+        Repeater {
+            model: [1 / 3, 2 / 3]
+
+            Rectangle {
+                required property real modelData
+
+                x: Math.round(guides.width * modelData)
+                width: root.hairline
+                height: guides.height
+                color: Theme.previewGrid
+            }
+        }
+
+        Repeater {
+            model: [1 / 3, 2 / 3]
+
+            Rectangle {
+                required property real modelData
+
+                y: Math.round(guides.height * modelData)
+                width: guides.width
+                height: root.hairline
+                color: Theme.previewGrid
+            }
+        }
+
+        Rectangle {
+            x: Math.round(guides.width / 2)
+            width: root.hairline
+            height: guides.height
+            color: Theme.previewGuide
+        }
+
+        Rectangle {
+            y: Math.round(guides.height / 2)
+            width: guides.width
+            height: root.hairline
+            color: Theme.previewGuide
         }
     }
 
@@ -163,6 +222,43 @@ Rectangle {
             x: loupe.width / 2 - root.hoverX * loupe.pixelScale
             y: loupe.height / 2 - root.hoverY * loupe.pixelScale
             smooth: false
+        }
+    }
+
+    Rectangle {
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.margins: Theme.spaceXs
+
+        visible: root.badgeText !== ""
+        width: badge.implicitWidth + 2 * Theme.fieldPadding
+        height: badge.implicitHeight + 2 * Theme.spaceXs
+        radius: Theme.radius
+        color: Theme.previewOverlay
+
+        RowLayout {
+            id: badge
+
+            anchors.centerIn: parent
+            spacing: Theme.spaceXs
+
+            Rectangle {
+                visible: root.badgeActive
+                Layout.alignment: Qt.AlignVCenter
+
+                implicitWidth: Math.round(Theme.unit * 0.4)
+                implicitHeight: implicitWidth
+                radius: width / 2
+                antialiasing: true
+                color: Theme.previewMarker
+            }
+
+            Label {
+                text: root.badgeText
+                color: Theme.textOnPreview
+                font.pixelSize: Theme.captionFontSize
+                font.bold: true
+            }
         }
     }
 

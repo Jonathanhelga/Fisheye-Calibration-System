@@ -15,11 +15,11 @@ ApplicationWindow {
     minimumWidth: Theme.minColumnLeft
                 + Theme.minColumnCenter
                 + rightColumn.Layout.minimumWidth
-                + 4 * Theme.spaceMd
+                + 8 * Theme.spaceMd
 
     minimumHeight: workRow.Layout.minimumHeight
-                 + 2 * Theme.minHistogramHeight
-                 + 4 * Theme.spaceMd
+                 + bottomRow.Layout.minimumHeight
+                 + 5 * Theme.spaceMd
 
     ColumnLayout {
         id: rootColumn
@@ -28,6 +28,7 @@ ApplicationWindow {
         spacing: Theme.spaceMd
 
         readonly property real free: Math.max(0, window.height - 4 * Theme.spaceMd)
+        readonly property real histogramWidth: camera.x + camera.width
 
         RowLayout {
             id: workRow
@@ -77,41 +78,124 @@ ApplicationWindow {
                 Layout.fillWidth:   true
                 Layout.fillHeight:  true
                 Layout.preferredWidth: workRow.free * Theme.ratioRight
-                Layout.minimumWidth: Math.max(Theme.minColumnRight, centering.implicitWidth)
+                Layout.minimumWidth: Math.max(Theme.minColumnRight,
+                                             centering.implicitWidth,
+                                             live.implicitWidth)
                 Layout.minimumHeight: rightColumn.implicitHeight
                 spacing: Theme.spaceMd
+
+                LiveCameraPanel {
+                    id: live
+
+                    framePath: camera.singlePath
+
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+
+                    roiRadius: centering.centerRoi
+                    centerX: centering.hasPositiveCenter ? centering.positiveCpx
+                                                         : centering.negativeCpx
+                    centerY: centering.hasPositiveCenter ? centering.positiveCpy
+                                                         : centering.negativeCpy
+                }
 
                 CenteringPanel {
                     id: centering
                     Layout.fillWidth: true
                     Layout.minimumHeight: centering.implicitHeight
                 }
-                PanelPlaceholder {
-                    title: "Calibration Result / 3D Validation"
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                }
-                PanelPlaceholder {
-                    title: "Monitor / Pattern"
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                }
             }
         }
+        RowLayout {
+            id: bottomRow
+            Layout.fillWidth:  true
+            Layout.fillHeight: true
+            spacing: Theme.spaceMd
 
-        HistogramPanel {
-            channel: 1
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            Layout.preferredHeight: rootColumn.free * Theme.ratioHistogram
-            Layout.minimumHeight: Theme.minHistogramHeight
-        }
-        HistogramPanel {
-            channel: 2
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            Layout.preferredHeight: rootColumn.free * Theme.ratioHistogram
-            Layout.minimumHeight: Theme.minHistogramHeight
+            Layout.preferredHeight: rootColumn.free * 2 * Theme.ratioHistogram
+            Layout.minimumHeight: Math.max(2 * Theme.minHistogramHeight + Theme.spaceMd,
+                                           toolColumn.implicitHeight)
+
+            ColumnLayout {
+                Layout.fillHeight: true
+                Layout.fillWidth: false
+                Layout.preferredWidth: rootColumn.histogramWidth
+                Layout.maximumWidth: rootColumn.histogramWidth
+                spacing: Theme.spaceMd
+
+                HistogramPanel {
+                    channel: 1
+                    Layout.fillWidth:  true
+                    Layout.fillHeight: true
+                    Layout.minimumHeight: Theme.minHistogramHeight
+                }
+                HistogramPanel {
+                    channel: 2
+                    Layout.fillWidth:  true
+                    Layout.fillHeight: true
+                    Layout.minimumHeight: Theme.minHistogramHeight
+                }
+            }
+
+            ColumnLayout {
+                id: toolColumn
+                Layout.fillWidth:  true
+                Layout.fillHeight: true
+                Layout.minimumWidth: Math.max(Theme.minColumnRight,
+                                              measurement.implicitWidth,
+                                              validation.implicitWidth)
+                spacing: Theme.spaceMd
+
+                readonly property real panelHeight: Math.max(measurement.implicitHeight,
+                                                             validation.implicitHeight)
+
+                PanelPlaceholder {
+                    id: measurement
+                    title: qsTr("Measurement")
+
+                    Layout.fillWidth:  true
+                    Layout.fillHeight: true
+                    Layout.preferredHeight: toolColumn.panelHeight
+                    Layout.minimumHeight:   toolColumn.panelHeight
+
+                    ActionButton {
+                        Layout.fillWidth: true
+                        tone: "accent"
+                        text: qsTr("Monitor Viewer")
+                    }
+                    ActionButton {
+                        Layout.fillWidth: true
+                        tone: "accent"
+                        text: qsTr("PCT (Pattern Generator)")
+                    }
+                    ActionButton {
+                        Layout.fillWidth: true
+                        tone: "accent"
+                        text: qsTr("Moil Calibration Result")
+                    }
+                }
+
+                PanelPlaceholder {
+                    id: validation
+                    title: qsTr("Validation")
+
+                    Layout.fillWidth:  true
+                    Layout.fillHeight: true
+                    Layout.preferredHeight: toolColumn.panelHeight
+                    Layout.minimumHeight:   toolColumn.panelHeight
+
+                    ActionButton {
+                        Layout.fillWidth: true
+                        tone: "accent"
+                        text: qsTr("3D Verification")
+                    }
+                    ActionButton {
+                        Layout.fillWidth: true
+                        tone: "accent"
+                        text: qsTr("Setup Center")
+                    }
+                }
+            }
         }
     }
 }
