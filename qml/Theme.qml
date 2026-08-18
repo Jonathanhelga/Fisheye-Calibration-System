@@ -16,7 +16,7 @@ QtObject {
     //control sizing
     readonly property int radius:        Math.round(unit * 0.25)
     readonly property int controlHeight: Math.round(unit * 2)
-    readonly property int padButtonSize: Math.round(unit * 2.5)
+    readonly property int padButtonSize: Math.round(unit * 2.88)
     readonly property int readoutWidth:  Math.round(charUnit * 7)
     readonly property int fieldMinWidth: Math.round(charUnit * 5)
 
@@ -45,6 +45,7 @@ QtObject {
     readonly property int panelMargin: spaceSm
     readonly property int rowSpacing: spaceSm
     readonly property int labelSpacing: spaceXs
+    readonly property int dpadSpacing: spaceLg
     readonly property int fieldPadding: spaceSm
     readonly property int captionFontSize: fontCaption
 

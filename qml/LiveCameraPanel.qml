@@ -90,7 +90,7 @@ Rectangle {
             }
 
             ActionButton {
-                Layout.preferredWidth: Math.round(Theme.charUnit * 6)
+                Layout.preferredWidth: Math.round(Theme.charUnit * 8)
                 text: qsTr("Grid")
                 checkable: true
                 checked: root.showGrid
@@ -102,7 +102,7 @@ Rectangle {
             }
 
             ActionButton {
-                Layout.preferredWidth: Math.round(Theme.charUnit * 6)
+                Layout.preferredWidth: Math.round(Theme.charUnit * 8)
                 text: qsTr("ROI")
                 checkable: true
                 checked: root.showRoi

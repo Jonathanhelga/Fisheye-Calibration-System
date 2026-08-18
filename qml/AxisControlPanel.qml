@@ -28,7 +28,10 @@ Rectangle {
         yaw_left:   qsTr("Yaw left"),
         yaw_right:  qsTr("Yaw right"),
         pitch_up:   qsTr("Pitch up"),
-        pitch_down: qsTr("Pitch down")
+        pitch_down: qsTr("Pitch down"),
+        xy_home:       qsTr("X and Y home"),
+        z_home:        qsTr("Z home"),
+        rotation_home: qsTr("Yaw and Pitch home")
     })
 
     readonly property string motionText: moving
@@ -36,11 +39,17 @@ Rectangle {
         : qsTr("Idle")
 
     signal commandRequested(string endpoint, string mode, real distance)
+    signal homeRequested(string group)
     signal stopRequested()
 
     function requestMove(endpoint, step) {
         activeMotion = endpoint
         commandRequested(endpoint, stepMode ? "step" : "max", stepMode ? step : 0)
+    }
+
+    function requestHome(group) {
+        activeMotion = group + "_home"
+        homeRequested(group)
     }
 
     implicitWidth: content.implicitWidth + 2 * Theme.panelMargin
@@ -193,6 +202,8 @@ Rectangle {
                     Layout.alignment: Qt.AlignHCenter
                     danger: !root.stepMode
                     centerText: "X Y"
+                    homeText: qsTr("HOME")
+                    homeEnabled: !root.moving
 
                     onDirectionClicked: (direction) => {
                         const vertical = direction === "up" || direction === "down"
@@ -200,6 +211,8 @@ Rectangle {
                                             left: "x_left", right: "x_right" })[direction]
                         root.requestMove(endpoint, vertical ? root.yStep : root.xStep)
                     }
+
+                    onHomeClicked: root.requestHome("xy")
                 }
 
                 RowLayout {
@@ -224,6 +237,7 @@ Rectangle {
                     }
                 }
             }
+            
             SectionFrame {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -241,9 +255,13 @@ Rectangle {
                     horizontalEnabled: false
                     danger: !root.stepMode
                     centerText: "Z"
+                    homeText: qsTr("HOME")
+                    homeEnabled: !root.moving
 
                     onDirectionClicked: (direction) => root.requestMove(
                         direction === "up" ? "z_forward" : "z_back", root.zStep)
+
+                    onHomeClicked: root.requestHome("z")
                 }
 
                 LabeledField {
@@ -272,6 +290,8 @@ Rectangle {
                     Layout.alignment: Qt.AlignHCenter
                     danger: !root.stepMode
                     centerText: "YAW\nPITCH"
+                    homeText: qsTr("HOME")
+                    homeEnabled: !root.moving
 
                     onDirectionClicked: (direction) => {
                         const vertical = direction === "up" || direction === "down"
@@ -279,6 +299,8 @@ Rectangle {
                                             left: "yaw_left", right: "yaw_right" })[direction]
                         root.requestMove(endpoint, vertical ? root.pitchStep : root.yawStep)
                     }
+
+                    onHomeClicked: root.requestHome("rotation")
                 }
 
                 RowLayout {

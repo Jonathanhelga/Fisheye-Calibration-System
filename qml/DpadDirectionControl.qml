@@ -12,13 +12,17 @@ Item {
     property bool danger: false
     property string centerText: ""
 
+    property string homeText: ""
+    property bool homeEnabled: true
+
     signal directionClicked(string direction)
+    signal homeClicked()
 
     readonly property int columnCount: horizontalEnabled ? 3 : 1
     readonly property int cellSize: Theme.padButtonSize
 
-    implicitWidth: columnCount * Theme.padButtonSize + (columnCount - 1) * Theme.labelSpacing
-    implicitHeight: 3 * Theme.padButtonSize + 2 * Theme.labelSpacing
+    implicitWidth: columnCount * Theme.padButtonSize + (columnCount - 1) * Theme.dpadSpacing
+    implicitHeight: 3 * Theme.padButtonSize + 2 * Theme.dpadSpacing
 
     component PadButton: Button {
         id: control
@@ -51,8 +55,8 @@ Item {
         anchors.centerIn: parent
 
         columns: pad.columnCount
-        rowSpacing: Theme.labelSpacing
-        columnSpacing: Theme.labelSpacing
+        rowSpacing: Theme.dpadSpacing
+        columnSpacing: Theme.dpadSpacing
 
         Item {
             visible: pad.horizontalEnabled
@@ -77,15 +81,55 @@ Item {
             onClicked: pad.directionClicked("left")
         }
 
-        Label {
+        Item {
             Layout.preferredWidth: pad.cellSize
             Layout.preferredHeight: pad.cellSize
-            text: pad.centerText
-            color: Theme.textCaption
-            font.pixelSize: Theme.captionFontSize
-            font.bold: true
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
+
+            Label {
+                anchors.fill: parent
+                visible: pad.homeText.length === 0
+                text: pad.centerText
+                color: Theme.textCaption
+                font.pixelSize: Theme.captionFontSize
+                font.bold: true
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
+
+            Button {
+                id: homeButton
+
+                anchors.fill: parent
+                visible: pad.homeText.length > 0
+                enabled: pad.homeEnabled
+                padding: Theme.spaceXs
+
+                background: Rectangle {
+                    radius: Theme.radius
+                    color: homeButton.enabled && (homeButton.down || homeButton.hovered)
+                           ? Theme.accent : "transparent"
+                    border.color: homeButton.enabled ? Theme.accent : Theme.panelBorder
+
+                    Behavior on color {
+                        ColorAnimation { duration: Theme.animFast }
+                    }
+                }
+
+                contentItem: Text {
+                    text: pad.homeText
+                    color: !homeButton.enabled ? Theme.textDisabled
+                         : homeButton.down || homeButton.hovered ? Theme.textOnAccent
+                                                                 : Theme.accent
+                    font.pixelSize: Theme.captionFontSize
+                    font.bold: true
+                    fontSizeMode: Text.HorizontalFit
+                    minimumPixelSize: Math.round(Theme.captionFontSize * 0.6)
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+
+                onClicked: pad.homeClicked()
+            }
         }
 
         PadButton {
