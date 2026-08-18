@@ -17,6 +17,7 @@ QtObject {
     readonly property int radius:        Math.round(unit * 0.25)
     readonly property int controlHeight: Math.round(unit * 2)
     readonly property int padButtonSize: Math.round(unit * 2.88)
+    readonly property int rosetteCell:   Math.round(unit * 2)
     readonly property int readoutWidth:  Math.round(charUnit * 7)
     readonly property int fieldMinWidth: Math.round(charUnit * 5)
 
@@ -27,15 +28,15 @@ QtObject {
     readonly property int minColumnLeft:        Math.round(unit * 32)
     readonly property int minColumnCenter:      Math.round(unit * 28)
     readonly property int minColumnRight:       Math.round(unit * 12)
-    readonly property int minPanelHeight:       Math.round(unit * 35)
-    readonly property int minHistogramHeight:   Math.round(unit * 10)
+    readonly property int minPanelHeight:       Math.round(unit * 30)
+    readonly property int minHistogramHeight:   Math.round(unit * 13)
 
     readonly property real ratioLeft:   0.35
     readonly property real ratioCenter: 0.42
     readonly property real ratioRight:  0.23
 
-    readonly property real ratioWorkRow:   0.60
-    readonly property real ratioHistogram: 0.20
+    readonly property real ratioWorkRow:   0.50
+    readonly property real ratioHistogram: 0.25
 
 
     readonly property int animFast: 120
@@ -53,6 +54,16 @@ QtObject {
         return columns * padButtonSize + (columns - 1) * spaceXs + 2 * spaceSm
     }
 
+    readonly property int plotMarginLeft:   Math.round(charUnit * 5) + unit
+    readonly property int plotMarginRight:  spaceMd
+    readonly property int plotMarginTop:    spaceSm
+    readonly property int plotMarginBottom: Math.round(unit * 2.8)
+
+    readonly property int plotXDivisions: 10
+    readonly property int plotYDivisions: 9
+    readonly property int plotHoverRadius: Math.round(unit)
+    readonly property real plotCurveWidth: 1.5
+
 
     readonly property color panelBackground: "#f4f6f8"
     readonly property color panelBorder: "#b9c1c8"
@@ -64,6 +75,18 @@ QtObject {
     readonly property color previewMarker: "#ff2d2d"
     readonly property color previewGrid: "#4ddfe4e9"
     readonly property color previewGuide: "#b3dfe4e9"
+
+    readonly property color plotBackground: "#ffffff"
+    readonly property color plotGrid: "#e8edf2"
+    readonly property color plotFrame: "#c3cad1"
+    readonly property color plotCrosshair: "#a9b2ba"
+    readonly property color plotMarker: "#9aa4ad"
+
+    readonly property color curvePositive: "#d0453b"
+    readonly property color curveNegative: "#2f8f57"
+
+    readonly property var curvePalette: ["#d0453b", "#2f8f57", "#2f6fbf", "#c08a1e",
+                                         "#8e4fb5", "#1a8f9e", "#d9722c", "#5a5fc7"]
 
     readonly property color accent: "#2f6fbf"
     readonly property color accentHover: "#5a93d4"

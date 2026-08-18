@@ -30,6 +30,9 @@ qt_add_qml_module(fisheye_cali_jojo
         qml/Main.qml
         qml/PanelPlaceholder.qml
         qml/HistogramPanel.qml
+        qml/HistogramPlotView.qml
+        qml/DirectionRosette.qml
+        qml/CurveColorPopup.qml
         qml/ServerUrlPanel.qml
         qml/LabeledField.qml
         qml/SectionFrame.qml
