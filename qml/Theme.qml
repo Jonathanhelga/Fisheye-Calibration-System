@@ -12,11 +12,12 @@ QtObject {
     readonly property int spaceSm: Math.round(unit * 0.5)     // 8
     readonly property int spaceMd: Math.round(unit * 0.75)    // 12
     readonly property int spaceLg: Math.round(unit)
+    readonly property int spaceXl: Math.round(unit * 1.25)
 
     //control sizing
     readonly property int radius:        Math.round(unit * 0.25)
     readonly property int controlHeight: Math.round(unit * 2)
-    readonly property int padButtonSize: Math.round(unit * 2.88)
+    readonly property int padButtonSize: Math.round(unit * 3)
     readonly property int rosetteCell:   Math.round(unit * 2)
     readonly property int readoutWidth:  Math.round(charUnit * 7)
     readonly property int fieldMinWidth: Math.round(charUnit * 5)
@@ -46,7 +47,7 @@ QtObject {
     readonly property int panelMargin: spaceSm
     readonly property int rowSpacing: spaceSm
     readonly property int labelSpacing: spaceXs
-    readonly property int dpadSpacing: spaceLg
+    readonly property int dpadSpacing: spaceXl
     readonly property int fieldPadding: spaceSm
     readonly property int captionFontSize: fontCaption
 
@@ -55,7 +56,7 @@ QtObject {
     }
 
     readonly property int plotMarginLeft:   Math.round(charUnit * 5) + unit
-    readonly property int plotMarginRight:  spaceMd
+    readonly property int plotMarginRight:  Math.round(charUnit * 2) + spaceXs
     readonly property int plotMarginTop:    spaceSm
     readonly property int plotMarginBottom: Math.round(unit * 2.8)
 

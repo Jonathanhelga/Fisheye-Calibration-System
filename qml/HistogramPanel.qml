@@ -324,7 +324,7 @@ Rectangle {
 
                 curves: root.plotCurves
                 markers: root.intersections
-                emptyText: root.curveSet.length === 0 ? qsTr("Pick a direction to plot")
+                 emptyText: root.curveSet.length === 0 ? qsTr("Pick a direction to plot")
                                                       : qsTr("Curves hidden")
             }
         }
