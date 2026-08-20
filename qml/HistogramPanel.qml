@@ -176,6 +176,29 @@ Rectangle {
                 elide: Text.ElideRight
             }
 
+            IhRangeControl {
+                id: ihRange
+
+                compact: true
+
+                from: plotView.defaultXMin
+                to: plotView.defaultXMax
+
+                onLowerMoved: (value) => plotView.xMin = value
+                onUpperMoved: (value) => plotView.xMax = value
+
+                Connections {
+                    target: plotView
+                    function onXMinChanged() { ihRange.lowerValue = plotView.xMin }
+                    function onXMaxChanged() { ihRange.upperValue = plotView.xMax }
+                }
+
+                Component.onCompleted: {
+                    lowerValue = plotView.xMin
+                    upperValue = plotView.xMax
+                }
+            }
+
             ActionButton {
                 text: qsTr("Show Curve")
                 checked: root.showCurves
@@ -231,9 +254,49 @@ Rectangle {
                         onCleared: root.negDirections = []
                     }
                 }
+
+                Flow {
+                    Layout.fillWidth: true
+                    Layout.topMargin: Theme.rowSpacing
+
+                    spacing: Theme.labelSpacing
+                    visible: root.curveSet.length > 0
+
+                    Repeater {
+                        model: root.curveSet
+
+                        RowLayout {
+                            id: legendChip
+
+                            required property var modelData
+
+                            spacing: Theme.labelSpacing
+
+                            Rectangle {
+                                Layout.alignment: Qt.AlignVCenter
+
+                                implicitWidth: Math.round(Theme.unit * 0.5)
+                                implicitHeight: implicitWidth
+                                radius: width / 2
+                                antialiasing: true
+                                color: legendChip.modelData.color
+                            }
+
+                            Label {
+                                text: qsTr("%1 %2")
+                                        .arg(legendChip.modelData.side === "pos" ? qsTr("Pos") : qsTr("Neg"))
+                                        .arg(legendChip.modelData.direction.toUpperCase())
+                                color: Theme.textPrimary
+                                font.pixelSize: Theme.captionFontSize
+                            }
+                        }
+                    }
+                }
             }
 
             HistogramPlotView {
+                id: plotView
+
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.minimumWidth: Theme.unit * 16
@@ -315,16 +378,40 @@ Rectangle {
                     }
                 }
 
-                Item { Layout.fillWidth: true }
+                IhRangeControl {
+                    id: popIhRange
+
+                    compact: true
+                    Layout.fillWidth: true
+
+                    from: popPlotView.defaultXMin
+                    to: popPlotView.defaultXMax
+
+                    onLowerMoved: (value) => popPlotView.xMin = value
+                    onUpperMoved: (value) => popPlotView.xMax = value
+
+                    Connections {
+                        target: popPlotView
+                        function onXMinChanged() { popIhRange.lowerValue = popPlotView.xMin }
+                        function onXMaxChanged() { popIhRange.upperValue = popPlotView.xMax }
+                    }
+
+                    Component.onCompleted: {
+                        lowerValue = popPlotView.xMin
+                        upperValue = popPlotView.xMax
+                    }
+                }
             }
 
             HistogramPlotView {
+                id: popPlotView
+
                 Layout.fillWidth: true
                 Layout.fillHeight: true
 
                 curves: root.plotCurves
                 markers: root.intersections
-                 emptyText: root.curveSet.length === 0 ? qsTr("Pick a direction to plot")
+                emptyText: root.curveSet.length === 0 ? qsTr("Pick a direction to plot")
                                                       : qsTr("Curves hidden")
             }
         }

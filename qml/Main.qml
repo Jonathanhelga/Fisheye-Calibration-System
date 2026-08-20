@@ -47,7 +47,7 @@ ApplicationWindow {
                 Layout.minimumWidth: Theme.minColumnLeft
                 spacing: Theme.spaceMd
 
-                ServerUrlPanel {  Layout.fillWidth: true }
+                ServerConfigPanel {  Layout.fillWidth: true }
                 AxisControlPanel { Layout.fillWidth: true; Layout.fillHeight: true }
             }
 

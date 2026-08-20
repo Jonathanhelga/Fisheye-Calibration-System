@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Window
 import FisheyeCaliJojo
 
 Rectangle {
@@ -103,6 +104,17 @@ Rectangle {
                 color: root.busy ? Theme.textPrimary : Theme.textCaption
                 font.pixelSize: Theme.captionFontSize
                 elide: Text.ElideRight
+            }
+
+            ActionButton {
+                text: qsTr("Magnify")
+                enabled: root.imagePath !== ""
+                checked: magnifier.visible
+                onClicked: magnifier.visible = !magnifier.visible
+
+                ToolTip.visible: hovered
+                ToolTip.delay: Theme.animSlow
+                ToolTip.text: qsTr("Open a larger view to fine-tune the center")
             }
         }
 
@@ -271,6 +283,35 @@ Rectangle {
                     ? qsTr("Compare N-S, W-E, NW-SE, SW-NE on the current pair")
                     : qsTr("Take a pair first")
             }
+        }
+    }
+
+    Window {
+        id: magnifier
+
+        title: root.fileName !== "" ? root.fileName : qsTr("Camera Preview")
+        color: Theme.panelBackground
+
+        width: Theme.unit * 56
+        height: Theme.unit * 44
+        minimumWidth: Theme.unit * 32
+        minimumHeight: Theme.unit * 24
+
+        ImagePreview {
+            anchors.fill: parent
+            anchors.margins: Theme.panelMargin
+
+            source: preview.source
+            emptyText: preview.emptyText
+
+            pickEnabled: preview.pickEnabled
+            hint: preview.hint
+
+            centerX: root.centerX
+            centerY: root.centerY
+            roiRadius: root.roiRadius
+
+            onPicked: (x, y) => root.centerPicked(root.patternMode, x, y)
         }
     }
 }
