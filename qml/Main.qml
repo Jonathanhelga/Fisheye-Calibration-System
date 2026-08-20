@@ -162,6 +162,8 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         tone: "accent"
                         text: qsTr("Monitor Viewer")
+                        checked: monitorViewer.visible
+                        onClicked: monitorViewer.visible = !monitorViewer.visible
                     }
                     ActionButton {
                         Layout.fillWidth: true
@@ -196,6 +198,15 @@ ApplicationWindow {
                     }
                 }
             }
+        }
+    }
+
+    MonitorViewerWindow {
+        id: monitorViewer
+
+        onApplyMappingRequested: (top, north, west, south, east) => {
+            console.log("[Main] Monitor Viewer apply mapping: top=" + top
+                + " n=" + north + " w=" + west + " s=" + south + " e=" + east)
         }
     }
 }

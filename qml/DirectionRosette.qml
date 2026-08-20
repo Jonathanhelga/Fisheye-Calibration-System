@@ -62,7 +62,6 @@ ColumnLayout {
 
         Rectangle {
             visible: cell.pairedHere
-
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.margins: 2
@@ -77,7 +76,6 @@ ColumnLayout {
 
     Label {
         Layout.alignment: Qt.AlignHCenter
-
         text: rosette.label
         color: Theme.textCaption
         font.pixelSize: Theme.captionFontSize

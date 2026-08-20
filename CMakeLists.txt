@@ -49,6 +49,9 @@ qt_add_qml_module(fisheye_cali_jojo
         qml/ColorSwatch.qml
         qml/CenteringPanel.qml
         qml/LiveCameraPanel.qml
+        qml/MonitorSlotPanel.qml
+        qml/MonitorViewerWindow.qml
+        qml/MonitorDirectionDialog.qml
     SOURCES
         Bridge.cpp Bridge.h
         ServerProbe.cpp ServerProbe.h

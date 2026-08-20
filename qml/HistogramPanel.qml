@@ -27,7 +27,9 @@ Rectangle {
         return ""
     }
 
-    readonly property var curveSet: {
+    // Which curves are picked, no color in here. This is the only thing
+    // curveShapes depends on, so a color edit never touches sampleCurve.
+    readonly property var curveSelection: {
         const out = []
         if (compareDirection !== "") {
             out.push({ side: "pos", direction: compareDirection, auto: Theme.curvePositive })
@@ -42,10 +44,35 @@ Rectangle {
             for (let k = 0; k < out.length; ++k)
                 out[k].auto = Theme.curvePalette[k % Theme.curvePalette.length]
         }
-        for (let n = 0; n < out.length; ++n) {
-            const key = out[n].side + ":" + out[n].direction
-            out[n].key = key
-            out[n].color = colorOverrides[key] !== undefined ? colorOverrides[key] : out[n].auto
+        for (let n = 0; n < out.length; ++n)
+            out[n].key = out[n].side + ":" + out[n].direction
+        return out
+    }
+
+    // The expensive part, keyed by "side:direction". Only resamples when the
+    // selection or channel changes, never on a color-only edit.
+    readonly property var curveShapes: {
+        const out = ({})
+        for (let i = 0; i < curveSelection.length; ++i) {
+            const entry = curveSelection[i]
+            out[entry.key] = sampleCurve(entry.side, entry.direction)
+        }
+        return out
+    }
+
+    // Selection plus resolved color. Cheap to rebuild on every colorOverrides
+    // edit since it never touches sampleCurve.
+    readonly property var curveSet: {
+        const out = []
+        for (let i = 0; i < curveSelection.length; ++i) {
+            const entry = curveSelection[i]
+            out.push({
+                side: entry.side,
+                direction: entry.direction,
+                key: entry.key,
+                auto: entry.auto,
+                color: colorOverrides[entry.key] !== undefined ? colorOverrides[entry.key] : entry.auto
+            })
         }
         return out
     }
@@ -58,16 +85,17 @@ Rectangle {
             return []
         const out = []
         for (let i = 0; i < curveSet.length; ++i)
-            out.push({ color: curveSet[i].color,
-                       points: sampleCurve(curveSet[i].side, curveSet[i].direction) })
+            out.push({ color: curveSet[i].color, points: curveShapes[curveSet[i].key] })
         return out
     }
 
     readonly property var intersections: {
         if (!showCurves || compareDirection === "")
             return []
-        const positive = sampleCurve("pos", compareDirection)
-        const negative = sampleCurve("neg", compareDirection)
+        const positive = curveShapes["pos:" + compareDirection]
+        const negative = curveShapes["neg:" + compareDirection]
+        if (!positive || !negative)
+            return []
         const count = Math.min(positive.length, negative.length)
         const out = []
         for (let i = 1; i < count; ++i) {
