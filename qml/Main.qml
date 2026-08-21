@@ -10,7 +10,7 @@ ApplicationWindow {
     height: Screen.desktopAvailableHeight
 
     visible: true
-    title: "Fisheye Calibration - Jojo Version"
+    title: qsTr("Fisheye Calibration - Jojo Version")
 
     minimumWidth: Theme.minColumnLeft
                 + Theme.minColumnCenter
@@ -55,7 +55,7 @@ ApplicationWindow {
                 id: camera
 
                 singlePath: "/Users/jonathanhelga/Desktop/Fisheye_Calibration-Jojo_Version/tools/sample_shot.png"
-
+                // positivePath: "/Users/jonathanhelga/Desktop/Fisheye_Calibration-Jojo_Version/tools/sample_shot.png"
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.preferredWidth: workRow.free * Theme.ratioCenter
@@ -161,14 +161,9 @@ ApplicationWindow {
                     ActionButton {
                         Layout.fillWidth: true
                         tone: "accent"
-                        text: qsTr("Monitor Viewer")
-                        checked: monitorViewer.visible
-                        onClicked: monitorViewer.visible = !monitorViewer.visible
-                    }
-                    ActionButton {
-                        Layout.fillWidth: true
-                        tone: "accent"
-                        text: qsTr("PCT (Pattern Generator)")
+                        text: qsTr("Pattern & Monitor")
+                        checked: jojoPatternAndMonitor.visible
+                        onClicked: jojoPatternAndMonitor.visible = !jojoPatternAndMonitor.visible
                     }
                     ActionButton {
                         Layout.fillWidth: true
@@ -201,11 +196,11 @@ ApplicationWindow {
         }
     }
 
-    MonitorViewerWindow {
-        id: monitorViewer
+    JojoPatternAndMonitor {
+        id: jojoPatternAndMonitor
 
         onApplyMappingRequested: (top, north, west, south, east) => {
-            console.log("[Main] Monitor Viewer apply mapping: top=" + top
+            console.log("[Main] Pattern & Monitor apply mapping: top=" + top
                 + " n=" + north + " w=" + west + " s=" + south + " e=" + east)
         }
     }

@@ -46,11 +46,27 @@ Rectangle {
         yMax = defaultYMax
     }
 
+    // Keeps the requested span (so hitting an edge stops the pan/zoom
+    // instead of squashing the range), but never lets min/max leave
+    // [defaultXMin, defaultXMax].
+    function clampXRange(min, max) {
+        const range = defaultXMax - defaultXMin
+        let span = Math.min(max - min, range)
+        let clampedMin = Math.max(defaultXMin, min)
+        let clampedMax = clampedMin + span
+        if (clampedMax > defaultXMax) {
+            clampedMax = defaultXMax
+            clampedMin = clampedMax - span
+        }
+        return { min: clampedMin, max: clampedMax }
+    }
+
     function zoomAt(px, py, factor) {
         const ax = toDataX(px)
         const ay = toDataY(py)
-        xMin = ax + (xMin - ax) * factor
-        xMax = ax + (xMax - ax) * factor
+        const x = clampXRange(ax + (xMin - ax) * factor, ax + (xMax - ax) * factor)
+        xMin = x.min
+        xMax = x.max
         yMin = ay + (yMin - ay) * factor
         yMax = ay + (yMax - ay) * factor
     }
@@ -58,8 +74,9 @@ Rectangle {
     function panBy(dxPx, dyPx) {
         const dx = dxPx / area.width * xSpan
         const dy = dyPx / area.height * ySpan
-        xMin -= dx
-        xMax -= dx
+        const x = clampXRange(xMin - dx, xMax - dx)
+        xMin = x.min
+        xMax = x.max
         yMin += dy
         yMax += dy
     }

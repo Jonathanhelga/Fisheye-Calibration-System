@@ -50,8 +50,17 @@ qt_add_qml_module(fisheye_cali_jojo
         qml/CenteringPanel.qml
         qml/LiveCameraPanel.qml
         qml/MonitorSlotPanel.qml
-        qml/MonitorViewerWindow.qml
         qml/MonitorDirectionDialog.qml
+        qml/PatternColorButton.qml
+        qml/ConcentricLayerRow.qml
+        qml/StripelineLayerRow.qml
+        qml/GhostButton.qml
+        qml/PatternToggleSwitch.qml
+        qml/DpadMonitorViewer.qml
+        qml/JojoConcentricPanel.qml
+        qml/JojoStriplinePanel.qml
+        qml/JojoChessboardPanel.qml
+        qml/JojoPatternAndMonitor.qml
     SOURCES
         Bridge.cpp Bridge.h
         ServerProbe.cpp ServerProbe.h

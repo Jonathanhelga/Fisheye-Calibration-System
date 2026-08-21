@@ -1,0 +1,105 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import FisheyeCaliJojo
+
+GridLayout {
+    id: root
+
+    columns: 3
+    rowSpacing: Theme.dpadSpacing
+    columnSpacing: Theme.dpadSpacing
+
+    property alias topSlot:   topSlot
+    property alias northSlot: northSlot
+    property alias westSlot:  westSlot
+    property alias southSlot: southSlot
+    property alias eastSlot:  eastSlot
+
+    function turnOffFourSides() {
+        northSlot.turnOff()
+        westSlot.turnOff()
+        southSlot.turnOff()
+        eastSlot.turnOff()
+    }
+
+    function applyImageToFourSides(path) {
+        northSlot.imagePath = path
+        westSlot.imagePath = path
+        southSlot.imagePath = path
+        eastSlot.imagePath = path
+    }
+
+    Item {}
+
+    MonitorSlotPanel {
+        id: northSlot
+        label: qsTr("N")
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        Layout.minimumWidth: Theme.unit * 12
+        Layout.minimumHeight: Theme.unit * 10
+
+        onBrowseRequested: console.log("[Pattern And Monitor] N: Browse requested")
+        onUpdateRequested: (brightness) => console.log("[Pattern And Monitor] N: Update requested, brightness=" + brightness)
+        onTurnOffRequested: console.log("[Pattern And Monitor] N: Turn off requested")
+    }
+
+    Item {}
+
+    MonitorSlotPanel {
+        id: westSlot
+        label: qsTr("W")
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        Layout.minimumWidth: Theme.unit * 12
+        Layout.minimumHeight: Theme.unit * 10
+
+        onBrowseRequested: console.log("[Pattern And Monitor] W: Browse requested")
+        onUpdateRequested: (brightness) => console.log("[Pattern And Monitor] W: Update requested, brightness=" + brightness)
+        onTurnOffRequested: console.log("[Pattern And Monitor] W: Turn off requested")
+    }
+
+    MonitorSlotPanel {
+        id: topSlot
+        label: qsTr("TOP")
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        Layout.minimumWidth: Theme.unit * 12
+        Layout.minimumHeight: Theme.unit * 10
+
+        onBrowseRequested: console.log("[Pattern And Monitor] TOP: Browse requested")
+        onUpdateRequested: (brightness) => console.log("[Pattern And Monitor] TOP: Update requested, brightness=" + brightness)
+        onTurnOffRequested: console.log("[Pattern And Monitor] TOP: Turn off requested")
+    }
+
+    MonitorSlotPanel {
+        id: eastSlot
+        label: qsTr("E")
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        Layout.minimumWidth: Theme.unit * 12
+        Layout.minimumHeight: Theme.unit * 10
+
+        onBrowseRequested: console.log("[Pattern And Monitor] E: Browse requested")
+        onUpdateRequested: (brightness) => console.log("[Pattern And Monitor] E: Update requested, brightness=" + brightness)
+        onTurnOffRequested: console.log("[Pattern And Monitor] E: Turn off requested")
+    }
+
+    Item {}
+
+    MonitorSlotPanel {
+        id: southSlot
+        label: qsTr("S")
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        Layout.minimumWidth: Theme.unit * 12
+        Layout.minimumHeight: Theme.unit * 10
+
+        onBrowseRequested: console.log("[Pattern And Monitor] S: Browse requested")
+        onUpdateRequested: (brightness) => console.log("[Pattern And Monitor] S: Update requested, brightness=" + brightness)
+        onTurnOffRequested: console.log("[Pattern And Monitor] S: Turn off requested")
+    }
+
+    Item {}
+}

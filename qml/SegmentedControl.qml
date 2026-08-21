@@ -10,19 +10,24 @@ Rectangle {
     property var model: []
     property int currentIndex: 0
     property font font: Qt.font({ pixelSize: Theme.captionFontSize, bold: true })
+    property bool stretch: false
 
     readonly property int inset: 2
 
-    readonly property real segmentWidth: {
+    readonly property real measuredSegmentWidth: {
         let widest = 0
         for (let i = 0; i < measurer.count; i++)
             widest = Math.max(widest, measurer.objectAt(i).advanceWidth)
         return Math.ceil(widest) + 3 * Theme.fieldPadding
     }
 
+    readonly property real segmentWidth: control.stretch
+        ? (control.width - 2 * control.inset) / Math.max(1, control.model.length)
+        : control.measuredSegmentWidth
+
     signal activated(int index)
 
-    implicitWidth: 2 * inset + segmentWidth * model.length
+    implicitWidth: 2 * inset + measuredSegmentWidth * model.length
     implicitHeight: Theme.controlHeight
 
     color: Theme.fieldBackground

@@ -211,17 +211,21 @@ Rectangle {
         border.color: Theme.panelBorder
         clip: true
 
-        visible: root.loaded && root.hoverX >= 0
+        visible: root.loaded && root.pickEnabled && root.hoverX >= 0
 
         readonly property real pixelScale: root.zoom * root.loupeMagnification
 
         Image {
             source: root.source
-            width: root.sourceWidth * loupe.pixelScale
-            height: root.sourceHeight * loupe.pixelScale
+            width: root.sourceWidth
+            height: root.sourceHeight
+            smooth: false
+
+            transformOrigin: Item.TopLeft
+            scale: loupe.pixelScale
+
             x: loupe.width / 2 - root.hoverX * loupe.pixelScale
             y: loupe.height / 2 - root.hoverY * loupe.pixelScale
-            smooth: false
         }
     }
 

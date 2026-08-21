@@ -46,7 +46,8 @@ RowLayout {
         readonly property real span: (control.to - control.from) !== 0 ? control.to - control.from : 1
 
         function valueToPx(v) {
-            return handleSize / 2 + (v - control.from) / span * (width - handleSize)
+            const clamped = control.clamp(v, control.from, control.to)
+            return handleSize / 2 + (clamped - control.from) / span * (width - handleSize)
         }
         function pxToValue(px) {
             return control.from + (px - handleSize / 2) / (width - handleSize) * span
