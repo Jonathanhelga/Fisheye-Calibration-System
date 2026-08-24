@@ -7,8 +7,8 @@ import FisheyeCaliJojo
 Rectangle {
     id: root
 
-    readonly property int modeHttp: 0
-    readonly property int modeRos: 1
+    readonly property int modeRos: 0
+    readonly property int modeHttp: 1
     property alias mode: modeSelector.currentIndex
 
     property string host: "192.168.103.56"
@@ -63,71 +63,8 @@ Rectangle {
 
             SegmentedControl {
                 id: modeSelector
-                model: [qsTr("HTTP"), qsTr("ROS")]
-                currentIndex: root.modeHttp
-            }
-        }
-
-        ColumnLayout {
-            Layout.fillWidth: true
-            spacing: Theme.rowSpacing
-            visible: root.mode === root.modeHttp
-
-            LabeledField {
-                Layout.fillWidth: true
-                label: "Host URL"
-                placeholderText: "192.168.103.56"
-                text: root.host
-                showStatus: true
-                status: ServerProbe.hostStatus
-                onEdited: (value) => {
-                    root.host = value
-                    ServerProbe.resetAll()
-                }
-            }
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: Theme.rowSpacing
-
-                LabeledField {
-                    Layout.fillWidth: true
-                    label: "Axis Port"
-                    text: root.axisPort
-                    validator: IntValidator { bottom: 1; top: 65535 }
-                    showStatus: true
-                    status: ServerProbe.axisStatus
-                    onEdited: (value) => {
-                        root.axisPort = parseInt(value)
-                        ServerProbe.markUnknown(ServerProbe.Axis)
-                    }
-                }
-
-                LabeledField {
-                    Layout.fillWidth: true
-                    label: "Monitor Port"
-                    text: root.monitorPort
-                    validator: IntValidator { bottom: 1; top: 65535 }
-                    showStatus: true
-                    status: ServerProbe.monitorStatus
-                    onEdited: (value) => {
-                        root.monitorPort = parseInt(value)
-                        ServerProbe.markUnknown(ServerProbe.Monitor)
-                    }
-                }
-
-                LabeledField {
-                    Layout.fillWidth: true
-                    label: "Camera Port"
-                    text: root.cameraPort
-                    validator: IntValidator { bottom: 1; top: 65535 }
-                    showStatus: true
-                    status: ServerProbe.cameraStatus
-                    onEdited: (value) => {
-                        root.cameraPort = parseInt(value)
-                        ServerProbe.markUnknown(ServerProbe.Camera)
-                    }
-                }
+                model: [qsTr("ROS"), qsTr("HTTP")]
+                currentIndex: root.modeRos
             }
         }
 
@@ -192,6 +129,69 @@ Rectangle {
                     onEdited: (value) => {
                         root.cameraTopic = value
                         root.rosCameraStatus = ServerProbe.Unknown
+                    }
+                }
+            }
+        }
+
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: Theme.rowSpacing
+            visible: root.mode === root.modeHttp
+
+            LabeledField {
+                Layout.fillWidth: true
+                label: "Host URL"
+                placeholderText: "192.168.103.56"
+                text: root.host
+                showStatus: true
+                status: ServerProbe.hostStatus
+                onEdited: (value) => {
+                    root.host = value
+                    ServerProbe.resetAll()
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.rowSpacing
+
+                LabeledField {
+                    Layout.fillWidth: true
+                    label: "Axis Port"
+                    text: root.axisPort
+                    validator: IntValidator { bottom: 1; top: 65535 }
+                    showStatus: true
+                    status: ServerProbe.axisStatus
+                    onEdited: (value) => {
+                        root.axisPort = parseInt(value)
+                        ServerProbe.markUnknown(ServerProbe.Axis)
+                    }
+                }
+
+                LabeledField {
+                    Layout.fillWidth: true
+                    label: "Monitor Port"
+                    text: root.monitorPort
+                    validator: IntValidator { bottom: 1; top: 65535 }
+                    showStatus: true
+                    status: ServerProbe.monitorStatus
+                    onEdited: (value) => {
+                        root.monitorPort = parseInt(value)
+                        ServerProbe.markUnknown(ServerProbe.Monitor)
+                    }
+                }
+
+                LabeledField {
+                    Layout.fillWidth: true
+                    label: "Camera Port"
+                    text: root.cameraPort
+                    validator: IntValidator { bottom: 1; top: 65535 }
+                    showStatus: true
+                    status: ServerProbe.cameraStatus
+                    onEdited: (value) => {
+                        root.cameraPort = parseInt(value)
+                        ServerProbe.markUnknown(ServerProbe.Camera)
                     }
                 }
             }
