@@ -27,40 +27,44 @@ qt_add_qml_module(fisheye_cali_jojo
     VERSION 1.0
     QML_FILES
         qml/Theme.qml
-        qml/Main.qml
-        qml/PanelPlaceholder.qml
-        qml/HistogramPanel.qml
-        qml/HistogramPlotView.qml
-        qml/IhRangeControl.qml
-        qml/DirectionRosette.qml
-        qml/CurveColorPopup.qml
-        qml/ServerConfigPanel.qml
-        qml/LabeledField.qml
-        qml/SectionFrame.qml
-        qml/SegmentedControl.qml
-        qml/StatusDot.qml
-        qml/AxisControlPanel.qml
-        qml/AxisReadout.qml
-        qml/DpadDirectionControl.qml
-        qml/ActionButton.qml
-        qml/ImagePreview.qml
-        qml/CameraPanel.qml
-        qml/ValueField.qml
-        qml/ColorSwatch.qml
-        qml/CenteringPanel.qml
-        qml/LiveCameraPanel.qml
-        qml/MonitorSlotPanel.qml
-        qml/MonitorDirectionDialog.qml
-        qml/PatternColorButton.qml
-        qml/ConcentricLayerRow.qml
-        qml/StripelineLayerRow.qml
-        qml/GhostButton.qml
-        qml/PatternToggleSwitch.qml
-        qml/DpadMonitorViewer.qml
-        qml/JojoConcentricPanel.qml
-        qml/JojoStriplinePanel.qml
-        qml/JojoChessboardPanel.qml
-        qml/JojoPatternAndMonitor.qml
+
+        qml/windows/Main.qml
+        qml/windows/PatternAndMonitor.qml
+
+        qml/panels/CameraPanel.qml
+        qml/panels/HistogramPanel.qml
+        qml/panels/AxisControlPanel.qml
+        qml/panels/CenteringPanel.qml
+        qml/panels/LiveCameraPanel.qml
+        qml/panels/ServerConfigPanel.qml
+        qml/panels/ConcentricPanel.qml
+        qml/panels/StriplinePanel.qml
+        qml/panels/ChessboardPanel.qml
+        qml/panels/DpadMonitorViewer.qml
+        qml/panels/MonitorSlotPanel.qml
+
+        qml/controls/ActionButton.qml
+        qml/controls/GhostButton.qml
+        qml/controls/ColorSwatch.qml
+        qml/controls/ValueField.qml
+        qml/controls/LabeledField.qml
+        qml/controls/StatusDot.qml
+        qml/controls/SegmentedControl.qml
+        qml/controls/PatternToggleSwitch.qml
+        qml/controls/PatternColorButton.qml
+        qml/controls/DpadDirectionControl.qml
+        qml/controls/DirectionRosette.qml
+        qml/controls/ImagePreview.qml
+        qml/controls/CurveColorPopup.qml
+        qml/controls/MonitorDirectionDialog.qml
+        qml/controls/ConcentricLayerRow.qml
+        qml/controls/StripelineLayerRow.qml
+        qml/controls/HistogramPlotView.qml
+        qml/controls/IhRangeControl.qml
+        qml/controls/AxisReadout.qml
+        qml/controls/SectionFrame.qml
+        qml/controls/PanelPlaceholder.qml
+
     SOURCES
         Bridge.cpp Bridge.h
         ServerProbe.cpp ServerProbe.h

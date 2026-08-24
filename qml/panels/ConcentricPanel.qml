@@ -5,17 +5,14 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import FisheyeCaliJojo
 
-// Stripline pattern: parallel stripes. Usually shown on the side screens
-// (N/W/S/E). Each row's Height is a step, the pixel thickness of that stripe
-// from the previous one, not an absolute position.
 Rectangle {
     id: panel
 
-    readonly property int layerCount: 50
+    readonly property int layerCount: 25
     readonly property alias layers: layerModel
 
-    property int resolutionH: 3840
-    property int resolutionW: 2160
+    property int resolutionH: 1920
+    property int resolutionW: 1920
     property bool crossLine: false
     property bool autoUpdate: false
     property color positiveColor: "black"
@@ -45,7 +42,7 @@ Rectangle {
 
         Component.onCompleted: {
             for (let i = 0; i < panel.layerCount; i++)
-                layerModel.append({ interval: 20, color: "black" })
+                layerModel.append({ shape: "Circle", radius: 20, color: "black", cx: 0, cy: 0 })
         }
     }
 
@@ -69,7 +66,7 @@ Rectangle {
             spacing: Theme.spaceXs
 
             Label {
-                text: qsTr("Stripline")
+                text: qsTr("Concentric")
                 font.bold: true
                 font.pixelSize: Theme.fontTitle
                 color: Theme.accent
@@ -83,7 +80,6 @@ Rectangle {
             SegmentedControl {
                 id: directionCombo
                 model: ["TOP", "North", "West", "South", "East"]
-                currentIndex: 2
             }
 
             Item { Layout.fillWidth: true }
@@ -139,8 +135,9 @@ Rectangle {
                 id: preview
 
                 Layout.fillWidth: true
-                Layout.preferredHeight: Theme.unit * 25
-
+                Layout.fillHeight: true
+                Layout.minimumHeight: Theme.unit * 25
+                Layout.maximumHeight: Theme.unit * 30
                 source: panel.previewSource
                 emptyText: qsTr("No preview yet")
                 hint: qsTr("%1 x %2").arg(panel.resolutionW).arg(panel.resolutionH)
@@ -198,12 +195,12 @@ Rectangle {
                 spacing: Theme.rowSpacing
                 ActionButton {
                     Layout.fillWidth: true
-                    text: qsTr("Positive ( + ) Pattern")
+                    text: qsTr("( + ) Positive Pattern")
                     onClicked: panel.applyPositivePattern()
                 }
                 ActionButton {
                     Layout.fillWidth: true
-                    text: qsTr("Negative ( - ) Pattern")
+                    text: qsTr("( - ) Negative Pattern")
                     onClicked: panel.applyNegativePattern()
                 }
             }
@@ -228,13 +225,16 @@ Rectangle {
 
             // ---- table ----
             // Single source of truth for column widths: both the header row below
-            // and every StripelineLayerRow delegate bind to these same values, so
+            // and every ConcentricLayerRow delegate bind to these same values, so
             // they can never drift apart.
             QtObject {
                 id: tableColumns
                 readonly property int noWidth:     Math.round(Theme.charUnit * 2.5)
-                readonly property int heightWidth: Math.round(Theme.charUnit * 6)
+                readonly property int shapeWidth:  Math.round(Theme.charUnit * 9)
+                readonly property int radiusWidth: Math.round(Theme.charUnit * 6)
                 readonly property int colorWidth:  Math.round(Theme.controlHeight * 0.65)
+                readonly property int cxWidth:     Math.round(Theme.charUnit * 5)
+                readonly property int cyWidth:     Math.round(Theme.charUnit * 5)
             }
 
             ColumnLayout {
@@ -248,8 +248,11 @@ Rectangle {
                     spacing: Theme.rowSpacing
 
                     Label { Layout.preferredWidth: tableColumns.noWidth;     Layout.fillWidth: true; text: qsTr("No.");    color: Theme.textCaption; font.pixelSize: Theme.captionFontSize; font.bold: true; horizontalAlignment: Text.AlignHCenter }
-                    Label { Layout.preferredWidth: tableColumns.heightWidth; Layout.fillWidth: true; text: qsTr("Height"); color: Theme.textCaption; font.pixelSize: Theme.captionFontSize; font.bold: true; horizontalAlignment: Text.AlignHCenter }
+                    Label { Layout.preferredWidth: tableColumns.shapeWidth;  Layout.fillWidth: true; text: qsTr("Shape");  color: Theme.textCaption; font.pixelSize: Theme.captionFontSize; font.bold: true; horizontalAlignment: Text.AlignHCenter }
+                    Label { Layout.preferredWidth: tableColumns.radiusWidth; Layout.fillWidth: true; text: qsTr("Radius"); color: Theme.textCaption; font.pixelSize: Theme.captionFontSize; font.bold: true; horizontalAlignment: Text.AlignHCenter }
                     Label { Layout.preferredWidth: tableColumns.colorWidth;  Layout.fillWidth: true; text: qsTr("Color");  color: Theme.textCaption; font.pixelSize: Theme.captionFontSize; font.bold: true; horizontalAlignment: Text.AlignHCenter }
+                    Label { Layout.preferredWidth: tableColumns.cxWidth;     Layout.fillWidth: true; text: qsTr("Cx");     color: Theme.textCaption; font.pixelSize: Theme.captionFontSize; font.bold: true; horizontalAlignment: Text.AlignHCenter }
+                    Label { Layout.preferredWidth: tableColumns.cyWidth;     Layout.fillWidth: true; text: qsTr("Cy");     color: Theme.textCaption; font.pixelSize: Theme.captionFontSize; font.bold: true; horizontalAlignment: Text.AlignHCenter }
                 }
 
                 Rectangle {
@@ -275,8 +278,11 @@ Rectangle {
                         id: cell
 
                         required property int index
-                        required property real interval
+                        required property string shape
+                        required property real radius
                         required property color color
+                        required property real cx
+                        required property real cy
 
                         width: table.width
                         height: layerRow.implicitHeight + Theme.spaceXs
@@ -286,21 +292,30 @@ Rectangle {
                             color: cell.index % 2 === 0 ? "transparent" : Theme.fieldDisabledBackground
                         }
 
-                        StripelineLayerRow {
+                        ConcentricLayerRow {
                             id: layerRow
 
                             anchors.fill: parent
                             anchors.topMargin: Math.round(Theme.spaceXs / 2)
                             anchors.bottomMargin: Math.round(Theme.spaceXs / 2)
                             noWidth: tableColumns.noWidth
-                            heightWidth: tableColumns.heightWidth
+                            shapeWidth: tableColumns.shapeWidth
+                            radiusWidth: tableColumns.radiusWidth
                             colorWidth: tableColumns.colorWidth
+                            cxWidth: tableColumns.cxWidth
+                            cyWidth: tableColumns.cyWidth
                             layerNumber: cell.index + 1
-                            interval: cell.interval
+                            shape: cell.shape
+                            radius: cell.radius
                             color: cell.color
+                            cx: cell.cx
+                            cy: cell.cy
 
-                            onIntervalEdited: (value) => layerModel.setProperty(cell.index, "interval", value)
-                            onColorEdited:    (value) => layerModel.setProperty(cell.index, "color", value)
+                            onShapeEdited:  (value) => layerModel.setProperty(cell.index, "shape", value)
+                            onRadiusEdited: (value) => layerModel.setProperty(cell.index, "radius", value)
+                            onColorEdited:  (value) => layerModel.setProperty(cell.index, "color", value)
+                            onCxEdited:     (value) => layerModel.setProperty(cell.index, "cx", value)
+                            onCyEdited:     (value) => layerModel.setProperty(cell.index, "cy", value)
                         }
                     }
                 }

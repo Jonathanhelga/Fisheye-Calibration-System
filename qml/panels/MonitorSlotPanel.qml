@@ -26,8 +26,8 @@ Rectangle {
         root.turnOffRequested()
     }
 
-    implicitWidth: content.implicitWidth + 2 * Theme.panelMargin
-    implicitHeight: content.implicitHeight + 2 * Theme.panelMargin
+    implicitWidth: (content.implicitWidth + (2 * Theme.panelMargin) )* 0.9
+    implicitHeight: (content.implicitHeight + (2 * Theme.panelMargin) )* 0.9
 
     color: Theme.panelBackground
     border.color: Theme.panelBorder
@@ -66,8 +66,8 @@ Rectangle {
 
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.minimumWidth: Theme.unit * 12
-            Layout.minimumHeight: Theme.unit * 10
+            Layout.minimumWidth: Theme.unit * 9
+            Layout.minimumHeight: Theme.unit * 9
 
             source: root.imagePath ? "file://" + root.imagePath : ""
             emptyText: root.on ? qsTr("No image") : qsTr("Off")

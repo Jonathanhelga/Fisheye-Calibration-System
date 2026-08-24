@@ -67,6 +67,10 @@ Rectangle {
             }
 
             Item { Layout.fillWidth: true }
+
+            GhostButton { text: qsTr("Import"); onClicked: panel.importRequested() }
+            GhostButton { text: qsTr("Export"); onClicked: panel.exportRequested() }
+
         }
 
         Rectangle {

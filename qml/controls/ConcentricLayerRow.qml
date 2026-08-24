@@ -6,7 +6,7 @@ import QtQuick.Layouts
 import FisheyeCaliJojo
 
 // One row of the concentric table: a ring/layer's shape, radius step, color,
-// and center offset. Column widths are passed in from JojoConcentricPanel so
+// and center offset. Column widths are passed in from ConcentricPanel so
 // the header and every row always share the same values.
 RowLayout {
     id: row

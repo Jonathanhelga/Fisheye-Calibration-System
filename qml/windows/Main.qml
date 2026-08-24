@@ -162,8 +162,8 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         tone: "accent"
                         text: qsTr("Pattern & Monitor")
-                        checked: jojoPatternAndMonitor.visible
-                        onClicked: jojoPatternAndMonitor.visible = !jojoPatternAndMonitor.visible
+                        checked: patternAndMonitor.visible
+                        onClicked: patternAndMonitor.visible = !patternAndMonitor.visible
                     }
                     ActionButton {
                         Layout.fillWidth: true
@@ -196,8 +196,8 @@ ApplicationWindow {
         }
     }
 
-    JojoPatternAndMonitor {
-        id: jojoPatternAndMonitor
+    PatternAndMonitor {
+        id: patternAndMonitor
 
         onApplyMappingRequested: (top, north, west, south, east) => {
             console.log("[Main] Pattern & Monitor apply mapping: top=" + top
