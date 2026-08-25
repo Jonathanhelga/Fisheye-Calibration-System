@@ -20,7 +20,7 @@ Rectangle {
     onValueChanged: sync()
     Component.onCompleted: sync()
 
-    implicitWidth: input.implicitWidth + 2 * Theme.fieldPadding
+    implicitWidth: Theme.fieldMinWidth
     implicitHeight: Theme.controlHeight
 
     color: field.enabled ? Theme.fieldBackground : Theme.fieldDisabledBackground
@@ -37,8 +37,9 @@ Rectangle {
         anchors.fill: parent
         anchors.leftMargin: Theme.fieldPadding
         anchors.rightMargin: Theme.fieldPadding
+        clip: true
 
-        horizontalAlignment: TextInput.AlignHCenter
+        horizontalAlignment: TextInput.AlignLeft
         verticalAlignment: TextInput.AlignVCenter
 
         color: field.enabled ? Theme.textPrimary : Theme.textDisabled
@@ -49,5 +50,6 @@ Rectangle {
         selectByMouse: field.editable
 
         onTextEdited: if (acceptableInput) field.edited(text)
+        onActiveFocusChanged: if (!activeFocus) cursorPosition = 0
     }
 }

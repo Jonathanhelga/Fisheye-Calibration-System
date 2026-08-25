@@ -15,11 +15,11 @@ ApplicationWindow {
     minimumWidth: Theme.minColumnLeft
                 + Theme.minColumnCenter
                 + rightColumn.Layout.minimumWidth
-                + 8 * Theme.spaceMd
+                + 17 * Theme.spaceMd
 
     minimumHeight: workRow.Layout.minimumHeight
                  + bottomRow.Layout.minimumHeight
-                 + 5 * Theme.spaceMd
+                 + 4 * Theme.spaceMd
 
     ColumnLayout {
         id: rootColumn
@@ -55,7 +55,7 @@ ApplicationWindow {
                 id: camera
 
                 singlePath: "/Users/jonathanhelga/Desktop/Fisheye_Calibration-Jojo_Version/tools/sample_shot.png"
-                // positivePath: "/Users/jonathanhelga/Desktop/Fisheye_Calibration-Jojo_Version/tools/sample_shot.png"
+                positivePath: "/Users/jonathanhelga/Desktop/Fisheye_Calibration-Jojo_Version/tools/sample_shot.png"
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 Layout.preferredWidth: workRow.free * Theme.ratioCenter
@@ -169,6 +169,8 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         tone: "accent"
                         text: qsTr("Moil Calibration Result")
+                        checked: moilResult.visible
+                        onClicked: moilResult.visible = !moilResult.visible
                     }
                 }
 
@@ -194,6 +196,10 @@ ApplicationWindow {
                 }
             }
         }
+    }
+
+    MoilCalibrationResult {
+        id: moilResult
     }
 
     PatternAndMonitor {

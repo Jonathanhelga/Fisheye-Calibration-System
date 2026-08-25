@@ -26,15 +26,15 @@ QtObject {
     readonly property int fontCaption: Math.round(unit * 0.7)
     readonly property int fontTitle:   Math.round(unit * 0.85)
 
-    readonly property int minColumnLeft:        Math.round(unit * 32)
+    readonly property int minColumnLeft:        Math.round(unit * 35)
     readonly property int minColumnCenter:      Math.round(unit * 28)
-    readonly property int minColumnRight:       Math.round(unit * 12)
+    readonly property int minColumnRight:       Math.round(unit * 14)
     readonly property int minPanelHeight:       Math.round(unit * 30)
     readonly property int minHistogramHeight:   Math.round(unit * 13)
 
     readonly property real ratioLeft:   0.35
-    readonly property real ratioCenter: 0.42
-    readonly property real ratioRight:  0.23
+    readonly property real ratioCenter: 0.40
+    readonly property real ratioRight:  0.25
 
     readonly property real ratioWorkRow:   0.50
     readonly property real ratioHistogram: 0.25

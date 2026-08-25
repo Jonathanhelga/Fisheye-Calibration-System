@@ -30,6 +30,7 @@ qt_add_qml_module(fisheye_cali_jojo
 
         qml/windows/Main.qml
         qml/windows/PatternAndMonitor.qml
+        qml/windows/MoilCalibrationResult.qml
 
         qml/panels/CameraPanel.qml
         qml/panels/HistogramPanel.qml
@@ -42,6 +43,7 @@ qt_add_qml_module(fisheye_cali_jojo
         qml/panels/ChessboardPanel.qml
         qml/panels/DpadMonitorViewer.qml
         qml/panels/MonitorSlotPanel.qml
+        qml/panels/CaliResultDataPanel.qml
 
         qml/controls/ActionButton.qml
         qml/controls/GhostButton.qml
@@ -59,6 +61,7 @@ qt_add_qml_module(fisheye_cali_jojo
         qml/controls/MonitorDirectionDialog.qml
         qml/controls/ConcentricLayerRow.qml
         qml/controls/StripelineLayerRow.qml
+        qml/controls/CaliResultRow.qml
         qml/controls/HistogramPlotView.qml
         qml/controls/IhRangeControl.qml
         qml/controls/AxisReadout.qml
