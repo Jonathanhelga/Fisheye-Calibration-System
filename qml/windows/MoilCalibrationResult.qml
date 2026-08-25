@@ -142,7 +142,7 @@ Window {
 
                 ComboBox {
                     id: caliSystemCombo
-
+                    Layout.preferredWidth: Theme.controlWidth
                     Layout.preferredHeight: Theme.controlHeight
                     font.pixelSize: Theme.captionFontSize
                     model: ["Yuanman - SIDE (EV2785)",
@@ -270,10 +270,24 @@ Window {
             onCleanNoiseRequested: (round) => console.log("[Cali Result] Clean noise for round " + round)
         }
 
+        CaliResultParameterPanel {
+            id: parameterPanel
+
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            visible: root.view === root.viewParameter
+
+            onUpdateAllRequested: console.log("[Cali Result] Update all calibration results")
+            onUpdateIhAlphaRequested: console.log("[Cali Result] Update IH-Alpha plot")
+            onUpdateIhZflRequested: console.log("[Cali Result] Update ZFL-IH plot")
+            onSaveParametersRequested: console.log("[Cali Result] Save camera parameters")
+            onSaveConfigurationRequested: console.log("[Cali Result] Save calibration system configuration")
+        }
+
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: root.view !== root.viewData
+            visible: root.view !== root.viewData && root.view !== root.viewParameter
 
             color: Theme.panelBackground
             border.color: Theme.panelBorder
@@ -283,8 +297,7 @@ Window {
                 anchors.centerIn: parent
                 color: Theme.textCaption
                 font.pixelSize: Theme.captionFontSize
-                text: root.view === root.viewParameter ? qsTr("Camera and calibration coefficients go here.")
-                    : root.view === root.viewOverlap ? qsTr("Overlap plot goes here.")
+                text: root.view === root.viewOverlap ? qsTr("Overlap plot goes here.")
                     : root.view === root.viewAggregation ? qsTr("Aggregation by distance and IH range goes here.")
                                                          : qsTr("IH-alpha and IH-ZFL graphs go here.")
             }

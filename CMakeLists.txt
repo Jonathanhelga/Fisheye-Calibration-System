@@ -44,6 +44,7 @@ qt_add_qml_module(fisheye_cali_jojo
         qml/panels/DpadMonitorViewer.qml
         qml/panels/MonitorSlotPanel.qml
         qml/panels/CaliResultDataPanel.qml
+        qml/panels/CaliResultParameterPanel.qml
 
         qml/controls/ActionButton.qml
         qml/controls/GhostButton.qml

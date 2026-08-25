@@ -26,13 +26,20 @@ Rectangle {
 
     property var curves: []
     property var markers: []
+    property var regions: []
 
     property bool interactive: true
+
+    property real scatterRadius: Math.max(1.5, Theme.unit * 0.14)
 
     readonly property real xSpan: (xMax - xMin) !== 0 ? xMax - xMin : 1
     readonly property real ySpan: (yMax - yMin) !== 0 ? yMax - yMin : 1
 
     readonly property bool empty: curves.length === 0
+
+    readonly property bool cursorInside: cursor.tracking
+    readonly property real cursorX: cursor.tracking ? toDataX(cursor.mouseX) : 0
+    readonly property real cursorY: cursor.tracking ? toDataY(cursor.mouseY) : 0
 
     function toPxX(v) { return (v - xMin) / xSpan * area.width }
     function toPxY(v) { return area.height - (v - yMin) / ySpan * area.height }
@@ -113,6 +120,7 @@ Rectangle {
 
     onCurvesChanged: canvas.requestPaint()
     onMarkersChanged: canvas.requestPaint()
+    onRegionsChanged: canvas.requestPaint()
     onXMinChanged: canvas.requestPaint()
     onXMaxChanged: canvas.requestPaint()
     onYMinChanged: canvas.requestPaint()
@@ -208,10 +216,33 @@ Rectangle {
                     ctx.lineWidth = Theme.plotCurveWidth
                     ctx.lineJoin = "round"
 
+                    for (let ri = 0; ri < root.regions.length; ++ri) {
+                        const region = root.regions[ri]
+                        const left = root.toPxX(Math.min(region.min, region.max))
+                        const right = root.toPxX(Math.max(region.min, region.max))
+                        ctx.fillStyle = region.color
+                        ctx.fillRect(left, 0, Math.max(1, right - left), height)
+                    }
+
                     for (let ci = 0; ci < root.curves.length; ++ci) {
                         const curve = root.curves[ci]
                         const points = curve.points
-                        if (!points || points.length < 2)
+                        if (!points || points.length === 0)
+                            continue
+
+                        if (curve.style === "scatter") {
+                            ctx.fillStyle = curve.color
+                            for (let s = 0; s < points.length; ++s) {
+                                ctx.beginPath()
+                                ctx.ellipse(root.toPxX(points[s].x) - root.scatterRadius,
+                                            root.toPxY(points[s].y) - root.scatterRadius,
+                                            2 * root.scatterRadius, 2 * root.scatterRadius)
+                                ctx.fill()
+                            }
+                            continue
+                        }
+
+                        if (points.length < 2)
                             continue
 
                         const step = Math.max(1, Math.floor(points.length / (width * 2)))

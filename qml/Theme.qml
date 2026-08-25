@@ -17,6 +17,7 @@ QtObject {
     //control sizing
     readonly property int radius:        Math.round(unit * 0.25)
     readonly property int controlHeight: Math.round(unit * 2)
+    readonly property int controlWidth: Math.round(unit * 15)
     readonly property int padButtonSize: Math.round(unit * 3)
     readonly property int rosetteCell:   Math.round(unit * 2)
     readonly property int readoutWidth:  Math.round(charUnit * 7)
