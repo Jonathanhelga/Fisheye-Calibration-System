@@ -139,7 +139,7 @@ Rectangle {
                     Layout.fillWidth: true
                     label: qsTr("Square (mm)")
                     text: panel.squareMm
-                    validator: DoubleValidator { bottom: 0.1; top: 999; decimals: 2 }
+                    validator: DecimalValidator { bottom: 0.1; top: 999; decimals: 2 }
                     onEdited: (value) => panel.squareMm = parseFloat(value)
                 }
 

@@ -12,6 +12,7 @@ RowLayout {
     required property var values
 
     property var directions: []
+    property var syncToken
     property bool sideStart: false
 
     property int layerWidth:   Math.round(Theme.charUnit * 5)
@@ -79,8 +80,9 @@ RowLayout {
         Layout.preferredWidth: row.pctWidth
         Layout.preferredHeight: row.cellHeight
         editable: true
-        validator: DoubleValidator { bottom: 0; decimals: 3; notation: DoubleValidator.StandardNotation }
+        validator: DecimalValidator { bottom: 0; decimals: 3; notation: DoubleValidator.StandardNotation }
         value: row.values.pct
+        syncToken: row.syncToken
         onEdited: (value) => row.pctEdited(value)
     }
 
@@ -95,8 +97,9 @@ RowLayout {
             Layout.preferredWidth: row.ictWidth
             Layout.preferredHeight: row.cellHeight
             editable: true
-            validator: DoubleValidator { bottom: 0; decimals: 3; notation: DoubleValidator.StandardNotation }
+            validator: DecimalValidator { bottom: 0; decimals: 3; notation: DoubleValidator.StandardNotation }
             value: row.values.ict[ictCell.index]
+            syncToken: row.syncToken
             onEdited: (value) => row.ictEdited(ictCell.index, value)
         }
     }

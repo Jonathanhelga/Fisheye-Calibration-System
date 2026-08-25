@@ -49,6 +49,7 @@ qt_add_qml_module(fisheye_cali_jojo
         qml/controls/GhostButton.qml
         qml/controls/ColorSwatch.qml
         qml/controls/ValueField.qml
+        qml/controls/DecimalValidator.qml
         qml/controls/LabeledField.qml
         qml/controls/StatusDot.qml
         qml/controls/SegmentedControl.qml

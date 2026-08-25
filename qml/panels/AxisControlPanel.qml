@@ -224,7 +224,7 @@ Rectangle {
                         Layout.fillWidth: true
                         label: "X (mm)"
                         text: root.xStep
-                        validator: DoubleValidator { bottom: 0 }
+                        validator: DecimalValidator { bottom: 0 }
                         onEdited: (value) => root.xStep = parseFloat(value)
                     }
 
@@ -232,7 +232,7 @@ Rectangle {
                         Layout.fillWidth: true
                         label: "Y (mm)"
                         text: root.yStep
-                        validator: DoubleValidator { bottom: 0 }
+                        validator: DecimalValidator { bottom: 0 }
                         onEdited: (value) => root.yStep = parseFloat(value)
                     }
                 }
@@ -269,7 +269,7 @@ Rectangle {
                     enabled: root.stepMode
                     label: "Z (mm)"
                     text: root.zStep
-                    validator: DoubleValidator { bottom: 0 }
+                    validator: DecimalValidator { bottom: 0 }
                     onEdited: (value) => root.zStep = parseFloat(value)
                 }
             }
@@ -312,7 +312,7 @@ Rectangle {
                         Layout.fillWidth: true
                         label: "Yaw (°)"
                         text: root.yawStep
-                        validator: DoubleValidator { bottom: 0 }
+                        validator: DecimalValidator { bottom: 0 }
                         onEdited: (value) => root.yawStep = parseFloat(value)
                     }
 
@@ -320,7 +320,7 @@ Rectangle {
                         Layout.fillWidth: true
                         label: "Pitch (°)"
                         text: root.pitchStep
-                        validator: DoubleValidator { bottom: 0 }
+                        validator: DecimalValidator { bottom: 0 }
                         onEdited: (value) => root.pitchStep = parseFloat(value)
                     }
                 }

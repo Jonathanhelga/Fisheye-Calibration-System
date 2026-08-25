@@ -5,6 +5,7 @@ Rectangle {
     id: field
 
     property var value: ""
+    property var syncToken
     property alias validator: input.validator
     property alias horizontalAlignment: input.horizontalAlignment
     property bool editable: false
@@ -18,6 +19,7 @@ Rectangle {
     }
 
     onValueChanged: sync()
+    onSyncTokenChanged: sync()
     Component.onCompleted: sync()
 
     implicitWidth: Theme.fieldMinWidth
@@ -49,7 +51,7 @@ Rectangle {
         activeFocusOnPress: field.editable
         selectByMouse: field.editable
 
-        onTextEdited: if (acceptableInput) field.edited(text)
+        onTextEdited: if (text.length === 0 || acceptableInput) field.edited(text)
         onActiveFocusChanged: if (!activeFocus) cursorPosition = 0
     }
 }

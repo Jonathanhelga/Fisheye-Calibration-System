@@ -18,6 +18,7 @@ Rectangle {
     property var sideLayers: []
 
     readonly property var rows: round < rounds.length ? rounds[round] : []
+    readonly property var blankRow: panel.emptyRow()
     readonly property int sideLayer: round < sideLayers.length ? sideLayers[round]
                                                               : noSideLayer
 
@@ -66,6 +67,26 @@ Rectangle {
         }
         panel.rounds = tables
         panel.sideLayers = sides
+    }
+
+    function updateRow(layer, changes) {
+        if (panel.round >= panel.rounds.length)
+            return
+        const tables = panel.rounds.slice()
+        const table = tables[panel.round].slice()
+        table[layer] = Object.assign({}, table[layer], changes)
+        tables[panel.round] = table
+        panel.rounds = tables
+    }
+
+    function setPct(layer, value) {
+        panel.updateRow(layer, { pct: value })
+    }
+
+    function setIct(layer, direction, value) {
+        const ict = panel.rows[layer].ict.slice()
+        ict[direction] = value
+        panel.updateRow(layer, { ict: ict })
     }
 
     function setSideLayer(layer) {
@@ -448,7 +469,7 @@ Rectangle {
             contentWidth: cols.totalWidth
             flickableDirection: Flickable.HorizontalAndVerticalFlick
             boundsBehavior: Flickable.StopAtBounds
-            model: panel.rows
+            model: panel.rows.length
 
             ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
             ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
@@ -457,7 +478,8 @@ Rectangle {
                 id: cell
 
                 required property int index
-                required property var modelData
+
+                readonly property var values: panel.rows[cell.index] || panel.blankRow
 
                 width: cols.totalWidth
                 height: layerRow.implicitHeight + Theme.spaceXs
@@ -484,8 +506,9 @@ Rectangle {
                     anchors.bottomMargin: Math.round(Theme.spaceXs / 2)
 
                     layerIndex: cell.index
-                    values: cell.modelData
+                    values: cell.values
                     directions: panel.directions
+                    syncToken: panel.round
                     sideStart: cell.index === panel.sideLayer
 
                     layerWidth: cols.layerWidth
@@ -498,8 +521,8 @@ Rectangle {
                     dividerWidth: cols.dividerWidth
                     columnSpacing: cols.spacing
 
-                    onPctEdited: (value) => cell.modelData.pct = value
-                    onIctEdited: (direction, value) => cell.modelData.ict[direction] = value
+                    onPctEdited: (value) => panel.setPct(cell.index, value)
+                    onIctEdited: (direction, value) => panel.setIct(cell.index, direction, value)
                     onSideStartPicked: panel.setSideLayer(cell.index)
                 }
             }
