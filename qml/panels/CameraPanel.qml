@@ -34,6 +34,10 @@ Rectangle {
                                       : viewSelector.currentIndex === 2 ? negativePath
                                                                         : singlePath
 
+    readonly property url imageUrl: root.imagePath === "" ? ""
+                                 : root.imagePath.startsWith("qrc:") ? root.imagePath
+                                                                     : "file://" + root.imagePath
+
     readonly property string fileName:
         imagePath.substring(imagePath.lastIndexOf("/") + 1)
 
@@ -208,7 +212,7 @@ Rectangle {
             Layout.fillHeight: true
             Layout.minimumHeight: Theme.unit * 12
 
-            source: root.imagePath ? "file://" + root.imagePath : ""
+            source: root.imageUrl
             emptyText: root.patternMode
                 ? qsTr("No %1 shot yet").arg(root.patternMode.toLowerCase())
                 : qsTr("No image. Press Capture.")

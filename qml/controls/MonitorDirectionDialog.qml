@@ -6,7 +6,6 @@ import FisheyeCaliJojo
 Dialog {
     id: dialog
 
-    title: qsTr("Setup Monitor Direction")
     modal: true
     standardButtons: Dialog.Close
     padding: Theme.panelMargin
@@ -23,6 +22,14 @@ Dialog {
     signal applyMappingRequested(int top, int north, int west, int south, int east)
 
     function reportStatus(text) { dialog.statusText = text }
+
+    header: Label {
+        text: qsTr("Setup Monitor Direction")
+        padding: Theme.panelMargin
+        font.bold: true
+        font.pixelSize: Theme.fontTitle
+        color: Theme.accent
+    }
 
     background: Rectangle {
         implicitWidth: Theme.unit * 34

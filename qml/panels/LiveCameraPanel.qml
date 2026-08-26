@@ -8,6 +8,10 @@ Rectangle {
 
     property string framePath: ""
 
+    readonly property url frameUrl: root.framePath === "" ? ""
+                                  : root.framePath.startsWith("qrc:") ? root.framePath
+                                                                      : "file://" + root.framePath
+
     property bool streaming: false
     property real fps: 0
 
@@ -122,7 +126,7 @@ Rectangle {
             Layout.minimumHeight: Theme.unit * 8
             Layout.preferredHeight: Theme.unit * 12
 
-            source: root.streaming && root.framePath ? "file://" + root.framePath : ""
+            source: root.streaming ? root.frameUrl : ""
 
             emptyText: root.streaming ? qsTr("Waiting for frames...")
                                       : qsTr("Stream is off. Press Go Live.")

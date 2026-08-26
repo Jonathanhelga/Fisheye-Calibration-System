@@ -70,6 +70,9 @@ qt_add_qml_module(fisheye_cali_jojo
         qml/controls/SectionFrame.qml
         qml/controls/PanelPlaceholder.qml
 
+    RESOURCES
+        tools/sample_shot.png
+
     SOURCES
         Bridge.cpp Bridge.h
         ServerProbe.cpp ServerProbe.h
