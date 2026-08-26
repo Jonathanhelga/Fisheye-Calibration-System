@@ -1,18 +1,8 @@
 build/
+.cache/
 .vscode/
-CONFIGURATION.md
-RUNNING.md
-
-BASIC_INFO.md
-CLAUDE.md
-SCROLLING.md
-STYLING.md
-CONNECTION_STATUS_WALKTHROUGH.md
-CONNECTION_STATUS_PLAN.md
-LIVE_CAMERA.md
-QML_LINT_DEBT.md
-*.md
 tools/
-.cache
+
+*.md
 
 .DS_Store
