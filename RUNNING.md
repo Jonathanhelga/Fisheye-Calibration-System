@@ -12,6 +12,7 @@ The project is developed on two machines, and both are covered here.
 | Qt | 6.11.1, via Homebrew | 6.11.1, hand-installed under `~/Qt` |
 | Qt prefix | `/opt/homebrew/opt/qt6` | `~/Qt/6.11.1/gcc_64` |
 | CMake | Homebrew, `/opt/homebrew/bin/cmake` | apt, `/usr/bin/cmake` |
+| ROS 2 backend | off (Mac AP drops multicast, see `BACKEND_INTEGRATION.md`) | on — Jazzy at `/opt/ros/jazzy`, `moil_interfaces` at `~/moil_ros_ws/install` |
 | Checkout | `~/Desktop/Fisheye_Calibration-Jojo_Version` | `~/Fisheye-Calibration-System` |
 | Reached by | local | `ssh moilpc` |
 
@@ -70,14 +71,27 @@ That is the whole reason Qt 6.11.1 was installed by hand into `~/Qt`.
 `qmake6` on `PATH` still points at the apt 6.4.2, so it is not a reliable way to check which Qt a build actually used.
 Always pass the prefix explicitly.
 
+### Why the ROS overlay matters at configure time
+
+On Linux, `CMakeLists.txt` flips `FISHEYE_ENABLE_ROS` **on** by default, which pulls in `find_package(rclcpp)` and `find_package(moil_interfaces)`.
+`rclcpp` comes from `/opt/ros/jazzy`, which is already sourced from `~/.bashrc`, so CMake finds it without help.
+`moil_interfaces` is a per-user build living at `~/moil_ros_ws/install/moil_interfaces`, and CMake will not find it unless that overlay is sourced in the shell that runs `cmake -S . -B build`.
+
+Miss this and configure fails with `Could not find a package configuration file provided by "moil_interfaces"`.
+See `MINIPC_ROS_CONNECT.md` for why `moil_ros_ws` is the canonical overlay on this machine — there are ~30 other stale copies of `moil_interfaces` under `~`, ignore them all.
+
 ### Configure
 
 ```bash
+source /opt/ros/jazzy/setup.bash          # already in ~/.bashrc, harmless to repeat
+source ~/moil_ros_ws/install/setup.bash   # makes moil_interfaces visible to CMake
 cmake -S . -B build -G Ninja -DCMAKE_PREFIX_PATH="$HOME/Qt/6.11.1/gcc_64"
 ```
 
 Leave `CMAKE_PREFIX_PATH` off and CMake silently finds the apt Qt 6.4.2 instead, then fails on the `QTP0004` policy.
 The error names the policy, not the Qt version, so it reads as a CMake problem when it is really a wrong-Qt problem.
+
+To build the frontend without any ROS wiring — useful for pure UI work with no rig on the network — pass `-DFISHEYE_ENABLE_ROS=OFF`, and the two ROS `source` lines above become unnecessary.
 
 ### Build and run
 
@@ -85,6 +99,10 @@ The error names the policy, not the Qt version, so it reads as a CMake problem w
 cmake --build build -j6
 ./build/fisheye_cali_jojo
 ```
+
+No sourcing needed at run time: `CMakeLists.txt` passes `-Wl,--disable-new-dtags` when ROS is enabled, which turns the linker's RUNPATH into an RPATH.
+The RPATH propagates to transitive dependencies, so `libmoil_interfaces__rosidl_generator_c.so` resolves without help.
+Trade-off: the absolute path `~/moil_ros_ws/install/moil_interfaces/lib` is baked into the binary, so if that overlay ever moves, reconfigure (delete `build/` and rerun the configure step).
 
 Running the binary needs a real display session, so do it at the machine or over an X/Wayland forwarding connection, not a plain `ssh moilpc`.
 
@@ -97,6 +115,18 @@ sudo apt install cmake ninja-build build-essential
 ```
 
 Qt 6.11.1 itself comes from the Qt online installer, not apt, and lands in `~/Qt/6.11.1/gcc_64`.
+
+ROS 2 Jazzy is already installed system-wide at `/opt/ros/jazzy`.
+The `moil_interfaces` messages/services need to be built once into a colcon workspace:
+
+```bash
+# Only if ~/moil_ros_ws does not already exist. On this miniPC it does.
+mkdir -p ~/moil_ros_ws/src
+# Copy or symlink the moil_interfaces package sources into ~/moil_ros_ws/src/, then:
+cd ~/moil_ros_ws
+source /opt/ros/jazzy/setup.bash
+colcon build --packages-select moil_interfaces
+```
 
 ## You must rebuild after editing QML
 
@@ -123,6 +153,8 @@ The one-liner that always works, once `build/` is configured:
 cmake --build build -j6 && ./build/fisheye_cali_jojo
 ```
 
+Identical on both machines. On the miniPC this works from a fresh shell with no ROS `source` because `build/CMakeCache.txt` remembers where `moil_interfaces` lives and the binary's baked RPATH covers the runtime side. Sourcing only comes back into play on a reconfigure (see the miniPC configure section).
+
 ## Working across both machines
 
 `build/` is in `.gitignore`, so each machine keeps its own.
@@ -138,6 +170,7 @@ cmake --build build -j6
 ```
 
 If a pull brings in `CMakeLists.txt` changes, reconfigure on that machine before building.
+On the miniPC, a reconfigure means going back to the two `source` lines from the miniPC configure section — otherwise CMake loses `moil_interfaces` and configure fails.
 
 ## What each piece of the build does
 
@@ -225,6 +258,8 @@ C++ types reach QML through `QML_ELEMENT` registration instead, which is what le
 | `QTP0004` policy error | it found Qt 6.4.2 from apt | point `CMAKE_PREFIX_PATH` at `~/Qt/6.11.1/gcc_64` |
 | `does not match the generator used previously` | `build/` was configured with a different generator | `rm -rf build`, then reconfigure |
 | `No CMAKE_CXX_COMPILER could be found` | no compiler installed | `xcode-select --install` / `sudo apt install build-essential` |
+| `Could not find a package configuration file provided by "moil_interfaces"` (miniPC, configure) | the ROS overlay is not sourced | `source ~/moil_ros_ws/install/setup.bash`, then reconfigure — or pass `-DFISHEYE_ENABLE_ROS=OFF` |
+| `error while loading shared libraries: libmoil_interfaces__rosidl_generator_c.so` (miniPC, run) | binary was built without the `--disable-new-dtags` RPATH fix, so a transitive ROS dep is unresolved | `rm -rf build`, reconfigure with a current `CMakeLists.txt`, and rebuild — or as a one-shot workaround, `source ~/moil_ros_ws/install/setup.bash` before running |
 
 If you get something not on this list, copy the whole error rather than the last line.
 The useful part of a CMake error is usually in the middle.

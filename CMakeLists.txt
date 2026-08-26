@@ -105,4 +105,9 @@ if(FISHEYE_ENABLE_ROS)
         ${moil_interfaces_TARGETS}
     )
     target_compile_definitions(fisheye_cali_jojo PRIVATE FISHEYE_ROS_ENABLED)
+
+    # Use RPATH (not RUNPATH) so transitive deps like
+    # libmoil_interfaces__rosidl_generator_c.so resolve without sourcing
+    # the ROS overlay at runtime.
+    target_link_options(fisheye_cali_jojo PRIVATE "LINKER:--disable-new-dtags")
 endif()
