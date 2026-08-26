@@ -46,6 +46,7 @@ qt_add_qml_module(fisheye_cali_jojo
         qml/panels/CaliResultDataPanel.qml
         qml/panels/CaliResultParameterPanel.qml
 
+        qml/controls/ScaledCanvas.qml
         qml/controls/ActionButton.qml
         qml/controls/GhostButton.qml
         qml/controls/ColorSwatch.qml
