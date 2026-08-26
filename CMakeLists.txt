@@ -10,6 +10,19 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Network is needed for the reachability probes in ServerProbe.
 find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2 Network)
 
+if(UNIX AND NOT APPLE)
+    set(FISHEYE_ROS_DEFAULT ON)
+else()
+    set(FISHEYE_ROS_DEFAULT OFF)
+endif()
+
+option(FISHEYE_ENABLE_ROS "Build the ROS 2 server probe" ${FISHEYE_ROS_DEFAULT})
+
+if(FISHEYE_ENABLE_ROS)
+    find_package(rclcpp REQUIRED)
+    find_package(moil_interfaces REQUIRED)
+endif()
+
 qt_standard_project_setup(REQUIRES 6.5)
 qt_policy(SET QTP0004 NEW)
 
@@ -77,6 +90,7 @@ qt_add_qml_module(fisheye_cali_jojo
     SOURCES
         Bridge.cpp Bridge.h
         ServerProbe.cpp ServerProbe.h
+        RosServerProbe.cpp RosServerProbe.h
 )
 
 target_link_libraries(fisheye_cali_jojo PRIVATE
@@ -84,3 +98,11 @@ target_link_libraries(fisheye_cali_jojo PRIVATE
     Qt6::QuickControls2
     Qt6::Network
 )
+
+if(FISHEYE_ENABLE_ROS)
+    target_link_libraries(fisheye_cali_jojo PRIVATE
+        rclcpp::rclcpp
+        ${moil_interfaces_TARGETS}
+    )
+    target_compile_definitions(fisheye_cali_jojo PRIVATE FISHEYE_ROS_ENABLED)
+endif()

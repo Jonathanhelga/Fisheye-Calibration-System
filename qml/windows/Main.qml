@@ -48,7 +48,11 @@ ApplicationWindow {
                     Layout.minimumWidth: Theme.minColumnLeft
                     spacing: Theme.spaceMd
 
-                    ServerConfigPanel {  Layout.fillWidth: true }
+                    ServerConfigPanel {
+                        Layout.fillWidth: true
+                        onRosUpdateRequested: (domainId, axisNamespace, monitorNamespace, cameraTopic) =>
+                            RosServerProbe.probeAll(domainId, axisNamespace, monitorNamespace, cameraTopic)
+                    }
                     AxisControlPanel { Layout.fillWidth: true; Layout.fillHeight: true }
                 }
 

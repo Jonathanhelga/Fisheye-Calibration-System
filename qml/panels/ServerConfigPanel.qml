@@ -21,9 +21,9 @@ Rectangle {
     property string monitorNamespace: "/monitor"
     property string cameraTopic: "/camera/image_raw/compressed"
 
-    property int rosAxisStatus: ServerProbe.Unknown
-    property int rosMonitorStatus: ServerProbe.Unknown
-    property int rosCameraStatus: ServerProbe.Unknown
+    readonly property int rosAxisStatus: RosServerProbe.axisStatus
+    readonly property int rosMonitorStatus: RosServerProbe.monitorStatus
+    readonly property int rosCameraStatus: RosServerProbe.cameraStatus
 
     readonly property int rosDomainStatus: {
         const statuses = [rosAxisStatus, rosMonitorStatus, rosCameraStatus]
@@ -83,9 +83,7 @@ Rectangle {
                 status: root.rosDomainStatus
                 onEdited: (value) => {
                     root.domainId = parseInt(value)
-                    root.rosAxisStatus = ServerProbe.Unknown
-                    root.rosMonitorStatus = ServerProbe.Unknown
-                    root.rosCameraStatus = ServerProbe.Unknown
+                    RosServerProbe.resetAll()
                 }
             }
 
@@ -102,7 +100,7 @@ Rectangle {
                     status: root.rosAxisStatus
                     onEdited: (value) => {
                         root.axisNamespace = value
-                        root.rosAxisStatus = ServerProbe.Unknown
+                        RosServerProbe.resetAll()
                     }
                 }
 
@@ -115,7 +113,7 @@ Rectangle {
                     status: root.rosMonitorStatus
                     onEdited: (value) => {
                         root.monitorNamespace = value
-                        root.rosMonitorStatus = ServerProbe.Unknown
+                        RosServerProbe.resetAll()
                     }
                 }
 
@@ -128,7 +126,7 @@ Rectangle {
                     status: root.rosCameraStatus
                     onEdited: (value) => {
                         root.cameraTopic = value
-                        root.rosCameraStatus = ServerProbe.Unknown
+                        RosServerProbe.resetAll()
                     }
                 }
             }
@@ -208,9 +206,6 @@ Rectangle {
                     ServerProbe.probeAll(root.host, root.axisPort,
                                         root.monitorPort, root.cameraPort)
                 } else {
-                    root.rosAxisStatus = ServerProbe.Checking
-                    root.rosMonitorStatus = ServerProbe.Checking
-                    root.rosCameraStatus = ServerProbe.Checking
                     root.rosUpdateRequested(root.domainId, root.axisNamespace,
                                             root.monitorNamespace, root.cameraTopic)
                 }
