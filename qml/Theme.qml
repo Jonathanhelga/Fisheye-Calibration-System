@@ -65,6 +65,7 @@ QtObject {
     readonly property int plotYDivisions: 9
     readonly property int plotHoverRadius: Math.round(unit)
     readonly property real plotCurveWidth: 1.5
+    readonly property real plotBoundsPadding: 0.05
 
 
     readonly property color panelBackground: "#f4f6f8"

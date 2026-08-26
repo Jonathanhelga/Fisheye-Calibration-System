@@ -35,6 +35,49 @@ Rectangle {
     readonly property real xSpan: (xMax - xMin) !== 0 ? xMax - xMin : 1
     readonly property real ySpan: (yMax - yMin) !== 0 ? yMax - yMin : 1
 
+    readonly property var dataExtent: {
+        let xLo = Infinity, xHi = -Infinity, yLo = Infinity, yHi = -Infinity
+
+        for (let ci = 0; ci < curves.length; ++ci) {
+            const points = curves[ci].points
+            if (!points)
+                continue
+            for (let i = 0; i < points.length; ++i) {
+                const p = points[i]
+                if (p.x < xLo) xLo = p.x
+                if (p.x > xHi) xHi = p.x
+                if (p.y < yLo) yLo = p.y
+                if (p.y > yHi) yHi = p.y
+            }
+        }
+
+        for (let mi = 0; mi < markers.length; ++mi) {
+            const m = markers[mi]
+            if (m < xLo) xLo = m
+            if (m > xHi) xHi = m
+        }
+
+        for (let ri = 0; ri < regions.length; ++ri) {
+            const lo = Math.min(regions[ri].min, regions[ri].max)
+            const hi = Math.max(regions[ri].min, regions[ri].max)
+            if (lo < xLo) xLo = lo
+            if (hi > xHi) xHi = hi
+        }
+
+        const padX = xHi > xLo ? (xHi - xLo) * Theme.plotBoundsPadding : 0
+        const padY = yHi > yLo ? (yHi - yLo) * Theme.plotBoundsPadding : 0
+        return { xMin: xLo - padX, xMax: xHi + padX,
+                 yMin: yLo - padY, yMax: yHi + padY }
+    }
+
+    readonly property real boundsXMin: Math.min(defaultXMin, dataExtent.xMin)
+    readonly property real boundsXMax: Math.max(defaultXMax, dataExtent.xMax)
+    readonly property real boundsYMin: Math.min(defaultYMin, dataExtent.yMin)
+    readonly property real boundsYMax: Math.max(defaultYMax, dataExtent.yMax)
+
+    readonly property bool canPan: (xMax - xMin) < (boundsXMax - boundsXMin) - 1e-6
+                                   || (yMax - yMin) < (boundsYMax - boundsYMin) - 1e-6
+
     readonly property bool empty: curves.length === 0
 
     readonly property bool cursorInside: cursor.tracking
@@ -53,16 +96,13 @@ Rectangle {
         yMax = defaultYMax
     }
 
-    // Keeps the requested span (so hitting an edge stops the pan/zoom
-    // instead of squashing the range), but never lets min/max leave
-    // [defaultXMin, defaultXMax].
-    function clampXRange(min, max) {
-        const range = defaultXMax - defaultXMin
-        let span = Math.min(max - min, range)
-        let clampedMin = Math.max(defaultXMin, min)
+    function clampRange(min, max, lo, hi) {
+        const limit = hi - lo
+        const span = Math.min(max - min, limit)
+        let clampedMin = Math.max(lo, min)
         let clampedMax = clampedMin + span
-        if (clampedMax > defaultXMax) {
-            clampedMax = defaultXMax
+        if (clampedMax > hi) {
+            clampedMax = hi
             clampedMin = clampedMax - span
         }
         return { min: clampedMin, max: clampedMax }
@@ -71,21 +111,25 @@ Rectangle {
     function zoomAt(px, py, factor) {
         const ax = toDataX(px)
         const ay = toDataY(py)
-        const x = clampXRange(ax + (xMin - ax) * factor, ax + (xMax - ax) * factor)
+        const x = clampRange(ax + (xMin - ax) * factor, ax + (xMax - ax) * factor,
+                             boundsXMin, boundsXMax)
+        const y = clampRange(ay + (yMin - ay) * factor, ay + (yMax - ay) * factor,
+                             boundsYMin, boundsYMax)
         xMin = x.min
         xMax = x.max
-        yMin = ay + (yMin - ay) * factor
-        yMax = ay + (yMax - ay) * factor
+        yMin = y.min
+        yMax = y.max
     }
 
     function panBy(dxPx, dyPx) {
         const dx = dxPx / area.width * xSpan
         const dy = dyPx / area.height * ySpan
-        const x = clampXRange(xMin - dx, xMax - dx)
+        const x = clampRange(xMin - dx, xMax - dx, boundsXMin, boundsXMax)
+        const y = clampRange(yMin + dy, yMax + dy, boundsYMin, boundsYMax)
         xMin = x.min
         xMax = x.max
-        yMin += dy
-        yMax += dy
+        yMin = y.min
+        yMax = y.max
     }
 
     function nearestPoint(px, py) {
@@ -386,6 +430,8 @@ Rectangle {
             cursorShape: panning ? Qt.ClosedHandCursor : Qt.CrossCursor
 
             onPressed: (mouse) => {
+                if (!root.canPan)
+                    return
                 panning = true
                 lastX = mouse.x
                 lastY = mouse.y
