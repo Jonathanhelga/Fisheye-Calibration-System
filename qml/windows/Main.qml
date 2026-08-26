@@ -64,8 +64,8 @@ ApplicationWindow {
                     CameraPanel {
                         id: camera
 
-                        singlePath: "qrc:/qt/qml/FisheyeCaliJojo/tools/sample_shot.png"
-                        positivePath: "qrc:/qt/qml/FisheyeCaliJojo/tools/sample_shot.png"
+                        singlePath: "qrc:/qt/qml/FisheyeCaliJojo/assets/sample_shot.png"
+                        positivePath: "qrc:/qt/qml/FisheyeCaliJojo/assets/sample_shot.png"
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         Layout.preferredWidth: workRow.free * Theme.ratioCenter

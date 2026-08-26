@@ -71,7 +71,7 @@ qt_add_qml_module(fisheye_cali_jojo
         qml/controls/PanelPlaceholder.qml
 
     RESOURCES
-        tools/sample_shot.png
+        assets/sample_shot.png
 
     SOURCES
         Bridge.cpp Bridge.h
