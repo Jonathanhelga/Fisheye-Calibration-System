@@ -13,6 +13,12 @@ ColumnLayout {
 
     property bool showStatus: false
     property int status: ServerProbe.Unknown
+    property alias showStatusText: statusDot.showLabel
+    property alias statusOkText: statusDot.okText
+    property alias statusFailedText: statusDot.failedText
+    property alias statusPartialText: statusDot.partialText
+    property alias statusCheckingText: statusDot.checkingText
+    property alias statusUnknownText: statusDot.unknownText
 
     signal edited(string value)
 
@@ -29,6 +35,8 @@ ColumnLayout {
         }
 
         StatusDot {
+            id: statusDot
+            Layout.fillWidth: true
             visible: field.showStatus
             status: field.status
         }

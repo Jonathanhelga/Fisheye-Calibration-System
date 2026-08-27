@@ -81,6 +81,11 @@ Rectangle {
                 validator: IntValidator { bottom: 0; top: 232 }
                 showStatus: true
                 status: root.rosDomainStatus
+                showStatusText: true
+                statusOkText: qsTr("Successfully found the nodes")
+                statusPartialText: qsTr("Only some nodes found")
+                statusCheckingText: qsTr("Searching for nodes")
+                statusUnknownText: qsTr("Press Update to check")
                 onEdited: (value) => {
                     root.domainId = parseInt(value)
                     RosServerProbe.resetAll()
