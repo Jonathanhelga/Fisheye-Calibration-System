@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -13,43 +15,62 @@ Rectangle {
     property real pitchStep: 1.0
 
     readonly property bool stepMode: travelMode.currentIndex === 1
+    readonly property bool moving: AxisController.busy
+    readonly property bool ready: AxisController.connected
+    readonly property bool fresh: AxisController.dataFresh
 
-    property string activeMotion: ""
+    readonly property int speed: [AxisController.High,
+                                  AxisController.Mid,
+                                  AxisController.Low][speedSelector.currentIndex]
 
-    readonly property bool moving: activeMotion !== ""
+    property string notice: ""
 
-    readonly property var motionNames: ({
-        x_left:     qsTr("X left"),
-        x_right:    qsTr("X right"),
-        y_up:       qsTr("Y up"),
-        y_down:     qsTr("Y down"),
-        z_forward:  qsTr("Z upward"),
-        z_back:     qsTr("Z backward"),
-        yaw_left:   qsTr("Yaw left"),
-        yaw_right:  qsTr("Yaw right"),
-        pitch_up:   qsTr("Pitch up"),
-        pitch_down: qsTr("Pitch down"),
-        xy_home:       qsTr("X and Y home"),
-        z_home:        qsTr("Z home"),
-        rotation_home: qsTr("Yaw and Pitch home")
-    })
+    readonly property string motionText: notice.length > 0 ? notice
+        : AxisController.activityText.length > 0 ? AxisController.activityText
+        : AxisController.connected ? qsTr("Idle")
+        : AxisController.lastError.length > 0 ? AxisController.lastError
+                                              : qsTr("Not connected")
 
-    readonly property string motionText: moving
-        ? qsTr("Moving %1").arg(motionNames[activeMotion] || activeMotion)
-        : qsTr("Idle")
+    readonly property bool alerting: notice.length > 0
 
-    signal commandRequested(string endpoint, string mode, real distance)
-    signal homeRequested(string group)
-    signal stopRequested()
-
-    function requestMove(endpoint, step) {
-        activeMotion = endpoint
-        commandRequested(endpoint, stepMode ? "step" : "max", stepMode ? step : 0)
+    function report(axis, reason) {
+        const label = axis && axis.length > 0 ? axis.toUpperCase() + ": " : ""
+        root.notice = label + reason
+        noticeTimer.restart()
     }
 
-    function requestHome(group) {
-        activeMotion = group + "_home"
-        homeRequested(group)
+    Timer {
+        id: noticeTimer
+        interval: Theme.noticeTimeout
+        onTriggered: root.notice = ""
+    }
+
+    Connections {
+        target: AxisController
+
+        function onCommandRejected(axis, reason) { root.report(axis, reason) }
+        function onCommandFailed(axis, reason) { root.report(axis, reason) }
+        function onOperationTimedOut(axis, what, ms) {
+            root.report(axis, qsTr("%1 timed out after %2 s").arg(what).arg(Math.round(ms / 1000)))
+        }
+        function onHomeGroupFinished(group, ok, message) {
+            if (!ok) root.report("", message)
+        }
+        function onConnectionChanged() { root.notice = "" }
+    }
+
+    function drive(axis, side, step) {
+        if (root.stepMode)
+            AxisController.jog(axis, side, step, root.speed)
+        else
+            AxisController.driveToLimit(axis, side, root.speed)
+    }
+
+    function padEnabled(axis, side) {
+        if (!root.ready || root.moving) return false
+        const state = AxisController.axis(axis)
+        if (!state) return false
+        return side === AxisController.HighSide ? !state.highBlocked : !state.lowBlocked
     }
 
     implicitWidth: content.implicitWidth + 2 * Theme.panelMargin
@@ -78,8 +99,15 @@ Rectangle {
 
             StatusDot {
                 Layout.alignment: Qt.AlignVCenter
-                status: root.moving ? ServerProbe.Checking : ServerProbe.Unknown
-                color: root.moving ? Theme.statusOk : Theme.statusUnknown
+                status: AxisController.connectionState === AxisController.Connected
+                            ? ServerProbe.Ok
+                      : AxisController.connectionState === AxisController.Degraded
+                            ? ServerProbe.Partial
+                      : AxisController.connectionState === AxisController.Connecting
+                            ? ServerProbe.Checking
+                      : AxisController.connectionState === AxisController.Failed
+                            ? ServerProbe.Failed
+                            : ServerProbe.Unknown
             }
 
             Label {
@@ -87,7 +115,9 @@ Rectangle {
                 Layout.minimumWidth: 0
                 Layout.preferredWidth: 0
                 text: root.motionText
-                color: root.moving ? Theme.textPrimary : Theme.textCaption
+                color: root.alerting ? Theme.statusPartial
+                     : root.moving ? Theme.textPrimary
+                                   : Theme.textCaption
                 font.pixelSize: Theme.captionFontSize
                 elide: Text.ElideRight
             }
@@ -97,12 +127,13 @@ Rectangle {
             Layout.fillWidth: true
             spacing: Theme.rowSpacing
 
-            AxisReadout { Layout.fillWidth: true; label: "X"; value: "?" }
-            AxisReadout { Layout.fillWidth: true; label: "Y"; value: "?" }
-            AxisReadout { Layout.fillWidth: true; label: "Z"; value: "?" }
-            AxisReadout { Layout.fillWidth: true; label: "Yaw"; value: "?" }
-            AxisReadout { Layout.fillWidth: true; label: "Pitch"; value: "?" }
+            AxisStateReadout { Layout.fillWidth: true; label: "X"; axis: AxisController.x }
+            AxisStateReadout { Layout.fillWidth: true; label: "Y"; axis: AxisController.y }
+            AxisStateReadout { Layout.fillWidth: true; label: "Z"; axis: AxisController.z }
+            AxisStateReadout { Layout.fillWidth: true; label: "Yaw"; axis: AxisController.yaw }
+            AxisStateReadout { Layout.fillWidth: true; label: "Pitch"; axis: AxisController.pitch }
         }
+
         RowLayout {
             Layout.fillWidth: true
             spacing: Theme.rowSpacing
@@ -120,32 +151,40 @@ Rectangle {
                 SegmentedControl {
                     id: travelMode
                     model: [qsTr("Max"), qsTr("Step")]
-                    currentIndex: 0
+                    currentIndex: 1
                 }
 
                 Label {
                     Layout.fillWidth: true
                     Layout.minimumWidth: 0
                     Layout.preferredWidth: 0
-                    text: root.stepMode ? qsTr("moves by the step"): qsTr(" mechanical limit")
-                    color: Theme.textCaption
+                    text: root.stepMode ? qsTr("moves by the step")
+                        : AxisController.limitMoveAvailable ? qsTr("drives to the mechanical limit")
+                                                            : qsTr("drive-to-limit unavailable")
+                    color: !root.stepMode && !AxisController.limitMoveAvailable
+                           ? Theme.statusPartial : Theme.textCaption
                     font.pixelSize: Theme.captionFontSize
                     elide: Text.ElideRight
                 }
             }
-            RowLayout{
+
+            RowLayout {
                 Layout.fillWidth: true
                 spacing: Theme.rowSpacing
+
                 Label {
                     text: qsTr("Speed")
                     color: Theme.textCaption
                     font.pixelSize: Theme.captionFontSize
                 }
+
                 ComboBox {
+                    id: speedSelector
                     Layout.preferredHeight: Theme.controlHeight
-                    model: [ "High", "Normal", "Slow"]
+                    model: ["High", "Mid", "Low"]
                 }
             }
+
             Button {
                 id: stopButton
 
@@ -154,10 +193,7 @@ Rectangle {
                 Layout.alignment: Qt.AlignRight
 
                 text: qsTr("STOP")
-                onClicked: {
-                    root.activeMotion = ""
-                    root.stopRequested()
-                }
+                onClicked: AxisController.stopAll()
 
                 background: Rectangle {
                     radius: Theme.radius
@@ -203,16 +239,23 @@ Rectangle {
                     danger: !root.stepMode
                     centerText: "X Y"
                     homeText: qsTr("HOME")
-                    homeEnabled: !root.moving
+                    homeEnabled: root.ready && !root.moving && root.fresh
+
+                    upEnabled: root.padEnabled("y", AxisController.HighSide)
+                    downEnabled: root.padEnabled("y", AxisController.LowSide)
+                    leftEnabled: root.padEnabled("x", AxisController.LowSide)
+                    rightEnabled: root.padEnabled("x", AxisController.HighSide)
 
                     onDirectionClicked: (direction) => {
-                        const vertical = direction === "up" || direction === "down"
-                        const endpoint = ({ up: "y_up", down: "y_down",
-                                            left: "x_left", right: "x_right" })[direction]
-                        root.requestMove(endpoint, vertical ? root.yStep : root.xStep)
+                        switch (direction) {
+                        case "up":    root.drive("y", AxisController.HighSide, root.yStep); break
+                        case "down":  root.drive("y", AxisController.LowSide, root.yStep); break
+                        case "left":  root.drive("x", AxisController.LowSide, root.xStep); break
+                        case "right": root.drive("x", AxisController.HighSide, root.xStep); break
+                        }
                     }
 
-                    onHomeClicked: root.requestHome("xy")
+                    onHomeClicked: AxisController.homeGroup(AxisController.GroupXY)
                 }
 
                 RowLayout {
@@ -237,7 +280,7 @@ Rectangle {
                     }
                 }
             }
-            
+
             SectionFrame {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -256,12 +299,16 @@ Rectangle {
                     danger: !root.stepMode
                     centerText: "Z"
                     homeText: qsTr("HOME")
-                    homeEnabled: !root.moving
+                    homeEnabled: root.ready && !root.moving && root.fresh
 
-                    onDirectionClicked: (direction) => root.requestMove(
-                        direction === "up" ? "z_forward" : "z_back", root.zStep)
+                    upEnabled: root.padEnabled("z", AxisController.HighSide)
+                    downEnabled: root.padEnabled("z", AxisController.LowSide)
 
-                    onHomeClicked: root.requestHome("z")
+                    onDirectionClicked: (direction) => root.drive(
+                        "z", direction === "up" ? AxisController.HighSide
+                                                : AxisController.LowSide, root.zStep)
+
+                    onHomeClicked: AxisController.homeGroup(AxisController.GroupZ)
                 }
 
                 LabeledField {
@@ -291,16 +338,23 @@ Rectangle {
                     danger: !root.stepMode
                     centerText: "YAW\nPITCH"
                     homeText: qsTr("HOME")
-                    homeEnabled: !root.moving
+                    homeEnabled: root.ready && !root.moving && root.fresh
+
+                    upEnabled: root.padEnabled("pitch", AxisController.HighSide)
+                    downEnabled: root.padEnabled("pitch", AxisController.LowSide)
+                    leftEnabled: root.padEnabled("yaw", AxisController.LowSide)
+                    rightEnabled: root.padEnabled("yaw", AxisController.HighSide)
 
                     onDirectionClicked: (direction) => {
-                        const vertical = direction === "up" || direction === "down"
-                        const endpoint = ({ up: "pitch_up", down: "pitch_down",
-                                            left: "yaw_left", right: "yaw_right" })[direction]
-                        root.requestMove(endpoint, vertical ? root.pitchStep : root.yawStep)
+                        switch (direction) {
+                        case "up":    root.drive("pitch", AxisController.HighSide, root.pitchStep); break
+                        case "down":  root.drive("pitch", AxisController.LowSide, root.pitchStep); break
+                        case "left":  root.drive("yaw", AxisController.LowSide, root.yawStep); break
+                        case "right": root.drive("yaw", AxisController.HighSide, root.yawStep); break
+                        }
                     }
 
-                    onHomeClicked: root.requestHome("rotation")
+                    onHomeClicked: AxisController.homeGroup(AxisController.GroupRotation)
                 }
 
                 RowLayout {

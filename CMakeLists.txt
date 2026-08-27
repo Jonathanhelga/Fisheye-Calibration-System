@@ -81,6 +81,7 @@ qt_add_qml_module(fisheye_cali_jojo
         qml/controls/HistogramPlotView.qml
         qml/controls/IhRangeControl.qml
         qml/controls/AxisReadout.qml
+        qml/controls/AxisStateReadout.qml
         qml/controls/SectionFrame.qml
         qml/controls/PanelPlaceholder.qml
 
@@ -91,6 +92,8 @@ qt_add_qml_module(fisheye_cali_jojo
         src/Bridge.cpp src/Bridge.h
         src/ServerProbe.cpp src/ServerProbe.h
         src/RosServerProbe.cpp src/RosServerProbe.h
+        src/AxisState.cpp src/AxisState.h
+        src/AxisController.cpp src/AxisController.h
 )
 
 target_include_directories(fisheye_cali_jojo PRIVATE src)

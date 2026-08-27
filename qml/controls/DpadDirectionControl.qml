@@ -15,6 +15,11 @@ Item {
     property string homeText: ""
     property bool homeEnabled: true
 
+    property bool upEnabled: true
+    property bool downEnabled: true
+    property bool leftEnabled: true
+    property bool rightEnabled: true
+
     signal directionClicked(string direction)
     signal homeClicked()
 
@@ -32,7 +37,8 @@ Item {
 
         background: Rectangle {
             radius: Theme.radius
-            color: control.down ? (pad.danger ? Theme.danger : Theme.accent)
+            color: !control.enabled ? Theme.fieldDisabledBackground
+                 : control.down ? (pad.danger ? Theme.danger : Theme.accent)
                  : control.hovered ? (pad.danger ? Theme.dangerHover : Theme.accentHover)
                  : (pad.danger ? Theme.dangerIdle : Theme.accentIdle)
 
@@ -43,7 +49,7 @@ Item {
 
         contentItem: Text {
             text: control.text
-            color: Theme.textOnAccent
+            color: control.enabled ? Theme.textOnAccent : Theme.textDisabled
             font.pixelSize: Math.round(pad.cellSize * 0.4)
             font.bold: true
             horizontalAlignment: Text.AlignHCenter
@@ -66,6 +72,7 @@ Item {
 
         PadButton {
             text: "▲"
+            enabled: pad.upEnabled
             onClicked: pad.directionClicked("up")
         }
 
@@ -77,6 +84,7 @@ Item {
 
         PadButton {
             visible: pad.horizontalEnabled
+            enabled: pad.leftEnabled
             text: "◀"
             onClicked: pad.directionClicked("left")
         }
@@ -134,6 +142,7 @@ Item {
 
         PadButton {
             visible: pad.horizontalEnabled
+            enabled: pad.rightEnabled
             text: "▶"
             onClicked: pad.directionClicked("right")
         }
@@ -146,6 +155,7 @@ Item {
 
         PadButton {
             text: "▼"
+            enabled: pad.downEnabled
             onClicked: pad.directionClicked("down")
         }
 

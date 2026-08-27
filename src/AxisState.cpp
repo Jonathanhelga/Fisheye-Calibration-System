@@ -1,0 +1,172 @@
+#include "AxisState.h"
+
+namespace {
+
+constexpr qint64 kStaleMs = 3000;
+constexpr qint64 kSettleMs = 1500;
+constexpr int kIdleNeeded = 2;
+
+const QString kNoValue = QStringLiteral("—");
+
+} // namespace
+
+AxisState::AxisState(const QString &name, const QString &unit, QObject *parent)
+    : QObject(parent), name_(name), unit_(unit), coordinate_(kNoValue) {}
+
+void AxisState::resetToUnknown() {
+    const bool positionWas = positionKnown_ || coordinate_ != kNoValue || hasZero_;
+    const bool sensorsWere = sensorLow_ != Unreadable || sensorOrg_ != Unreadable ||
+                             sensorHigh_ != Unreadable || sensorMoving_ != Unreadable;
+    const bool lowBlockedWas = lowBlocked();
+    const bool highBlockedWas = highBlocked();
+    const bool staleWas = stale_;
+
+    coordinate_ = kNoValue;
+    rawCount_.clear();
+    hasZero_ = false;
+    positionKnown_ = false;
+
+    sensorLow_ = Unreadable;
+    sensorOrg_ = Unreadable;
+    sensorHigh_ = Unreadable;
+    sensorMoving_ = Unreadable;
+
+    stale_ = true;
+    idleStreak_ = 0;
+    sawMotion_ = false;
+    sampleClock_.invalidate();
+
+    if (positionWas) emit positionChanged();
+    if (sensorsWere) emit sensorsChanged();
+    if (!staleWas || lowBlockedWas != lowBlocked() || highBlockedWas != highBlocked())
+        emit interlockChanged();
+
+    const bool busyWas = busy();
+    moving_ = false;
+    commandPending_ = false;
+    activity_.clear();
+    if (busyWas) emit activityChanged();
+}
+
+void AxisState::applySample(int low, int org, int high, int moving, const QString &coordinate,
+                            const QString &raw, bool hasZero, bool positionValid) {
+    const bool lowBlockedWas = lowBlocked();
+    const bool highBlockedWas = highBlocked();
+    const bool staleWas = stale_;
+    const bool busyWas = busy();
+
+    const bool sensorsChangedNow = low != sensorLow_ || org != sensorOrg_ ||
+                                   high != sensorHigh_ || moving != sensorMoving_;
+    sensorLow_ = low;
+    sensorOrg_ = org;
+    sensorHigh_ = high;
+    sensorMoving_ = moving;
+
+    if (positionValid) {
+        const bool positionChangedNow =
+            coordinate != coordinate_ || raw != rawCount_ || hasZero != hasZero_ || !positionKnown_;
+        coordinate_ = coordinate;
+        rawCount_ = raw;
+        hasZero_ = hasZero;
+        positionKnown_ = true;
+        if (positionChangedNow) emit positionChanged();
+    }
+
+    if (moving == Clear) {
+        ++idleStreak_;
+    } else {
+        idleStreak_ = 0;
+    }
+
+    if (moving == Triggered) {
+        sawMotion_ = true;
+        if (!moving_) {
+            moving_ = true;
+        }
+    } else if (moving_ && idleStreak_ >= kIdleNeeded) {
+        moving_ = false;
+    }
+
+    stale_ = false;
+    sampleClock_.restart();
+
+    if (sensorsChangedNow) emit sensorsChanged();
+    if (staleWas || lowBlockedWas != lowBlocked() || highBlockedWas != highBlocked())
+        emit interlockChanged();
+
+    updateActivity(busyWas);
+}
+
+void AxisState::applyLimitFeedback(int sensor, bool highSide, const QString &coordinate) {
+    const bool lowBlockedWas = lowBlocked();
+    const bool highBlockedWas = highBlocked();
+    const bool staleWas = stale_;
+
+    bool sensorsChangedNow = false;
+    if (highSide && sensor != sensorHigh_) {
+        sensorHigh_ = sensor;
+        sensorsChangedNow = true;
+    } else if (!highSide && sensor != sensorLow_) {
+        sensorLow_ = sensor;
+        sensorsChangedNow = true;
+    }
+
+    if (!coordinate.isEmpty() && coordinate != coordinate_) {
+        coordinate_ = coordinate;
+        positionKnown_ = true;
+        emit positionChanged();
+    }
+
+    stale_ = false;
+    sampleClock_.restart();
+
+    if (sensorsChangedNow) emit sensorsChanged();
+    if (staleWas || lowBlockedWas != lowBlocked() || highBlockedWas != highBlocked())
+        emit interlockChanged();
+}
+
+void AxisState::setCommandPending(bool pending, const QString &activity) {
+    if (commandPending_ == pending && activity_ == activity) return;
+
+    commandPending_ = pending;
+    activity_ = activity;
+
+    if (pending) {
+        sawMotion_ = false;
+        idleStreak_ = 0;
+        commandClock_.restart();
+    }
+
+    emit activityChanged();
+}
+
+void AxisState::updateActivity(bool busyWas) {
+    const QString activityWas = activity_;
+
+    if (commandPending_ && !moving_) {
+        const bool settled = commandClock_.isValid() && commandClock_.elapsed() >= kSettleMs;
+        if ((sawMotion_ || settled) && idleStreak_ >= kIdleNeeded) {
+            commandPending_ = false;
+            activity_.clear();
+        }
+    }
+
+    if (busyWas != busy() || activityWas != activity_) emit activityChanged();
+}
+
+void AxisState::refreshStaleness() {
+    if (stale_) return;
+    if (sampleClock_.isValid() && sampleClock_.elapsed() < kStaleMs) return;
+
+    stale_ = true;
+    idleStreak_ = 0;
+    sawMotion_ = false;
+
+    const bool busyWas = busy();
+    moving_ = false;
+    commandPending_ = false;
+    activity_.clear();
+
+    emit interlockChanged();
+    if (busyWas) emit activityChanged();
+}
