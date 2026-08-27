@@ -62,6 +62,7 @@ constexpr int kPollGapMs = 120;
 constexpr int kWatchCallTimeoutMs = 6000;
 constexpr int kWatchCallAttempts = 2;
 constexpr double kWatchHz = 4.0;
+constexpr double kFocusWatchHz = 1.0;
 constexpr int kCommandTimeoutMs = 8000;
 
 int triFrom(bool success, bool value) {
@@ -124,6 +125,7 @@ struct AxisController::Impl {
     std::mutex queueMutex;
     std::condition_variable queueSignal;
     std::deque<AxisCommandRequest> queue;
+    QString watchFocus;
 
     AxisState *x = nullptr;
     AxisState *y = nullptr;
@@ -283,6 +285,15 @@ void AxisController::applyCommandOutcome(const QString &axis, bool ok, bool clea
     }
 
     if (!ok) emit commandFailed(axis, message);
+}
+
+void AxisController::setWatchFocus(const QString &axis) {
+    {
+        std::lock_guard<std::mutex> lock(d_->queueMutex);
+        if (d_->watchFocus == axis) return;
+        d_->watchFocus = axis;
+    }
+    d_->queueSignal.notify_all();
 }
 
 void AxisController::enqueueCommand(const AxisCommandRequest &request) {
@@ -448,14 +459,17 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                 return false;
             };
 
-            auto callWatch = [&](bool on) {
+            auto callWatch = [&](const QString &focus, bool on) {
                 auto request = std::make_shared<moil_interfaces::srv::AxisWatch::Request>();
-                if (on) {
+                if (!on) {
+                    request->hz = 0.0;
+                } else if (focus.isEmpty()) {
                     for (const AxisSensorNames &names : kSensorNames)
                         request->axes.emplace_back(names.axis);
                     request->hz = kWatchHz;
                 } else {
-                    request->hz = 0.0;
+                    request->axes.emplace_back(focus.toStdString());
+                    request->hz = kFocusWatchHz;
                 }
 
                 auto future = watchClient->async_send_request(request);
@@ -484,7 +498,7 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                     });
 
                 for (int attempt = 0; attempt < kWatchCallAttempts && alive(); ++attempt) {
-                    if (callWatch(true)) {
+                    if (callWatch(QString(), true)) {
                         source = WatchTopic;
                         break;
                     }
@@ -594,6 +608,7 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
             };
 
             int cursor = 0;
+            QString appliedFocus;
 
             while (alive()) {
                 executor.spin_some(std::chrono::milliseconds(kSpinSliceMs));
@@ -603,6 +618,18 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                 if (!alive()) break;
 
                 if (source == WatchTopic) {
+                    QString desiredFocus;
+                    {
+                        std::lock_guard<std::mutex> lock(d_->queueMutex);
+                        desiredFocus = d_->watchFocus;
+                    }
+
+                    if (desiredFocus != appliedFocus) {
+                        callWatch(desiredFocus, true);
+                        appliedFocus = desiredFocus;
+                        continue;
+                    }
+
                     std::this_thread::sleep_for(std::chrono::milliseconds(kSpinSliceMs));
                     continue;
                 }
@@ -630,7 +657,7 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                 std::this_thread::sleep_for(std::chrono::milliseconds(kPollGapMs));
             }
 
-            if (source == WatchTopic) callWatch(false);
+            if (source == WatchTopic) callWatch(QString(), false);
         } catch (const std::exception &error) {
             postConnection(Failed, QString::fromUtf8(error.what()));
         }
@@ -656,6 +683,7 @@ void AxisController::stopWorker() {
     {
         std::lock_guard<std::mutex> lock(d_->queueMutex);
         d_->queue.clear();
+        d_->watchFocus.clear();
     }
     d_->queueSignal.notify_all();
     if (d_->worker.joinable()) d_->worker.join();
@@ -733,6 +761,7 @@ void AxisController::jog(const QString &axis, Side side, double distance, Speed 
 
     state->setCommandPending(true, tr("Moving %1 %2").arg(axisLabel(key), sideWord(key, side)));
     enqueueCommand(request);
+    setWatchFocus(key);
 }
 
 void AxisController::driveToLimit(const QString &axis, Side side, Speed speed) {
@@ -830,6 +859,7 @@ void AxisController::recomputeActivity() {
 
     activityText_ = text;
     busyReported_ = busy();
+    if (!busyReported_) setWatchFocus(QString());
     movingReported_ = anyMoving();
     freshReported_ = dataFresh();
     emit activityChanged();

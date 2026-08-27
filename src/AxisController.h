@@ -154,6 +154,7 @@ private:
     void teardownSession();
     void stopWorker();
     void enqueueCommand(const AxisCommandRequest &request);
+    void setWatchFocus(const QString &axis);
     bool guardCommand(const QString &axis, bool needsMove);
     bool guardStop(const QString &axis);
 
