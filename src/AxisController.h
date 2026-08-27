@@ -12,6 +12,29 @@
 
 class QTimer;
 
+struct AxisSample {
+    QString axis;
+    int low = AxisState::Unreadable;
+    int org = AxisState::Unreadable;
+    int high = AxisState::Unreadable;
+    int moving = AxisState::Unreadable;
+    QString coordinate;
+    QString raw;
+    bool hasZero = false;
+    bool positionValid = false;
+};
+Q_DECLARE_METATYPE(AxisSample)
+
+struct AxisCommandRequest {
+    enum Kind { Move, Stop };
+
+    Kind kind = Move;
+    QString axis;
+    QString direction;
+    double distance = 0.0;
+    QString speed;
+};
+
 class AxisController : public QObject {
     Q_OBJECT
     QML_ELEMENT
@@ -119,11 +142,18 @@ signals:
 
 private:
     Q_INVOKABLE void applyConnection(int state, const QString &message, quint64 generation);
+    Q_INVOKABLE void applyCapabilities(bool move, bool command, bool sensor, bool position,
+                                       int stateSource, const QString &text, quint64 generation);
+    Q_INVOKABLE void applySample(const AxisSample &sample, quint64 generation);
+    Q_INVOKABLE void applyCommandOutcome(const QString &axis, bool ok, bool clearPending,
+                                         const QString &message, quint64 generation);
 
     void setConnectionState(ConnectionState state, const QString &message);
     void clearCapabilities();
     void recomputeActivity();
     void teardownSession();
+    void stopWorker();
+    void enqueueCommand(const AxisCommandRequest &request);
     bool guardCommand(const QString &axis, bool needsMove);
     bool guardStop(const QString &axis);
 

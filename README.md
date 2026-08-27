@@ -40,6 +40,7 @@ compiles them into the binary rather than reading them from disk at runtime.
 | `docs/PCT_AND_ICT.md` | what the calibration numbers mean, in plain language |
 | `docs/PATTERN_GENERATOR.md` | the Pattern Generator spec we are porting from |
 | `docs/BACKEND_INTEGRATION.md` | ROS 2 from zero, and why talking to the rig is currently blocked |
+| `docs/AXIS_DATA_STRATEGY.md` | how often the client may read the axis rig, and why |
 | `docs/PERFORMANCE_NOTES.md` | open performance and correctness findings |
 | `docs/QML_LINT_DEBT.md` | open `qmllint` findings |
 | `tools/DUMMY_SERVER.md` | faking the three services so the connection dots can be tested |

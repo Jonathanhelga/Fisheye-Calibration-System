@@ -2,7 +2,7 @@
 
 namespace {
 
-constexpr qint64 kStaleMs = 3000;
+constexpr qint64 kStaleMs = 12000;
 constexpr qint64 kSettleMs = 1500;
 constexpr int kIdleNeeded = 2;
 
