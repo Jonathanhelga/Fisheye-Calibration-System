@@ -27,7 +27,7 @@ qt_standard_project_setup(REQUIRES 6.5)
 qt_policy(SET QTP0004 NEW)
 
 qt_add_executable(fisheye_cali_jojo
-    main.cpp
+    src/main.cpp
 )
 
 # Registers qml/Main.qml (and everything else added here later) as the
@@ -88,10 +88,12 @@ qt_add_qml_module(fisheye_cali_jojo
         assets/sample_shot.png
 
     SOURCES
-        Bridge.cpp Bridge.h
-        ServerProbe.cpp ServerProbe.h
-        RosServerProbe.cpp RosServerProbe.h
+        src/Bridge.cpp src/Bridge.h
+        src/ServerProbe.cpp src/ServerProbe.h
+        src/RosServerProbe.cpp src/RosServerProbe.h
 )
+
+target_include_directories(fisheye_cali_jojo PRIVATE src)
 
 target_link_libraries(fisheye_cali_jojo PRIVATE
     Qt6::Quick

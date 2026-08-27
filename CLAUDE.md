@@ -17,9 +17,10 @@ When porting a feature or panel, treat `../moil-fisheye-calibration-system/cpp` 
 
 ## What is here
 
-- `main.cpp` boots a `QQmlApplicationEngine` and exposes one `Bridge` (`Bridge.h` / `Bridge.cpp`) into QML as the C++/QML touchpoint.
+- `src/` holds every C++ source and header. `src/main.cpp` boots a `QQmlApplicationEngine` and exposes one `Bridge` (`src/Bridge.h` / `src/Bridge.cpp`) into QML as the C++/QML touchpoint.
   Grow `Bridge` or split it into one bridge per panel as real panels get built.
 - `qml/` holds the QML sources, organized into `controls/`, `panels/`, and `windows/`.
+- `docs/` holds the long-form notes; `README.md` indexes them.
 - `qml/panels/HistogramPanel.qml`-style components replace the old app's hand-copied per-instance blocks with one component parameterized by props (e.g. `channel`). This is the pattern to follow for every panel: one `.qml` file, instantiated wherever needed.
 
 ## Build (macOS)

@@ -7,11 +7,12 @@ This one is Qt Quick (QML) from the start, not a widget host with QML bolted on.
 
 ## What is here
 
-- `main.cpp` boots a `QQmlApplicationEngine`, picks the Basic control style,
+- `src/` holds every C++ source and header.
+  `src/main.cpp` boots a `QQmlApplicationEngine`, picks the Basic control style,
   and loads `Main` from the `FisheyeCaliJojo` module.
-  `ServerProbe.h` / `ServerProbe.cpp` backs the reachability checks behind the
+  `src/ServerProbe.h` / `src/ServerProbe.cpp` backs the reachability checks behind the
   connection status dots, and is the only C++ QML currently uses.
-  `Bridge.h` / `Bridge.cpp` is registered but not yet wired to anything; it is
+  `src/Bridge.h` / `src/Bridge.cpp` is registered but not yet wired to anything; it is
   the intended C++/QML touchpoint, to grow or split per panel as panels get built.
 - `qml/` holds every QML source, split three ways:
   - `qml/windows/` are the top-level `ApplicationWindow`s: `Main.qml`,
@@ -35,12 +36,12 @@ compiles them into the binary rather than reading them from disk at runtime.
 
 | Doc | What it is for |
 |---|---|
-| `RUNNING.md` | building and running on the MacBook and the miniPC |
-| `PCT_AND_ICT.md` | what the calibration numbers mean, in plain language |
-| `PATTERN_GENERATOR.md` | the Pattern Generator spec we are porting from |
-| `BACKEND_INTEGRATION.md` | ROS 2 from zero, and why talking to the rig is currently blocked |
-| `PERFORMANCE_NOTES.md` | open performance and correctness findings |
-| `QML_LINT_DEBT.md` | open `qmllint` findings |
+| `docs/RUNNING.md` | building and running on the MacBook and the miniPC |
+| `docs/PCT_AND_ICT.md` | what the calibration numbers mean, in plain language |
+| `docs/PATTERN_GENERATOR.md` | the Pattern Generator spec we are porting from |
+| `docs/BACKEND_INTEGRATION.md` | ROS 2 from zero, and why talking to the rig is currently blocked |
+| `docs/PERFORMANCE_NOTES.md` | open performance and correctness findings |
+| `docs/QML_LINT_DEBT.md` | open `qmllint` findings |
 | `tools/DUMMY_SERVER.md` | faking the three services so the connection dots can be tested |
 
 ## Build
@@ -53,7 +54,7 @@ compiles them into the binary rather than reading them from disk at runtime.
 ```
 
 The project is developed on two machines.
-See `RUNNING.md` for the miniPC (Ubuntu) build, which needs an explicit Qt prefix, and for what to re-run after what.
+See `docs/RUNNING.md` for the miniPC (Ubuntu) build, which needs an explicit Qt prefix, and for what to re-run after what.
 
 ## Porting a panel
 
