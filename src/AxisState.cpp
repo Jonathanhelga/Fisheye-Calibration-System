@@ -3,7 +3,6 @@
 namespace {
 
 constexpr qint64 kStaleMs = 12000;
-constexpr qint64 kSettleMs = 1500;
 constexpr int kIdleNeeded = 2;
 constexpr int kMotionNeeded = 2;
 constexpr int kDropoutsAllowed = 1;
@@ -50,6 +49,7 @@ void AxisState::resetToUnknown() {
     orgDropouts_ = 0;
     highDropouts_ = 0;
     sawMotion_ = false;
+    rigReplied_ = false;
     sampleClock_.invalidate();
 
     if (positionWas) emit positionChanged();
@@ -157,23 +157,32 @@ void AxisState::setCommandPending(bool pending, const QString &activity) {
 
     if (pending) {
         sawMotion_ = false;
+        rigReplied_ = false;
         idleStreak_ = 0;
         motionStreak_ = 0;
-        commandClock_.restart();
     }
 
     emit activityChanged();
 }
 
+void AxisState::markRigReplied() {
+    if (!commandPending_ || rigReplied_) return;
+
+    const bool busyWas = busy();
+    const bool awaitingWas = awaitingRig();
+
+    rigReplied_ = true;
+    if (!sawMotion_) idleStreak_ = 0;
+
+    updateActivity(busyWas, awaitingWas);
+}
+
 void AxisState::updateActivity(bool busyWas, bool awaitingWas) {
     const QString activityWas = activity_;
 
-    if (commandPending_ && !moving_) {
-        const bool settled = commandClock_.isValid() && commandClock_.elapsed() >= kSettleMs;
-        if ((sawMotion_ || settled) && idleStreak_ >= kIdleNeeded) {
-            commandPending_ = false;
-            activity_.clear();
-        }
+    if (commandPending_ && rigReplied_ && !moving_ && idleStreak_ >= kIdleNeeded) {
+        commandPending_ = false;
+        activity_.clear();
     }
 
     if (busyWas != busy() || awaitingWas != awaitingRig() || activityWas != activity_)
@@ -191,6 +200,7 @@ void AxisState::refreshStaleness() {
     orgDropouts_ = 0;
     highDropouts_ = 0;
     sawMotion_ = false;
+    rigReplied_ = false;
 
     const bool busyWas = busy();
     moving_ = false;

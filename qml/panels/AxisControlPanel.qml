@@ -122,6 +122,7 @@ Rectangle {
                       : AxisController.connectionState === AxisController.Connecting
                             ? ServerProbe.Checking
                       : AxisController.connectionState === AxisController.Failed
+                        || AxisController.connectionState === AxisController.Stalled
                             ? ServerProbe.Failed
                             : ServerProbe.Unknown
             }

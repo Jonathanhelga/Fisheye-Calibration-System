@@ -26,6 +26,7 @@ class AxisState : public QObject {
     Q_PROPERTY(bool moving READ moving NOTIFY activityChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY activityChanged)
     Q_PROPERTY(bool awaitingRig READ awaitingRig NOTIFY activityChanged)
+    Q_PROPERTY(bool settling READ settling NOTIFY activityChanged)
     Q_PROPERTY(QString activity READ activity NOTIFY activityChanged)
 
     Q_PROPERTY(bool stale READ stale NOTIFY interlockChanged)
@@ -51,7 +52,8 @@ public:
 
     bool moving() const { return moving_; }
     bool busy() const { return moving_ || commandPending_; }
-    bool awaitingRig() const { return commandPending_ && !moving_; }
+    bool awaitingRig() const { return commandPending_ && !rigReplied_ && !moving_; }
+    bool settling() const { return commandPending_ && rigReplied_ && !moving_; }
     QString activity() const { return activity_; }
 
     bool stale() const { return stale_; }
@@ -73,6 +75,7 @@ private:
                      const QString &raw, bool hasZero, bool positionValid);
     void applyLimitFeedback(int sensor, bool highSide, const QString &coordinate);
     void setCommandPending(bool pending, const QString &activity);
+    void markRigReplied();
     void refreshStaleness();
     void resetToUnknown();
 
@@ -93,6 +96,7 @@ private:
 
     bool moving_ = false;
     bool commandPending_ = false;
+    bool rigReplied_ = false;
     QString activity_;
 
     bool stale_ = true;
@@ -104,5 +108,4 @@ private:
     bool sawMotion_ = false;
 
     QElapsedTimer sampleClock_;
-    QElapsedTimer commandClock_;
 };

@@ -52,7 +52,7 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         onRosUpdateRequested: (domainId, axisNamespace, monitorNamespace, cameraTopic) => {
                             RosServerProbe.probeAll(domainId, axisNamespace, monitorNamespace, cameraTopic)
-                            AxisController.connectTo(domainId, axisNamespace)
+                            AxisController.connectTo(domainId, axisNamespace, true)
                         }
                     }
                     AxisControlPanel { Layout.fillWidth: true; Layout.fillHeight: true }

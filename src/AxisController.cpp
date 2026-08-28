@@ -158,6 +158,15 @@ AxisController::AxisController(QObject *parent) : QObject(parent), d_(new Impl) 
     stalenessTimer_->setInterval(kStalenessTickMs);
     connect(stalenessTimer_, &QTimer::timeout, this, [this] {
         for (AxisState *state : std::as_const(d_->all)) state->refreshStaleness();
+
+        if (!connected()) return;
+        for (AxisState *state : std::as_const(d_->all)) {
+            if (!state->stale()) return;
+        }
+
+        stalledFrom_ = connectionState_;
+        setConnectionState(Stalled,
+                           tr("the axis node stopped answering, press Update to reconnect"));
     });
 
     connect(qApp, &QCoreApplication::aboutToQuit, this, [this] { teardownSession(); });
@@ -277,14 +286,17 @@ void AxisController::applySample(const AxisSample &sample, quint64 generation) {
 
     state->applySample(sample.low, sample.org, sample.high, sample.moving, sample.coordinate,
                        sample.raw, sample.hasZero, sample.positionValid);
+
+    if (connectionState_ == Stalled) setConnectionState(stalledFrom_, QString());
 }
 
 void AxisController::applyCommandOutcome(const QString &axis, bool ok, bool clearPending,
                                          const QString &message, quint64 generation) {
     if (generation != d_->generation.load()) return;
 
-    if (clearPending) {
-        if (AxisState *state = axisOrNull(axis)) state->setCommandPending(false, QString());
+    if (AxisState *state = axisOrNull(axis)) {
+        if (clearPending) state->setCommandPending(false, QString());
+        else state->markRigReplied();
     }
 
     if (!ok) emit commandFailed(axis, message);
@@ -864,7 +876,7 @@ void AxisController::homeGroup(Group group) {
 }
 
 bool AxisController::guardStop(const QString &axis) {
-    if (!connected()) {
+    if (!hasSession()) {
         emit commandRejected(axis, tr("not connected to the axis node"));
         return false;
     }
@@ -905,9 +917,10 @@ void AxisController::recomputeActivity() {
     QString text;
     for (AxisState *state : std::as_const(d_->all)) {
         if (!state->busy()) continue;
-        text = state->awaitingRig()
-                   ? tr("Sent to %1, waiting for the rig").arg(axisLabel(state->name()))
-                   : tr("Moving %1").arg(axisLabel(state->name()));
+        const QString label = axisLabel(state->name());
+        text = state->awaitingRig() ? tr("Sent to %1, waiting for the rig").arg(label)
+             : state->moving()      ? tr("Moving %1").arg(label)
+                                    : tr("%1 is stopping").arg(label);
         break;
     }
     if (homing()) text = tr("Homing %1").arg(homingGroup_);

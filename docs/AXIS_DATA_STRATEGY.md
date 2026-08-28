@@ -84,6 +84,43 @@ An unreadable limit sensor keeps its previous value for one sample, and falls to
 Unreadable still means blocked, which is the fail safe `AxisState.msg` insists on, and this does not weaken it: a sensor that is genuinely unreadable is unreadable on the next sample too.
 What it removes is the single dropped read, which over a saturated link with 100 ms and 300 ms reply timeouts is common, and which used to grey one arrow for a full sample interval.
 
+## Why the release waits for the move reply
+
+An axis is released, and its direction pads re-enabled, only after the `<namespace>/move` call has returned and the axis has then read not moving `kIdleNeeded` times.
+The reply is the gate, not a wall clock.
+
+An earlier revision released on a 1.5 second timer instead.
+That timer started when the button was pressed, not when the rig received anything, and the two are not close together.
+At the idle watch shape the client asks for a hundred serial round trips a second against a link that measures 5.7, so a move request waits behind that backlog, and the axis had often not started moving 1.5 seconds after the press.
+Two not moving readings taken from before the move began were then enough to satisfy the release, so the status went from "Sent to X, waiting for the rig" straight to "Idle" and every direction button came back live while the axis was still travelling.
+It looked intermittent because it only happened when the rig was slow to start, which depends on how backlogged the link was at the moment of the press.
+
+`wireRelativeMoves` in the reference repository has the correct shape and states it in a comment: lock the other axes immediately on the UI thread, send the move off thread, and start the axis monitor only once that call has returned.
+Our version now matches, with `markRigReplied` standing in for the point where the reference starts its monitor.
+
+The idle streak is reset at that moment, but only when the axis never reported moving.
+When motion was observed the streak is already meaningful, and resetting it would add two sample intervals of dead buttons to the end of every jog for nothing.
+
+`awaitingRig` now means the rig has not answered yet, rather than the axis is not moving.
+That gives the panel three honest phases instead of two: waiting for the rig, moving, and stopping.
+
+## What happens when the rig goes away
+
+A session that has stopped delivering is not a session.
+When every axis has gone stale and the controller still believes it is connected, `connectionState` drops to `Stalled` and `lastError` says so, which turns the panel's status dot red and puts a sentence under it.
+A single sample arriving afterwards restores the previous state, so a link that recovers on its own needs no intervention.
+
+The worker thread is deliberately left running through a stall.
+Tearing it down would be the more thorough response, but a stall is not proof the node is gone, and the watch opt in is server side state that a teardown throws away.
+
+STOP still goes out during a stall.
+`guardStop` asks whether there is a session rather than whether the link is healthy, because the worker is still running and a stop that might not arrive is better than one that was never sent.
+Starting a new move is still refused, since a link that has stopped answering is not one to begin travel over.
+
+Pressing Update always rebuilds the session, passing `force`.
+Without it `connectTo` returned early whenever the domain and namespace were unchanged and the controller still read as connected, which is exactly the state a rig restart leaves behind.
+The restarted node holds no record of the watch the old node was asked for, so nothing is published, every axis stays stale, and every direction button stays disabled until the session is rebuilt.
+
 ## What is still missing
 
 Jog and stop are wired, over `<namespace>/move` and `<namespace>/command`.

@@ -69,7 +69,7 @@ class AxisController : public QObject {
     Q_PROPERTY(QString lastError READ lastError NOTIFY statusChanged)
 
 public:
-    enum ConnectionState { Disconnected, Connecting, Connected, Degraded, Failed };
+    enum ConnectionState { Disconnected, Connecting, Connected, Degraded, Failed, Stalled };
     Q_ENUM(ConnectionState)
 
     enum StateSource { NoSource, WatchTopic, Polling };
@@ -155,12 +155,14 @@ private:
     void stopWorker();
     void enqueueCommand(const AxisCommandRequest &request);
     void setWatchFocus(const QString &axis);
+    bool hasSession() const { return connected() || connectionState_ == Stalled; }
     bool guardCommand(const QString &axis, bool needsMove);
     bool guardStop(const QString &axis);
 
     AxisState *axisOrNull(const QString &name) const;
 
     ConnectionState connectionState_ = Disconnected;
+    ConnectionState stalledFrom_ = Connected;
     int domainId_ = -1;
     QString axisNamespace_;
 
