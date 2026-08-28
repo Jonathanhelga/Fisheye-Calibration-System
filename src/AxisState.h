@@ -25,6 +25,7 @@ class AxisState : public QObject {
 
     Q_PROPERTY(bool moving READ moving NOTIFY activityChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY activityChanged)
+    Q_PROPERTY(bool awaitingRig READ awaitingRig NOTIFY activityChanged)
     Q_PROPERTY(QString activity READ activity NOTIFY activityChanged)
 
     Q_PROPERTY(bool stale READ stale NOTIFY interlockChanged)
@@ -50,6 +51,7 @@ public:
 
     bool moving() const { return moving_; }
     bool busy() const { return moving_ || commandPending_; }
+    bool awaitingRig() const { return commandPending_ && !moving_; }
     QString activity() const { return activity_; }
 
     bool stale() const { return stale_; }
@@ -74,7 +76,7 @@ private:
     void refreshStaleness();
     void resetToUnknown();
 
-    void updateActivity(bool busyWas);
+    void updateActivity(bool busyWas, bool awaitingWas);
 
     const QString name_;
     const QString unit_;
@@ -95,6 +97,10 @@ private:
 
     bool stale_ = true;
     int idleStreak_ = 0;
+    int motionStreak_ = 0;
+    int lowDropouts_ = 0;
+    int orgDropouts_ = 0;
+    int highDropouts_ = 0;
     bool sawMotion_ = false;
 
     QElapsedTimer sampleClock_;

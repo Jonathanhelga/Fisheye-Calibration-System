@@ -44,6 +44,13 @@ The moment a jog is dispatched the watch narrows to the axis being moved, at `kF
 That axis then updates roughly once a second instead of once every 4.3 seconds, which is what releases the direction pads promptly after the move rather than eight seconds later.
 The other four go stale meanwhile, which costs nothing, because `guardCommand` already refuses to move a second axis while one is under command.
 
+The narrowing happens **before** the move request goes out, not after.
+`jog` sets the focus and then queues the request, and the worker loop applies a pending focus change ahead of draining its command queue.
+The order is the whole point.
+At the idle shape the client is asking for five axes at 4 Hz, which is one hundred serial round trips a second against a link that measures out at 5.7, so the server's serial port is permanently backlogged and a move request lands at the end of that queue.
+Narrowing first drops the standing request to five round trips a second, and the move then reaches the rig without waiting behind four axes nobody is looking at.
+An earlier revision narrowed after dispatch and paid the full backlog on every press.
+
 The watch widens back to all five as soon as nothing is busy, including when the move fails.
 
 `kFocusWatchHz` is 1.0 rather than the saturating value on purpose.
@@ -65,10 +72,30 @@ Three seconds would trip on a healthy rig and lock the pads for no reason, so th
 The cost is that a limit switch reading may be up to twelve seconds old when a move is allowed.
 The reference does not have this exposure because it re-reads the axis around every command rather than relying on a background sweep.
 
+## Why a reading has to repeat before it is believed
+
+`AxisState` treats an isolated reading and a sustained one differently, in two places, and both exist because a single odd sample used to reach the direction pads and grey them out for seconds.
+
+A `sensor_moving` of triggered sets `moving` immediately while a command of ours is pending, and otherwise needs `kMotionNeeded` consecutive triggered readings.
+Without that, one stray triggered sample after a move had already finished put the axis back into moving, which then took `kIdleNeeded` further readings to leave, so every jog ended with the pads flicking blue, grey, and blue again a second or two apart.
+`AxisHome.action` in the reference repository names the cause directly: the moving lamp flickers as the stage settles.
+
+An unreadable limit sensor keeps its previous value for one sample, and falls to unreadable on the second.
+Unreadable still means blocked, which is the fail safe `AxisState.msg` insists on, and this does not weaken it: a sensor that is genuinely unreadable is unreadable on the next sample too.
+What it removes is the single dropped read, which over a saturated link with 100 ms and 300 ms reply timeouts is common, and which used to grey one arrow for a full sample interval.
+
 ## What is still missing
 
 Jog and stop are wired, over `<namespace>/move` and `<namespace>/command`.
-Drive to limit and homing are not, because the rig serves those as ROS actions rather than services and they need a different client.
+
+Drive to limit is not, and it needs `AxisLimitMove.action`.
+`wireLimitMoves` in the reference explains why a client side watch a sensor then stop loop was rejected: a single `AxisMove` caps at 487.5 mm on the wire, which Z's roughly 530 mm of travel exceeds outright, and the stop would depend on the network link staying up.
+
+Per axis homing is not wired either, but it does **not** need an action.
+`/axis/command` with `command = "home"` is the same `AxisCommand` service the STOP button already uses, and `commandAvailable` is already true whenever STOP works.
+It sends the axis to its origin sensor and returns immediately, so the arrival still has to be watched, and `AxisZero.srv` is what records the software zero once the axis is standing on that sensor.
+`AxisHome.action` is only required for the All Home flow, which has to block until each axis has arrived before starting the next.
+An earlier version of this document said homing needed an action, and that was wrong.
 
 One item from the original plan is still open.
 The controller does not re-read the axis immediately before issuing a move, so the decision to allow that move rests on a reading that may be up to twelve seconds old.

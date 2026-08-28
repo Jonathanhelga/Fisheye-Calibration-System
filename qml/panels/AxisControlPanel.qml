@@ -59,7 +59,23 @@ Rectangle {
         function onConnectionChanged() { root.notice = "" }
     }
 
-    function drive(axis, side, step) {
+    property string commandedAxis: ""
+    property string commandedDirection: ""
+
+    readonly property string litDirection: {
+        if (root.commandedAxis.length === 0) return ""
+        const state = AxisController.axis(root.commandedAxis)
+        return state && state.busy ? root.commandedDirection : ""
+    }
+
+    function litFor(first, second) {
+        return root.commandedAxis === first || root.commandedAxis === second
+             ? root.litDirection : ""
+    }
+
+    function drive(axis, side, step, direction) {
+        root.commandedAxis = axis
+        root.commandedDirection = direction
         if (root.stepMode)
             AxisController.jog(axis, side, step, root.speed)
         else
@@ -241,6 +257,8 @@ Rectangle {
                     homeText: qsTr("HOME")
                     homeEnabled: root.ready && !root.moving && root.fresh
 
+                    activeDirection: root.litFor("x", "y")
+
                     upEnabled: root.padEnabled("y", AxisController.HighSide)
                     downEnabled: root.padEnabled("y", AxisController.LowSide)
                     leftEnabled: root.padEnabled("x", AxisController.LowSide)
@@ -248,10 +266,10 @@ Rectangle {
 
                     onDirectionClicked: (direction) => {
                         switch (direction) {
-                        case "up":    root.drive("y", AxisController.HighSide, root.yStep); break
-                        case "down":  root.drive("y", AxisController.LowSide, root.yStep); break
-                        case "left":  root.drive("x", AxisController.LowSide, root.xStep); break
-                        case "right": root.drive("x", AxisController.HighSide, root.xStep); break
+                        case "up":    root.drive("y", AxisController.HighSide, root.yStep, direction); break
+                        case "down":  root.drive("y", AxisController.LowSide, root.yStep, direction); break
+                        case "left":  root.drive("x", AxisController.LowSide, root.xStep, direction); break
+                        case "right": root.drive("x", AxisController.HighSide, root.xStep, direction); break
                         }
                     }
 
@@ -301,12 +319,14 @@ Rectangle {
                     homeText: qsTr("HOME")
                     homeEnabled: root.ready && !root.moving && root.fresh
 
+                    activeDirection: root.litFor("z", "z")
+
                     upEnabled: root.padEnabled("z", AxisController.HighSide)
                     downEnabled: root.padEnabled("z", AxisController.LowSide)
 
                     onDirectionClicked: (direction) => root.drive(
                         "z", direction === "up" ? AxisController.HighSide
-                                                : AxisController.LowSide, root.zStep)
+                                                : AxisController.LowSide, root.zStep, direction)
 
                     onHomeClicked: AxisController.homeGroup(AxisController.GroupZ)
                 }
@@ -340,6 +360,8 @@ Rectangle {
                     homeText: qsTr("HOME")
                     homeEnabled: root.ready && !root.moving && root.fresh
 
+                    activeDirection: root.litFor("yaw", "pitch")
+
                     upEnabled: root.padEnabled("pitch", AxisController.HighSide)
                     downEnabled: root.padEnabled("pitch", AxisController.LowSide)
                     leftEnabled: root.padEnabled("yaw", AxisController.LowSide)
@@ -347,10 +369,10 @@ Rectangle {
 
                     onDirectionClicked: (direction) => {
                         switch (direction) {
-                        case "up":    root.drive("pitch", AxisController.HighSide, root.pitchStep); break
-                        case "down":  root.drive("pitch", AxisController.LowSide, root.pitchStep); break
-                        case "left":  root.drive("yaw", AxisController.LowSide, root.yawStep); break
-                        case "right": root.drive("yaw", AxisController.HighSide, root.yawStep); break
+                        case "up":    root.drive("pitch", AxisController.HighSide, root.pitchStep, direction); break
+                        case "down":  root.drive("pitch", AxisController.LowSide, root.pitchStep, direction); break
+                        case "left":  root.drive("yaw", AxisController.LowSide, root.yawStep, direction); break
+                        case "right": root.drive("yaw", AxisController.HighSide, root.yawStep, direction); break
                         }
                     }
 

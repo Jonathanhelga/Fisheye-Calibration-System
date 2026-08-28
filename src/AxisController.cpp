@@ -558,8 +558,7 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                 if (!waitFor(future, kCommandTimeoutMs)) {
                     moveClient->remove_pending_request(future);
                     postOutcome(request.axis, false, true,
-                                QStringLiteral("%1/move did not answer within %2 s")
-                                    .arg(ns)
+                                QStringLiteral("no reply in %1 s, the move may not have started")
                                     .arg(kCommandTimeoutMs / 1000));
                     return;
                 }
@@ -578,8 +577,7 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                 if (!waitFor(future, kCommandTimeoutMs)) {
                     commandClient->remove_pending_request(future);
                     postOutcome(request.axis, false, true,
-                                QStringLiteral("%1/command did not answer within %2 s")
-                                    .arg(ns)
+                                QStringLiteral("no reply in %1 s, the axis may still be moving")
                                     .arg(kCommandTimeoutMs / 1000));
                     return;
                 }
@@ -614,9 +612,6 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                 executor.spin_some(std::chrono::milliseconds(kSpinSliceMs));
                 if (!alive()) break;
 
-                drainCommands();
-                if (!alive()) break;
-
                 if (source == WatchTopic) {
                     QString desiredFocus;
                     {
@@ -627,9 +622,13 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                     if (desiredFocus != appliedFocus) {
                         callWatch(desiredFocus, true);
                         appliedFocus = desiredFocus;
-                        continue;
                     }
+                }
 
+                drainCommands();
+                if (!alive()) break;
+
+                if (source == WatchTopic) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(kSpinSliceMs));
                     continue;
                 }
@@ -760,8 +759,8 @@ void AxisController::jog(const QString &axis, Side side, double distance, Speed 
     request.speed = speedWord(speed);
 
     state->setCommandPending(true, tr("Moving %1 %2").arg(axisLabel(key), sideWord(key, side)));
-    enqueueCommand(request);
     setWatchFocus(key);
+    enqueueCommand(request);
 }
 
 void AxisController::driveToLimit(const QString &axis, Side side, Speed speed) {
@@ -848,7 +847,9 @@ void AxisController::recomputeActivity() {
     QString text;
     for (AxisState *state : std::as_const(d_->all)) {
         if (!state->busy()) continue;
-        text = tr("Moving %1").arg(axisLabel(state->name()));
+        text = state->awaitingRig()
+                   ? tr("Sent to %1, waiting for the rig").arg(axisLabel(state->name()))
+                   : tr("Moving %1").arg(axisLabel(state->name()));
         break;
     }
     if (homing()) text = tr("Homing %1").arg(homingGroup_);

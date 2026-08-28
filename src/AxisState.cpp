@@ -5,8 +5,20 @@ namespace {
 constexpr qint64 kStaleMs = 12000;
 constexpr qint64 kSettleMs = 1500;
 constexpr int kIdleNeeded = 2;
+constexpr int kMotionNeeded = 2;
+constexpr int kDropoutsAllowed = 1;
 
 const QString kNoValue = QStringLiteral("—");
+
+int holdThrough(int incoming, int previous, int &dropouts) {
+    if (incoming != AxisState::Unreadable) {
+        dropouts = 0;
+        return incoming;
+    }
+    if (previous == AxisState::Unreadable) return AxisState::Unreadable;
+    if (++dropouts > kDropoutsAllowed) return AxisState::Unreadable;
+    return previous;
+}
 
 } // namespace
 
@@ -33,6 +45,10 @@ void AxisState::resetToUnknown() {
 
     stale_ = true;
     idleStreak_ = 0;
+    motionStreak_ = 0;
+    lowDropouts_ = 0;
+    orgDropouts_ = 0;
+    highDropouts_ = 0;
     sawMotion_ = false;
     sampleClock_.invalidate();
 
@@ -54,12 +70,17 @@ void AxisState::applySample(int low, int org, int high, int moving, const QStrin
     const bool highBlockedWas = highBlocked();
     const bool staleWas = stale_;
     const bool busyWas = busy();
+    const bool awaitingWas = awaitingRig();
 
-    const bool sensorsChangedNow = low != sensorLow_ || org != sensorOrg_ ||
-                                   high != sensorHigh_ || moving != sensorMoving_;
-    sensorLow_ = low;
-    sensorOrg_ = org;
-    sensorHigh_ = high;
+    const int heldLow = holdThrough(low, sensorLow_, lowDropouts_);
+    const int heldOrg = holdThrough(org, sensorOrg_, orgDropouts_);
+    const int heldHigh = holdThrough(high, sensorHigh_, highDropouts_);
+
+    const bool sensorsChangedNow = heldLow != sensorLow_ || heldOrg != sensorOrg_ ||
+                                   heldHigh != sensorHigh_ || moving != sensorMoving_;
+    sensorLow_ = heldLow;
+    sensorOrg_ = heldOrg;
+    sensorHigh_ = heldHigh;
     sensorMoving_ = moving;
 
     if (positionValid) {
@@ -74,15 +95,18 @@ void AxisState::applySample(int low, int org, int high, int moving, const QStrin
 
     if (moving == Clear) {
         ++idleStreak_;
+        motionStreak_ = 0;
+    } else if (moving == Triggered) {
+        ++motionStreak_;
+        idleStreak_ = 0;
     } else {
         idleStreak_ = 0;
+        motionStreak_ = 0;
     }
 
-    if (moving == Triggered) {
+    if (moving == Triggered && (commandPending_ || motionStreak_ >= kMotionNeeded)) {
         sawMotion_ = true;
-        if (!moving_) {
-            moving_ = true;
-        }
+        moving_ = true;
     } else if (moving_ && idleStreak_ >= kIdleNeeded) {
         moving_ = false;
     }
@@ -94,7 +118,7 @@ void AxisState::applySample(int low, int org, int high, int moving, const QStrin
     if (staleWas || lowBlockedWas != lowBlocked() || highBlockedWas != highBlocked())
         emit interlockChanged();
 
-    updateActivity(busyWas);
+    updateActivity(busyWas, awaitingWas);
 }
 
 void AxisState::applyLimitFeedback(int sensor, bool highSide, const QString &coordinate) {
@@ -134,13 +158,14 @@ void AxisState::setCommandPending(bool pending, const QString &activity) {
     if (pending) {
         sawMotion_ = false;
         idleStreak_ = 0;
+        motionStreak_ = 0;
         commandClock_.restart();
     }
 
     emit activityChanged();
 }
 
-void AxisState::updateActivity(bool busyWas) {
+void AxisState::updateActivity(bool busyWas, bool awaitingWas) {
     const QString activityWas = activity_;
 
     if (commandPending_ && !moving_) {
@@ -151,7 +176,8 @@ void AxisState::updateActivity(bool busyWas) {
         }
     }
 
-    if (busyWas != busy() || activityWas != activity_) emit activityChanged();
+    if (busyWas != busy() || awaitingWas != awaitingRig() || activityWas != activity_)
+        emit activityChanged();
 }
 
 void AxisState::refreshStaleness() {
@@ -160,6 +186,10 @@ void AxisState::refreshStaleness() {
 
     stale_ = true;
     idleStreak_ = 0;
+    motionStreak_ = 0;
+    lowDropouts_ = 0;
+    orgDropouts_ = 0;
+    highDropouts_ = 0;
     sawMotion_ = false;
 
     const bool busyWas = busy();

@@ -20,6 +20,8 @@ Item {
     property bool leftEnabled: true
     property bool rightEnabled: true
 
+    property string activeDirection: ""
+
     signal directionClicked(string direction)
     signal homeClicked()
 
@@ -32,12 +34,18 @@ Item {
     component PadButton: Button {
         id: control
 
+        property string direction: ""
+
+        readonly property bool active: control.direction.length > 0
+                                       && control.direction === pad.activeDirection
+
         implicitWidth: pad.cellSize
         implicitHeight: pad.cellSize
 
         background: Rectangle {
             radius: Theme.radius
-            color: !control.enabled ? Theme.fieldDisabledBackground
+            color: control.active ? (pad.danger ? Theme.danger : Theme.accent)
+                 : !control.enabled ? Theme.fieldDisabledBackground
                  : control.down ? (pad.danger ? Theme.danger : Theme.accent)
                  : control.hovered ? (pad.danger ? Theme.dangerHover : Theme.accentHover)
                  : (pad.danger ? Theme.dangerIdle : Theme.accentIdle)
@@ -49,7 +57,7 @@ Item {
 
         contentItem: Text {
             text: control.text
-            color: control.enabled ? Theme.textOnAccent : Theme.textDisabled
+            color: control.enabled || control.active ? Theme.textOnAccent : Theme.textDisabled
             font.pixelSize: Math.round(pad.cellSize * 0.4)
             font.bold: true
             horizontalAlignment: Text.AlignHCenter
@@ -73,6 +81,7 @@ Item {
         PadButton {
             text: "▲"
             enabled: pad.upEnabled
+            direction: "up"
             onClicked: pad.directionClicked("up")
         }
 
@@ -86,6 +95,7 @@ Item {
             visible: pad.horizontalEnabled
             enabled: pad.leftEnabled
             text: "◀"
+            direction: "left"
             onClicked: pad.directionClicked("left")
         }
 
@@ -144,6 +154,7 @@ Item {
             visible: pad.horizontalEnabled
             enabled: pad.rightEnabled
             text: "▶"
+            direction: "right"
             onClicked: pad.directionClicked("right")
         }
 
@@ -156,6 +167,7 @@ Item {
         PadButton {
             text: "▼"
             enabled: pad.downEnabled
+            direction: "down"
             onClicked: pad.directionClicked("down")
         }
 
