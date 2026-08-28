@@ -55,8 +55,8 @@ ColumnLayout {
             id: moveLamp
 
             tri: field.axis ? field.axis.sensorMoving : -1
-            color: tri === 1 ? Theme.statusPartial
-                 : tri === 0 ? Theme.statusOk
+            color: tri === 1 ? Theme.statusOk
+                 : tri === 0 ? Theme.statusPartial
                              : Theme.statusUnknown
 
             SequentialAnimation on opacity {
