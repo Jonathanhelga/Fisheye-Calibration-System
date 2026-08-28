@@ -9,7 +9,9 @@
 #include <chrono>
 #include <condition_variable>
 #include <deque>
+#include <future>
 #include <mutex>
+#include <optional>
 #include <thread>
 
 #ifdef FISHEYE_ROS_ENABLED
@@ -63,7 +65,8 @@ constexpr int kWatchCallTimeoutMs = 6000;
 constexpr int kWatchCallAttempts = 2;
 constexpr double kWatchHz = 4.0;
 constexpr double kFocusWatchHz = 1.0;
-constexpr int kCommandTimeoutMs = 8000;
+constexpr int kStopTimeoutMs = 8000;
+constexpr int kMoveTimeoutMs = 120000;
 
 int triFrom(bool success, bool value) {
     if (!success) return AxisState::Unreadable;
@@ -548,37 +551,65 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                 sample.positionValid = !sample.coordinate.isEmpty();
             };
 
-            auto runMove = [&](const AxisCommandRequest &request) {
+            std::optional<rclcpp::Client<moil_interfaces::srv::AxisMove>::FutureAndRequestId>
+                moveCall;
+            QString moveAxis;
+            std::chrono::steady_clock::time_point moveDeadline;
+            bool moveCancelled = false;
+
+            auto startMove = [&](const AxisCommandRequest &request) {
                 auto message = std::make_shared<moil_interfaces::srv::AxisMove::Request>();
                 message->direction = request.direction.toStdString();
                 message->distance = request.distance;
                 message->speed = request.speed.toStdString();
 
-                auto future = moveClient->async_send_request(message);
-                if (!waitFor(future, kCommandTimeoutMs)) {
-                    moveClient->remove_pending_request(future);
-                    postOutcome(request.axis, false, true,
-                                QStringLiteral("no reply in %1 s, the move may not have started")
-                                    .arg(kCommandTimeoutMs / 1000));
+                moveCall.emplace(moveClient->async_send_request(message));
+                moveAxis = request.axis;
+                moveCancelled = false;
+                moveDeadline = std::chrono::steady_clock::now() +
+                               std::chrono::milliseconds(kMoveTimeoutMs);
+            };
+
+            auto settleMove = [&] {
+                if (!moveCall) return;
+
+                if (moveCall->future.wait_for(std::chrono::seconds(0)) ==
+                    std::future_status::ready) {
+                    const auto response = moveCall->future.get();
+                    moveCall.reset();
+                    if (!moveCancelled) {
+                        postOutcome(moveAxis, response->success, !response->success,
+                                    QString::fromStdString(response->message));
+                    }
+                    moveAxis.clear();
                     return;
                 }
 
-                const auto response = future.get();
-                postOutcome(request.axis, response->success, !response->success,
-                            QString::fromStdString(response->message));
+                if (std::chrono::steady_clock::now() < moveDeadline) return;
+
+                moveClient->remove_pending_request(*moveCall);
+                moveCall.reset();
+                if (!moveCancelled) {
+                    postOutcome(moveAxis, false, true,
+                                QStringLiteral("no reply in %1 s, the axis may still be moving")
+                                    .arg(kMoveTimeoutMs / 1000));
+                }
+                moveAxis.clear();
             };
 
             auto runStop = [&](const AxisCommandRequest &request) {
+                if (moveCall && request.axis == moveAxis) moveCancelled = true;
+
                 auto message = std::make_shared<moil_interfaces::srv::AxisCommand::Request>();
                 message->command = "stop";
                 message->axis = request.axis.toStdString();
 
                 auto future = commandClient->async_send_request(message);
-                if (!waitFor(future, kCommandTimeoutMs)) {
+                if (!waitFor(future, kStopTimeoutMs)) {
                     commandClient->remove_pending_request(future);
                     postOutcome(request.axis, false, true,
                                 QStringLiteral("no reply in %1 s, the axis may still be moving")
-                                    .arg(kCommandTimeoutMs / 1000));
+                                    .arg(kStopTimeoutMs / 1000));
                     return;
                 }
 
@@ -593,6 +624,7 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                     {
                         std::lock_guard<std::mutex> lock(d_->queueMutex);
                         if (d_->queue.empty()) return;
+                        if (d_->queue.front().kind == AxisCommandRequest::Move && moveCall) return;
                         request = d_->queue.front();
                         d_->queue.pop_front();
                     }
@@ -600,7 +632,7 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                     if (request.kind == AxisCommandRequest::Stop) {
                         runStop(request);
                     } else {
-                        runMove(request);
+                        startMove(request);
                     }
                 }
             };
@@ -611,6 +643,8 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
             while (alive()) {
                 executor.spin_some(std::chrono::milliseconds(kSpinSliceMs));
                 if (!alive()) break;
+
+                settleMove();
 
                 if (source == WatchTopic) {
                     QString desiredFocus;
@@ -633,8 +667,27 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                     continue;
                 }
 
-                const AxisSensorNames &names = kSensorNames[cursor];
-                cursor = (cursor + 1) % kAxisCount;
+                QString focus;
+                {
+                    std::lock_guard<std::mutex> lock(d_->queueMutex);
+                    focus = d_->watchFocus;
+                }
+
+                int index = -1;
+                if (!focus.isEmpty()) {
+                    for (int i = 0; i < kAxisCount; ++i) {
+                        if (focus == QLatin1String(kSensorNames[i].axis)) {
+                            index = i;
+                            break;
+                        }
+                    }
+                }
+                if (index < 0) {
+                    index = cursor;
+                    cursor = (cursor + 1) % kAxisCount;
+                }
+
+                const AxisSensorNames &names = kSensorNames[index];
 
                 AxisSample sample;
                 sample.axis = QString::fromLatin1(names.axis);
@@ -654,6 +707,11 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                 if (heardSomething) postSample(sample);
 
                 std::this_thread::sleep_for(std::chrono::milliseconds(kPollGapMs));
+            }
+
+            if (moveCall) {
+                moveClient->remove_pending_request(*moveCall);
+                moveCall.reset();
             }
 
             if (source == WatchTopic) callWatch(QString(), false);
