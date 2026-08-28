@@ -195,6 +195,7 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             tone: "accent"
                             text: qsTr("3D Verification")
+                            onClicked: Bridge.openMeasure3d()
                         }
                         ActionButton {
                             Layout.fillWidth: true

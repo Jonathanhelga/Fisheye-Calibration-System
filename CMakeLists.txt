@@ -8,7 +8,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # QuickControls2 is needed for QQuickStyle (selecting the "Basic" style in main.cpp).
 # Network is needed for the reachability probes in ServerProbe.
-find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2 Network)
+find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2 Network
+                                     Widgets Concurrent OpenGLWidgets)
+find_package(OpenCV REQUIRED)
+find_package(Eigen3 REQUIRED)
 
 if(UNIX AND NOT APPLE)
     set(FISHEYE_ROS_DEFAULT ON)
@@ -26,16 +29,14 @@ endif()
 qt_standard_project_setup(REQUIRES 6.5)
 qt_policy(SET QTP0004 NEW)
 
-qt_add_executable(fisheye_cali_jojo
+qt_add_executable(moil_fisheye_cali
     src/main.cpp
 )
 
-# Registers qml/Main.qml (and everything else added here later) as the
-# "FisheyeCaliJojo" QML module, compiled into the binary instead of read
-# from disk at runtime. Add new .qml files to QML_FILES as panels are built.
+
 set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
-qt_add_qml_module(fisheye_cali_jojo
+qt_add_qml_module(moil_fisheye_cali
     URI FisheyeCaliJojo
     VERSION 1.0
     QML_FILES
@@ -96,23 +97,69 @@ qt_add_qml_module(fisheye_cali_jojo
         src/AxisController.cpp src/AxisController.h
 )
 
-target_include_directories(fisheye_cali_jojo PRIVATE src)
 
-target_link_libraries(fisheye_cali_jojo PRIVATE
+add_library(subapp_3d_verification STATIC
+    subapp_3d_verification/app/Help.cpp
+    subapp_3d_verification/controllers/controller_auto_3d_measurement.cpp
+    subapp_3d_verification/core/measure3d/AnypointChessboard.cpp
+    subapp_3d_verification/core/measure3d/CbDetect.cpp
+    subapp_3d_verification/core/measure3d/Measure3dSession.cpp
+    subapp_3d_verification/core/measure3d/Measure3dTypes.cpp
+    subapp_3d_verification/core/measure3d/moil_3d_algorithm.cpp
+    subapp_3d_verification/core/measure3d/PanelCornerRecovery.cpp
+    subapp_3d_verification/core/measure3d/PlaneFit3dViz.cpp
+    subapp_3d_verification/core/moildev/Moildev.cpp
+    subapp_3d_verification/views/Point3dGlView.cpp
+)
+
+
+target_include_directories(subapp_3d_verification PUBLIC
+    subapp_3d_verification/app
+    subapp_3d_verification/controllers
+    subapp_3d_verification/core/measure3d
+    subapp_3d_verification/core/moildev
+    subapp_3d_verification/views
+    subapp_3d_verification/views/widgets
+    ${OpenCV_INCLUDE_DIRS}
+)
+
+
+target_compile_definitions(subapp_3d_verification PRIVATE _USE_MATH_DEFINES NOMINMAX)
+
+target_link_libraries(subapp_3d_verification PUBLIC
+    Qt6::Widgets Qt6::Concurrent Qt6::OpenGLWidgets
+    ${OpenCV_LIBS} Eigen3::Eigen
+    
+    $<$<PLATFORM_ID:Windows>:opengl32>
+)
+
+
+
+target_include_directories(moil_fisheye_cali PRIVATE src)
+
+target_link_libraries(moil_fisheye_cali PRIVATE
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::Network
+    subapp_3d_verification
 )
 
 if(FISHEYE_ENABLE_ROS)
-    target_link_libraries(fisheye_cali_jojo PRIVATE
+    target_link_libraries(moil_fisheye_cali PRIVATE
         rclcpp::rclcpp
         ${moil_interfaces_TARGETS}
     )
-    target_compile_definitions(fisheye_cali_jojo PRIVATE FISHEYE_ROS_ENABLED)
+    target_compile_definitions(moil_fisheye_cali PRIVATE FISHEYE_ROS_ENABLED)
 
     # Use RPATH (not RUNPATH) so transitive deps like
     # libmoil_interfaces__rosidl_generator_c.so resolve without sourcing
     # the ROS overlay at runtime.
-    target_link_options(fisheye_cali_jojo PRIVATE "LINKER:--disable-new-dtags")
+    #
+    # ELF-only: this is a GNU ld flag. MSVC's link.exe rejects it outright, so
+    # it must be gated on the platform and not just on FISHEYE_ENABLE_ROS --
+    # the Windows ROS build (ROS 2 Lyrical, see README section 5) turns the
+    # option on too, and resolves its DLLs through PATH rather than an RPATH.
+    if(UNIX AND NOT APPLE)
+        target_link_options(moil_fisheye_cali PRIVATE "LINKER:--disable-new-dtags")
+    endif()
 endif()

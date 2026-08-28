@@ -1,4 +1,4 @@
-#include <QGuiApplication>
+#include <QApplication>
 #include <QQmlApplicationEngine>
 #include <QQuickStyle>
 #include <QStyleHints>
@@ -9,7 +9,9 @@
 // No QMainWindow/QQuickWidget host here on purpose: the old app was Widgets-first
 // with QML bolted on; this one is QML-first from the start.
 int main(int argc, char *argv[]) {
-    QGuiApplication app(argc, argv);
+    // QApplication, not QGuiApplication: the 3D Verification sub-app is still
+    // QWidget-based, and widgets need the QtWidgets application object.
+    QApplication app(argc, argv);
     QQuickStyle::setStyle("Basic");
 
     app.styleHints()->setColorScheme(Qt::ColorScheme::Light);
