@@ -36,14 +36,11 @@ compiles them into the binary rather than reading them from disk at runtime.
 
 | Doc | What it is for |
 |---|---|
-| `docs/RUNNING.md` | building and running on the MacBook and the miniPC |
-| `docs/PCT_AND_ICT.md` | what the calibration numbers mean, in plain language |
-| `docs/PATTERN_GENERATOR.md` | the Pattern Generator spec we are porting from |
-| `docs/BACKEND_INTEGRATION.md` | ROS 2 from zero, and why talking to the rig is currently blocked |
-| `docs/AXIS_DATA_STRATEGY.md` | how often the client may read the axis rig, and why |
-| `docs/PERFORMANCE_NOTES.md` | open performance and correctness findings |
-| `docs/QML_LINT_DEBT.md` | open `qmllint` findings |
-| `tools/DUMMY_SERVER.md` | faking the three services so the connection dots can be tested |
+| `docs/RUNNING.md` | the full build and run reference for both machines |
+| `docs/MINIPC_ROS_CONNECT.md` | how the miniPC reaches the rig over ROS 2 |
+| `docs/BACKEND_INTEGRATION.md` | ROS 2 from zero, and the network findings the other two build on |
+
+The rest of `docs/` is local-only and does not ship.
 
 ## Build
 
@@ -54,8 +51,18 @@ compiles them into the binary rather than reading them from disk at runtime.
 ./build/fisheye_cali_jojo
 ```
 
-The project is developed on two machines.
-See `docs/RUNNING.md` for the miniPC (Ubuntu) build, which needs an explicit Qt prefix, and for what to re-run after what.
+```bash
+# miniPC (Ubuntu)
+source /opt/ros/jazzy/setup.bash
+source ~/moil_ros_ws/install/setup.bash
+cmake -S . -B build -G Ninja -DCMAKE_PREFIX_PATH="$HOME/Qt/6.11.1/gcc_64"
+cmake --build build -j6
+./build/fisheye_cali_jojo
+```
+
+The Ubuntu prefix is not optional.
+`qt_policy(SET QTP0004 NEW)` needs Qt 6.8 or newer, and Ubuntu 24.04's apt packages ship 6.4.2.
+Leave it off and CMake silently picks the apt Qt, then fails on the policy.
 
 ## Porting a panel
 
