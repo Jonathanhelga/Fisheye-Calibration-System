@@ -267,4 +267,3 @@ The useful part of a CMake error is usually in the middle.
 ## See also
 
 - `README.md` for what lives where in the source tree.
-- `../tools/DUMMY_SERVER.md` for testing the connection dots with no hardware attached.
