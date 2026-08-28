@@ -50,7 +50,7 @@ ColumnLayout {
         Lamp { tri: field.axis ? field.axis.sensorLow : -1 }
         Lamp { tri: field.axis ? field.axis.sensorOrg : -1 }
         Lamp { tri: field.axis ? field.axis.sensorHigh : -1 }
-
+        Item { Layout.fillWidth: true }
         Lamp {
             id: moveLamp
 
