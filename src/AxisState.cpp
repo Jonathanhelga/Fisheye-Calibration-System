@@ -2,7 +2,7 @@
 
 namespace {
 
-constexpr qint64 kStaleMs = 12000;
+constexpr qint64 kStaleMs = 20000;
 constexpr int kIdleNeeded = 2;
 constexpr int kMotionNeeded = 2;
 constexpr int kDropoutsAllowed = 1;

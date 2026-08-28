@@ -36,40 +36,53 @@ It runs that watch in two shapes.
 
 **Idle: all five axes.**
 Every axis needs a fresh limit reading or its direction pads fail safe to disabled, so the resting shape is the full set.
-Measured on the rig this yields 1.15 messages per second in total, which is one update per axis every 4.3 seconds.
-The link is saturated at this shape, which is acceptable only because nothing is competing for it.
+The rate is not picked by feel.
+`watchHzForAxes` divides a fixed share of the link between however many axes are being watched, so the total asked for is the same in both shapes and only the number of axes sharing it changes.
+That share is `kLinkBudget`, 0.7, of `kSerialRoundTripsPerSecond`, a measured 5.7 round trips a second.
+Five axes therefore come out at 0.16 Hz each, which is 4.0 round trips a second and one update per axis every 6.3 seconds.
 
 **Under command: one axis.**
 The moment a jog is dispatched the watch narrows to the axis being moved, at `kFocusWatchHz`.
-That axis then updates roughly once a second instead of once every 4.3 seconds, which is what releases the direction pads promptly after the move rather than eight seconds later.
+That is the same budget spent on one axis instead of five, so 0.8 Hz, and the axis updates every 1.25 seconds instead of every 6.3.
+That is what releases the direction pads about two and a half seconds after the move rather than twelve.
 The other four go stale meanwhile, which costs nothing, because `guardCommand` already refuses to move a second axis while one is under command.
 
 The narrowing happens **before** the move request goes out, not after.
 `jog` sets the focus and then queues the request, and the worker loop applies a pending focus change ahead of draining its command queue.
-The order is the whole point.
-At the idle shape the client is asking for five axes at 4 Hz, which is one hundred serial round trips a second against a link that measures out at 5.7, so the server's serial port is permanently backlogged and a move request lands at the end of that queue.
-Narrowing first drops the standing request to five round trips a second, and the move then reaches the rig without waiting behind four axes nobody is looking at.
-An earlier revision narrowed after dispatch and paid the full backlog on every press.
+The standing watch is what a move request has to get past, so narrowing first drops that standing request from five axes to one and the move reaches the rig without waiting behind four axes nobody is looking at.
+An earlier revision narrowed after dispatch and paid for all five on every press.
 
 The watch widens back to all five as soon as nothing is busy, including when the move fails.
 
-`kFocusWatchHz` is 1.0 rather than the saturating value on purpose.
-One axis at 1 Hz is five round trips a second against a measured ceiling of 5.7, so the link keeps a margin.
-That margin is what a STOP command travels through, and it is the reason not to ask for the highest rate the focused axis could technically sustain.
+## Why the budget is 0.7 and not 1.0
+
+Neither shape is allowed to use the whole link.
+The 1.7 round trips a second that `kLinkBudget` leaves free are what a move or a STOP command travels through, and that is the reason not to ask for the highest rate the axes could technically sustain.
+
+Asking for more than the link can carry is not merely served late, which is the mistake the earlier numbers made.
+`kWatchHz` was 4.0 per axis, so five axes came to one hundred serial round trips a second against a link that does 5.7, roughly eighteen times what the cable carries.
+The server polls what a client asks it to poll, so its serial queue grew for as long as the client kept asking.
+Readings arrived old, and every move and STOP landed at the back of that queue.
+Under the budget the queue does not build at all, so a command waits for at most the round trip already in flight.
+
+The 5.7 figure is measured rather than assumed.
+At the old shape the rig delivered 1.15 `AxisState` messages a second across five axes, and each message costs five round trips, which is 5.75.
 
 If the rig does not serve `<namespace>/watch`, the controller falls back to polling `<namespace>/sensor` and `<namespace>/position` one axis per pass, waiting `kPollGapMs` between axes.
+`kPollGapMs` is derived from the same budget, so the fallback laps the five axes in 6.3 seconds and leaves the same headroom, rather than reading flat out the way it used to.
 An earlier revision asked for all five axes at 4 Hz and never sent the stop request on disconnect, so the rig kept streaming to nobody.
 The stop request is now sent when the session ends.
 
-## Why the staleness limit is twelve seconds
+## Why the staleness limit is twenty seconds
 
 `AxisState` marks an axis stale when its last reading passes `kStaleMs`, and a stale axis reports both limit directions as blocked, which is the fail safe.
 
-The limit has to exceed one worst case lap.
-Five axes at five round trips each, at the CRUX timeout of 300 ms, is 7.5 seconds, plus the gaps between axes.
-Three seconds would trip on a healthy rig and lock the pads for no reason, so the limit is twelve.
+The limit is tied to the idle refresh interval, and it has to survive a dropped message.
+At the budgeted rate an axis is refreshed every 6.3 seconds, so twelve seconds left room for none: one missed message put an axis at 12.5 seconds and greyed its pads on a healthy rig.
+Twenty seconds covers three refreshes, so two consecutive misses are absorbed.
+The worst case lap sits inside it as well, since five axes at five round trips each, at the CRUX timeout of 300 ms, is 7.5 seconds plus the gaps between axes.
 
-The cost is that a limit switch reading may be up to twelve seconds old when a move is allowed.
+The cost is that a limit switch reading may be up to twenty seconds old when a move is allowed.
 The reference does not have this exposure because it re-reads the axis around every command rather than relying on a background sweep.
 
 ## Why a reading has to repeat before it is believed
@@ -82,7 +95,7 @@ Without that, one stray triggered sample after a move had already finished put t
 
 An unreadable limit sensor keeps its previous value for one sample, and falls to unreadable on the second.
 Unreadable still means blocked, which is the fail safe `AxisState.msg` insists on, and this does not weaken it: a sensor that is genuinely unreadable is unreadable on the next sample too.
-What it removes is the single dropped read, which over a saturated link with 100 ms and 300 ms reply timeouts is common, and which used to grey one arrow for a full sample interval.
+What it removes is the single dropped read, which over a serial link with 100 ms and 300 ms reply timeouts is common, and which used to grey one arrow for a full sample interval.
 
 ## Why the release waits for the move reply
 
@@ -91,7 +104,7 @@ The reply is the gate, not a wall clock.
 
 An earlier revision released on a 1.5 second timer instead.
 That timer started when the button was pressed, not when the rig received anything, and the two are not close together.
-At the idle watch shape the client asks for a hundred serial round trips a second against a link that measures 5.7, so a move request waits behind that backlog, and the axis had often not started moving 1.5 seconds after the press.
+The idle watch of the time asked for a hundred serial round trips a second against a link that measures 5.7, so a move request waited behind that backlog, and the axis had often not started moving 1.5 seconds after the press.
 Two not moving readings taken from before the move began were then enough to satisfy the release, so the status went from "Sent to X, waiting for the rig" straight to "Idle" and every direction button came back live while the axis was still travelling.
 It looked intermittent because it only happened when the rig was slow to start, which depends on how backlogged the link was at the moment of the press.
 
@@ -135,8 +148,8 @@ It sends the axis to its origin sensor and returns immediately, so the arrival s
 An earlier version of this document said homing needed an action, and that was wrong.
 
 One item from the original plan is still open.
-The controller does not re-read the axis immediately before issuing a move, so the decision to allow that move rests on a reading that may be up to twelve seconds old.
+The controller does not re-read the axis immediately before issuing a move, so the decision to allow that move rests on a reading that may be up to twenty seconds old.
 Narrowing the watch under command shortens the window after the move starts, but it does not close the window before it.
 
 `kIdleNeeded = 2` in `AxisState` is the reference's rule for deciding an axis has stopped.
-It is meaningful at the focused rate, where two readings are about two seconds, and close to useless at the idle rate, where the same two readings span nearly nine.
+It is meaningful at the focused rate, where two readings are two and a half seconds, and close to useless at the idle rate, where the same two readings span twelve and a half.

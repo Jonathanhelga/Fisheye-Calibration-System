@@ -60,11 +60,19 @@ constexpr int kCallTimeoutMs = 2000;
 constexpr int kCapabilityGraceMs = 2000;
 constexpr int kSpinSliceMs = 20;
 constexpr int kWaitSliceMs = 200;
-constexpr int kPollGapMs = 120;
+constexpr double kSerialRoundTripsPerSecond = 5.7;
+constexpr int kRoundTripsPerAxisSample = 5;
+constexpr double kLinkBudget = 0.7;
+constexpr double kAxisSampleSeconds = kRoundTripsPerAxisSample / kSerialRoundTripsPerSecond;
+
+constexpr double watchHzForAxes(int axes) { return kLinkBudget / (kAxisSampleSeconds * axes); }
+
+constexpr int kPollGapMs =
+    static_cast<int>(kAxisSampleSeconds * (1.0 / kLinkBudget - 1.0) * 1000.0);
 constexpr int kWatchCallTimeoutMs = 6000;
 constexpr int kWatchCallAttempts = 2;
-constexpr double kWatchHz = 4.0;
-constexpr double kFocusWatchHz = 1.0;
+constexpr double kWatchHz = watchHzForAxes(kAxisCount);
+constexpr double kFocusWatchHz = watchHzForAxes(1);
 constexpr int kStopTimeoutMs = 8000;
 constexpr int kMoveTimeoutMs = 120000;
 
