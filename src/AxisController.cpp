@@ -62,7 +62,7 @@ constexpr int kSpinSliceMs = 20;
 constexpr int kWaitSliceMs = 200;
 constexpr double kSerialRoundTripsPerSecond = 5.7;
 constexpr int kRoundTripsPerAxisSample = 5;
-constexpr double kLinkBudget = 0.7;
+constexpr double kLinkBudget = 0.85;
 constexpr double kAxisSampleSeconds = kRoundTripsPerAxisSample / kSerialRoundTripsPerSecond;
 
 constexpr double watchHzForAxes(int axes) { return kLinkBudget / (kAxisSampleSeconds * axes); }

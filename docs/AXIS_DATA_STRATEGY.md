@@ -38,13 +38,13 @@ It runs that watch in two shapes.
 Every axis needs a fresh limit reading or its direction pads fail safe to disabled, so the resting shape is the full set.
 The rate is not picked by feel.
 `watchHzForAxes` divides a fixed share of the link between however many axes are being watched, so the total asked for is the same in both shapes and only the number of axes sharing it changes.
-That share is `kLinkBudget`, 0.7, of `kSerialRoundTripsPerSecond`, a measured 5.7 round trips a second.
-Five axes therefore come out at 0.16 Hz each, which is 4.0 round trips a second and one update per axis every 6.3 seconds.
+That share is `kLinkBudget`, 0.85, of `kSerialRoundTripsPerSecond`, a measured 5.7 round trips a second.
+Five axes therefore come out at 0.19 Hz each, which is 4.8 round trips a second and one update per axis every 5.2 seconds.
 
 **Under command: one axis.**
 The moment a jog is dispatched the watch narrows to the axis being moved, at `kFocusWatchHz`.
-That is the same budget spent on one axis instead of five, so 0.8 Hz, and the axis updates every 1.25 seconds instead of every 6.3.
-That is what releases the direction pads about two and a half seconds after the move rather than twelve.
+That is the same budget spent on one axis instead of five, so 0.97 Hz, and the axis updates every 1.03 seconds instead of every 5.2.
+That is what releases the direction pads about two seconds after the move rather than ten.
 The other four go stale meanwhile, which costs nothing, because `guardCommand` already refuses to move a second axis while one is under command.
 
 The narrowing happens **before** the move request goes out, not after.
@@ -54,10 +54,11 @@ An earlier revision narrowed after dispatch and paid for all five on every press
 
 The watch widens back to all five as soon as nothing is busy, including when the move fails.
 
-## Why the budget is 0.7 and not 1.0
+## Why the budget is 0.85 and not 1.0
 
 Neither shape is allowed to use the whole link.
-The 1.7 round trips a second that `kLinkBudget` leaves free are what a move or a STOP command travels through, and that is the reason not to ask for the highest rate the axes could technically sustain.
+Holding the standing watch at 0.85 of the measured ceiling leaves a little under one round trip a second free.
+That is what a move or a STOP command travels through, and it is the reason not to ask for the highest rate the axes could technically sustain.
 
 Asking for more than the link can carry is not merely served late, which is the mistake the earlier numbers made.
 `kWatchHz` was 4.0 per axis, so five axes came to one hundred serial round trips a second against a link that does 5.7, roughly eighteen times what the cable carries.
@@ -65,11 +66,17 @@ The server polls what a client asks it to poll, so its serial queue grew for as 
 Readings arrived old, and every move and STOP landed at the back of that queue.
 Under the budget the queue does not build at all, so a command waits for at most the round trip already in flight.
 
+The budget was 0.7 first and was raised to 0.85, because a 6.3 second idle refresh reads as sluggish on the panel and the extra margin was not buying anything measurable.
+0.85 spends margin, not correctness.
+The queue still does not build at the nominal ceiling, but a run of reads that hit the 300 ms CRUX timeout rather than the usual round trip can push the effective load past 1.0 for a moment.
+That kind of backlog clears itself as soon as the reads succeed, which is exactly what asking for eighteen times the ceiling never did.
+0.85 is the top of what is worth shipping without measuring the ceiling again on the rig.
+
 The 5.7 figure is measured rather than assumed.
 At the old shape the rig delivered 1.15 `AxisState` messages a second across five axes, and each message costs five round trips, which is 5.75.
 
 If the rig does not serve `<namespace>/watch`, the controller falls back to polling `<namespace>/sensor` and `<namespace>/position` one axis per pass, waiting `kPollGapMs` between axes.
-`kPollGapMs` is derived from the same budget, so the fallback laps the five axes in 6.3 seconds and leaves the same headroom, rather than reading flat out the way it used to.
+`kPollGapMs` is derived from the same budget, so the fallback laps the five axes in 5.2 seconds and leaves the same headroom, rather than reading flat out the way it used to.
 An earlier revision asked for all five axes at 4 Hz and never sent the stop request on disconnect, so the rig kept streaming to nobody.
 The stop request is now sent when the session ends.
 
@@ -78,8 +85,8 @@ The stop request is now sent when the session ends.
 `AxisState` marks an axis stale when its last reading passes `kStaleMs`, and a stale axis reports both limit directions as blocked, which is the fail safe.
 
 The limit is tied to the idle refresh interval, and it has to survive a dropped message.
-At the budgeted rate an axis is refreshed every 6.3 seconds, so twelve seconds left room for none: one missed message put an axis at 12.5 seconds and greyed its pads on a healthy rig.
-Twenty seconds covers three refreshes, so two consecutive misses are absorbed.
+At the budgeted rate an axis is refreshed every 5.2 seconds, so twelve seconds covered one missed message and no more.
+Twenty seconds covers just under four refreshes, so two consecutive misses are absorbed.
 The worst case lap sits inside it as well, since five axes at five round trips each, at the CRUX timeout of 300 ms, is 7.5 seconds plus the gaps between axes.
 
 The cost is that a limit switch reading may be up to twenty seconds old when a move is allowed.
@@ -152,4 +159,4 @@ The controller does not re-read the axis immediately before issuing a move, so t
 Narrowing the watch under command shortens the window after the move starts, but it does not close the window before it.
 
 `kIdleNeeded = 2` in `AxisState` is the reference's rule for deciding an axis has stopped.
-It is meaningful at the focused rate, where two readings are two and a half seconds, and close to useless at the idle rate, where the same two readings span twelve and a half.
+It is meaningful at the focused rate, where two readings are two seconds, and close to useless at the idle rate, where the same two readings span ten.
