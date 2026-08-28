@@ -26,8 +26,8 @@ ColumnLayout {
         implicitHeight: implicitWidth
         radius: width / 2
 
-        color: tri === 1 ? Theme.statusFailed
-             : tri === 0 ? Theme.statusOk
+        color: tri === 1 ? Theme.statusOk
+             : tri === 0 ? Theme.statusFailed
                          : Theme.statusUnknown
 
         Behavior on color {
