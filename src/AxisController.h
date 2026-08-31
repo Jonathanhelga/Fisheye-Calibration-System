@@ -1,7 +1,9 @@
 #pragma once
 
+#include <QHash>
 #include <QList>
 #include <QObject>
+#include <QSet>
 #include <QString>
 #include <QStringList>
 #include <QtQml/qqmlregistration.h>
@@ -24,16 +26,6 @@ struct AxisSample {
     bool positionValid = false;
 };
 Q_DECLARE_METATYPE(AxisSample)
-
-struct AxisCommandRequest {
-    enum Kind { Move, Stop };
-
-    Kind kind = Move;
-    QString axis;
-    QString direction;
-    double distance = 0.0;
-    QString speed;
-};
 
 class AxisController : public QObject {
     Q_OBJECT
@@ -142,18 +134,24 @@ signals:
 
 private:
     Q_INVOKABLE void applyConnection(int state, const QString &message, quint64 generation);
-    Q_INVOKABLE void applyCapabilities(bool move, bool command, bool sensor, bool position,
-                                       int stateSource, const QString &text, quint64 generation);
+    Q_INVOKABLE void applyStateCapabilities(bool sensor, bool position, int stateSource,
+                                            const QString &text, quint64 generation);
+    Q_INVOKABLE void applyCommandCapabilities(bool move, bool command, quint64 generation);
     Q_INVOKABLE void applySample(const AxisSample &sample, quint64 generation);
-    Q_INVOKABLE void applyCommandOutcome(const QString &axis, bool ok, bool clearPending,
-                                         const QString &message, quint64 generation);
+    Q_INVOKABLE void applyMoveOutcome(const QString &axis, bool ok, const QString &message,
+                                      quint64 generation);
+    Q_INVOKABLE void applyStopOutcome(const QString &axis, bool ok, const QString &message,
+                                      quint64 generation);
 
     void setConnectionState(ConnectionState state, const QString &message);
     void clearCapabilities();
     void recomputeActivity();
     void teardownSession();
-    void stopWorker();
-    void enqueueCommand(const AxisCommandRequest &request);
+    void stopWorkers();
+    bool sendMove(const QString &axis, const QString &direction, double distance,
+                  const QString &speed);
+    bool sendStop(const QString &axis);
+    void armTimeout(const QString &axis, int ms, const QString &what);
     void setWatchFocus(const QString &axis);
     bool hasSession() const { return connected() || connectionState_ == Stalled; }
     bool guardCommand(const QString &axis, bool needsMove);
@@ -181,6 +179,9 @@ private:
     bool freshReported_ = false;
     QString lastError_;
     QString homingGroup_;
+
+    QHash<QString, quint64> commandToken_;
+    QSet<QString> cancelledMoves_;
 
     QTimer *stalenessTimer_ = nullptr;
 

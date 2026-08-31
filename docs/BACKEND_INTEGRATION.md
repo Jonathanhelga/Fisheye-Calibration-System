@@ -813,3 +813,62 @@ netstat -g -f inet
 # Confirm unicast to the rig works (135 and 445 are standard Windows ports)
 nc -z -w 3 192.168.103.56 135 && echo open
 ```
+
+## Appendix C: why the Axis Panel felt slower than the old app, and what changed
+
+The rebuilt panel showed the rig moving noticeably later than `moilcali` did, even though both speak the same ROS services on the same link.
+The network was never the cause.
+The delay was entirely on the client side, in what happened between the button press and the request leaving the process.
+
+### What the old app does
+
+`ControllerMain::wireRelativeMoves` (`cpp/src/controllers/controller_main.cpp:827`) fires the move on a throwaway thread the instant the button is clicked, and only afterwards starts `startAxisMonitor` to poll sensors.
+Its `AxisRosClient` owns a node whose executor spins continuously from construction.
+So the request hits the wire immediately, and at the moment of the click nothing else is using the rig's serial link.
+The link stays completely idle whenever no axis is moving.
+
+### What the rebuilt app used to do
+
+`AxisController::jog` did not send anything.
+It pushed a request onto a queue that one single worker thread serviced, and that same worker also owned the only connection to the rig and ran the sensor polling loop.
+Three costs stacked up:
+
+1. The worker only reached `drainCommands()` once per loop pass, and a pass in polling mode is a full five-call axis sample plus a gap, about one second.
+   A move could sit in the queue for most of a second before it was transmitted.
+2. `jog` called `setWatchFocus` before enqueuing, and the focus branch ran before the queue was drained, so every jog paid for a blocking `/axis/watch` reconfigure round trip before the move itself went out.
+3. `kLinkBudget` was 0.85 at all times, so the rig's serial link was deliberately kept 85% busy with sensor traffic even when nothing was moving.
+   Whatever the client sent arrived at a link that was already occupied.
+
+### What changed
+
+**The command path got its own connection.**
+`connectTo` now starts a second thread, `d_->commandWorker`, with its own ROS context, node (`fisheye_cali_jojo_axis_cmd`), and continuously spinning executor.
+It creates the `/axis/move` and `/axis/command` clients and publishes them into `Impl` under `commandMutex`.
+`sendMove` and `sendStop` are called directly from the GUI thread and use the callback form of `async_send_request`, so the request leaves the process during the click itself.
+There is no command queue any more.
+
+Replies arrive on the command executor thread and are posted back with `QMetaObject::invokeMethod` to `applyMoveOutcome` / `applyStopOutcome`, which are generation-guarded exactly as the sample path already was.
+Because the old blocking waits are gone, `armTimeout` replaces them: it stamps a per-axis token, and a `QTimer::singleShot` clears the pending flag and emits `operationTimedOut` if no reply bumps that token first.
+`cancelledMoves_` suppresses a move's late reply when a stop overtook it.
+
+**The move now goes out before the watch reconfigure.**
+`jog` calls `sendMove` first and `setWatchFocus` last.
+The focus change is picked up by the polling worker on its own schedule and no longer sits in front of the command.
+
+**Idle polling backed off instead of being removed.**
+Deleting the polling entirely was considered and rejected: `AxisState::lowBlocked` and the panel's `padEnabled` treat unknown state as blocked, so a client that stops polling greys out its own controls after the staleness window.
+Instead the budget is now split.
+`kLinkBudget` (0.85) still applies while an axis is under command, and `kIdleLinkBudget` (0.30) applies otherwise, feeding both `kIdlePollGapMs` and `kIdleWatchHz`.
+Idle link occupancy drops from 85% to about 30%.
+
+Two refinements keep that from being felt as sluggishness:
+the first pass through all five axes always runs at the active rate (`primed`), so the panel fills in as fast as it used to after connecting;
+and the long idle sleep is broken into `kSpinSliceMs` slices that exit early once `watchFocus` is set, so a jog switches to fast polling right away rather than up to two seconds later.
+
+`kStaleMs` moved from 20 s to 30 s so the slower idle round trip, about 15 s for all five axes, keeps a comfortable margin.
+
+### The direction buttons no longer depend on polling
+
+`AxisState::lowBlocked` and `highBlocked` used to read `stale_ || sensor != Clear`, which meant a missing or late sample disabled the arrows just as firmly as a genuinely triggered limit switch.
+They now read `sensor == Triggered`, so only a real limit sensor blocks a direction, and the matching staleness rejections were removed from `jog` and `driveToLimit`.
+The interlocks that remain are the real ones: not connected, the axis is already moving, or the limit switch on that side is actually closed.

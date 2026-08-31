@@ -57,8 +57,8 @@ public:
     QString activity() const { return activity_; }
 
     bool stale() const { return stale_; }
-    bool lowBlocked() const { return stale_ || sensorLow_ != Clear; }
-    bool highBlocked() const { return stale_ || sensorHigh_ != Clear; }
+    bool lowBlocked() const { return sensorLow_ == Triggered; }
+    bool highBlocked() const { return sensorHigh_ == Triggered; }
 
 signals:
     void positionChanged();
