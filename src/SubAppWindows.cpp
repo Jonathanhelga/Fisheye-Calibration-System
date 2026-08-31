@@ -1,16 +1,16 @@
-#include "Bridge.h"
+#include "SubAppWindows.h"
 
 #ifdef FISHEYE_SUBAPPS_ENABLED
 
 #include "controller_auto_3d_measurement.h"
 #include "controller_center_setup.h"
 
-Bridge::~Bridge() { 
+SubAppWindows::~SubAppWindows() { 
     delete measure3d_; 
     delete centerSetup_;
 }
 
-void Bridge::openMeasure3d() {
+void SubAppWindows::openMeasure3d() {
     if (!measure3d_) {
        
         measure3d_ = new Controller3dMeasurement(nullptr, nullptr, nullptr);
@@ -21,7 +21,7 @@ void Bridge::openMeasure3d() {
     measure3d_->activateWindow();
 }
 
-void Bridge::openCenterSetup() {
+void SubAppWindows::openCenterSetup() {
     if (!centerSetup_) {
         centerSetup_ = new ControllerCenterSetup(nullptr);
     }
@@ -34,14 +34,14 @@ void Bridge::openCenterSetup() {
 
 #include <QDebug>
 
-Bridge::~Bridge() = default;
+SubAppWindows::~SubAppWindows() = default;
 
-void Bridge::openMeasure3d() {
+void SubAppWindows::openMeasure3d() {
     qWarning() << "3D Verification is unavailable: this build was configured with "
                   "FISHEYE_ENABLE_SUBAPPS=OFF or without Qt Widgets / OpenCV 4 / Eigen3.";
 }
 
-void Bridge::openCenterSetup() {
+void SubAppWindows::openCenterSetup() {
     qWarning() << "Center Setup is unavailable: this build was configured with "
                   "FISHEYE_ENABLE_SUBAPPS=OFF or without Qt Widgets / OpenCV 4 / Eigen3.";
 }

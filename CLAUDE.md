@@ -28,7 +28,7 @@ When porting a feature or panel, treat `../moil-fisheye-calibration-system/cpp` 
 ```bash
 /opt/homebrew/bin/cmake -S . -B build -G Ninja -DCMAKE_PREFIX_PATH="/opt/homebrew/opt/qt6"
 /opt/homebrew/bin/cmake --build build -j6
-./build/fisheye_cali_jojo
+./build/moil_fisheye_cali
 ```
 
 ## Porting a panel

@@ -147,7 +147,7 @@ qt_add_qml_module(moil_fisheye_cali
         assets/sample_shot.png
 
     SOURCES
-        src/Bridge.cpp src/Bridge.h
+        src/SubAppWindows.cpp src/SubAppWindows.h
         src/ServerProbe.cpp src/ServerProbe.h
         src/RosServerProbe.cpp src/RosServerProbe.h
         src/AxisState.cpp src/AxisState.h

@@ -9,7 +9,7 @@ using FisheyeApplication = QGuiApplication;
 #include <QQmlApplicationEngine>
 #include <QQuickStyle>
 #include <QStyleHints>
-#include "Bridge.h"
+#include "SubAppWindows.h"
 #include "ServerProbe.h"
 
 
