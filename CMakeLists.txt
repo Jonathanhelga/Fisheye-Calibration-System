@@ -133,6 +133,30 @@ target_link_libraries(subapp_3d_verification PUBLIC
     $<$<PLATFORM_ID:Windows>:opengl32>
 )
 
+# ---- Center Setup sub-app, copied from v2.0_2026_main-cpp-ros ---------------
+
+add_library(subapp_center_setup STATIC
+    subapp_center_setup/controllers/controller_center_setup.cpp
+    subapp_center_setup/ui/center_setup.ui
+)
+
+# AUTOUIC looks for the .ui next to the source that includes its header, and
+# controller_center_setup.cpp lives in controllers/ while center_setup.ui lives
+# in ui/. AUTOUIC_SEARCH_PATHS is what bridges that -- the old repo does the
+# same thing globally with CMAKE_AUTOUIC_SEARCH_PATHS.
+set_target_properties(subapp_center_setup PROPERTIES
+    AUTOUIC ON
+    AUTOUIC_SEARCH_PATHS "${CMAKE_CURRENT_SOURCE_DIR}/subapp_center_setup/ui"
+)
+
+target_include_directories(subapp_center_setup PUBLIC
+    subapp_center_setup/controllers
+)
+
+target_compile_definitions(subapp_center_setup PRIVATE _USE_MATH_DEFINES NOMINMAX)
+
+
+target_link_libraries(subapp_center_setup PUBLIC subapp_3d_verification)
 
 
 target_include_directories(moil_fisheye_cali PRIVATE src)
@@ -142,6 +166,7 @@ target_link_libraries(moil_fisheye_cali PRIVATE
     Qt6::QuickControls2
     Qt6::Network
     subapp_3d_verification
+    subapp_center_setup
 )
 
 if(FISHEYE_ENABLE_ROS)

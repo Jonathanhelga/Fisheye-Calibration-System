@@ -201,6 +201,7 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             tone: "accent"
                             text: qsTr("Setup Center")
+                            onClicked: Bridge.openCenterSetup()
                         }
                     }
                 }
