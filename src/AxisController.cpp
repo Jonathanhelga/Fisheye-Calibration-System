@@ -81,7 +81,7 @@ constexpr int kWatchCallAttempts = 2;
 constexpr double kIdleWatchHz = watchHzFor(kIdleLinkBudget, kAxisCount);
 constexpr double kFocusWatchHz = watchHzFor(kLinkBudget, 1);
 
-int triFrom(bool success, bool value) {
+int triFrom(bool success, bool value) { 
     if (!success) return AxisState::Unreadable;
     return value ? AxisState::Triggered : AxisState::Clear;
 }

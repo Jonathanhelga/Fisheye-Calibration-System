@@ -7,8 +7,8 @@ Window {
     id: root
 
     title: qsTr("PCT Control Panel")
-    width:  Math.min(Theme.designWidth,  Screen.desktopAvailableWidth,  Screen.width)
-    height: Math.min(Theme.designHeight, Screen.desktopAvailableHeight, Screen.height)
+    width:  Math.min(fit.contentWidth,  Screen.desktopAvailableWidth,  Screen.width)
+    height: Math.min(fit.contentHeight, Screen.desktopAvailableHeight, Screen.height)
 
     property int concentricMode: 0
     property int striplineMode: 1

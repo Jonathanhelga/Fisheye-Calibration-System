@@ -12,8 +12,8 @@ ApplicationWindow {
     visibility: Window.Maximized
     title: qsTr("Fisheye Calibration - Jojo Version")
 
-    width:  Math.min(Theme.designWidth,  Screen.desktopAvailableWidth,  Screen.width)
-    height: Math.min(Theme.designHeight, Screen.desktopAvailableHeight, Screen.height)
+    width:  Math.min(fit.contentWidth,  Screen.desktopAvailableWidth,  Screen.width)
+    height: Math.min(fit.contentHeight, Screen.desktopAvailableHeight, Screen.height)
 
     ScaledCanvas {
         id: fit

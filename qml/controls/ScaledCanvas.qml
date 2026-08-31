@@ -4,8 +4,8 @@ import FisheyeCaliJojo
 Item {
     id: root
 
-    property real contentWidth:  Theme.designWidth
-    property real contentHeight: Theme.designHeight
+    property real contentWidth:  0
+    property real contentHeight: 0
 
     readonly property real factor: Math.max(0.01,
                                             Math.min(1,

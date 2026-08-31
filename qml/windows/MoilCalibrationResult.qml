@@ -7,8 +7,8 @@ Window {
     id: root
 
     title: qsTr("MOIL Calibration Result")
-    width:  Math.min(Theme.designWidth,  Screen.desktopAvailableWidth,  Screen.width)
-    height: Math.min(Theme.designHeight, Screen.desktopAvailableHeight, Screen.height)
+    width:  Math.min(fit.contentWidth,  Screen.desktopAvailableWidth,  Screen.width)
+    height: Math.min(fit.contentHeight, Screen.desktopAvailableHeight, Screen.height)
 
     property bool busy: false
     property int loadStatus: ServerProbe.Unknown
