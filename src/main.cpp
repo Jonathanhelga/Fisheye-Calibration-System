@@ -1,4 +1,11 @@
+#ifdef FISHEYE_SUBAPPS_ENABLED
 #include <QApplication>
+using FisheyeApplication = QApplication;
+#else
+#include <QGuiApplication>
+using FisheyeApplication = QGuiApplication;
+#endif
+
 #include <QQmlApplicationEngine>
 #include <QQuickStyle>
 #include <QStyleHints>
@@ -8,7 +15,7 @@
 
 int main(int argc, char *argv[]) {
     
-    QApplication app(argc, argv);
+    FisheyeApplication app(argc, argv);
     QQuickStyle::setStyle("Basic");
 
     app.styleHints()->setColorScheme(Qt::ColorScheme::Light);

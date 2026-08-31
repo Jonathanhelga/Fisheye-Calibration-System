@@ -10,7 +10,7 @@ AbstractButton {
     id: control
 
     property color value: "black"
-    readonly property var palette: ["#000000", "#ffffff", "#b4b4b4"].concat(Theme.curvePalette)
+    readonly property var swatchColors: ["#000000", "#ffffff", "#b4b4b4"].concat(Theme.curvePalette)
 
     signal picked(color value)
 
@@ -45,7 +45,7 @@ AbstractButton {
             spacing: Theme.spaceXs
 
             Repeater {
-                model: control.palette
+                model: control.swatchColors
 
                 ColorSwatch {
                     id: chip
