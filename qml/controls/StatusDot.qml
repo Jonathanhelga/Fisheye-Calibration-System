@@ -7,7 +7,7 @@ import FisheyeCaliJojo
 RowLayout {
     id: control
 
-    property int status: ServerProbe.Unknown
+    property int status: ProbeStatus.Unknown
     property bool showLabel: false
     property alias color: dot.color
 
@@ -18,10 +18,10 @@ RowLayout {
     property string unknownText:  qsTr("Not checked yet")
 
     readonly property string text:
-          status === ServerProbe.Ok       ? control.okText
-        : status === ServerProbe.Failed   ? control.failedText
-        : status === ServerProbe.Partial  ? control.partialText
-        : status === ServerProbe.Checking ? control.checkingText
+          status === ProbeStatus.Ok       ? control.okText
+        : status === ProbeStatus.Failed   ? control.failedText
+        : status === ProbeStatus.Partial  ? control.partialText
+        : status === ProbeStatus.Checking ? control.checkingText
                                           : control.unknownText
 
     spacing: Theme.spaceXs
@@ -35,13 +35,13 @@ RowLayout {
         radius: width / 2
         antialiasing: true
 
-        color: control.status === ServerProbe.Ok      ? Theme.statusOk
-             : control.status === ServerProbe.Failed  ? Theme.statusFailed
-             : control.status === ServerProbe.Partial ? Theme.statusPartial
+        color: control.status === ProbeStatus.Ok      ? Theme.statusOk
+             : control.status === ProbeStatus.Failed  ? Theme.statusFailed
+             : control.status === ProbeStatus.Partial ? Theme.statusPartial
                                                       : Theme.statusUnknown
 
         SequentialAnimation on opacity {
-            running: control.status === ServerProbe.Checking
+            running: control.status === ProbeStatus.Checking
             loops: Animation.Infinite
 
             NumberAnimation { to: 0.3; duration: Theme.animSlow; easing.type: Easing.InOutQuad }

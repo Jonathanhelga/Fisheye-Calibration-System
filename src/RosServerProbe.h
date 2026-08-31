@@ -4,6 +4,8 @@
 #include <QString>
 #include <QtQml/qqmlregistration.h>
 
+#include "ProbeStatus.h"
+
 #include <memory>
 
 class RosServerProbe : public QObject {
@@ -11,24 +13,21 @@ class RosServerProbe : public QObject {
     QML_ELEMENT
     QML_SINGLETON
 
-    Q_PROPERTY(Status axisStatus READ axisStatus NOTIFY statusesChanged)
-    Q_PROPERTY(Status monitorStatus READ monitorStatus NOTIFY statusesChanged)
-    Q_PROPERTY(Status cameraStatus READ cameraStatus NOTIFY statusesChanged)
+    Q_PROPERTY(ProbeStatus::Status axisStatus READ axisStatus NOTIFY statusesChanged)
+    Q_PROPERTY(ProbeStatus::Status monitorStatus READ monitorStatus NOTIFY statusesChanged)
+    Q_PROPERTY(ProbeStatus::Status cameraStatus READ cameraStatus NOTIFY statusesChanged)
     Q_PROPERTY(QString lastError READ lastError NOTIFY statusesChanged)
 
 public:
     enum Service { Axis = 0, Monitor = 1, Camera = 2 };
     Q_ENUM(Service)
 
-    enum Status { Unknown, Checking, Ok, Failed, Partial };
-    Q_ENUM(Status)
-
     explicit RosServerProbe(QObject *parent = nullptr);
     ~RosServerProbe() override;
 
-    Status axisStatus() const { return status_[Axis]; }
-    Status monitorStatus() const { return status_[Monitor]; }
-    Status cameraStatus() const { return status_[Camera]; }
+    ProbeStatus::Status axisStatus() const { return status_[Axis]; }
+    ProbeStatus::Status monitorStatus() const { return status_[Monitor]; }
+    ProbeStatus::Status cameraStatus() const { return status_[Camera]; }
     QString lastError() const { return lastError_; }
 
     Q_INVOKABLE void probeAll(int domainId, const QString &axisNamespace,
@@ -44,7 +43,8 @@ private:
 
     void stopWorker();
 
-    Status status_[3] = {Unknown, Unknown, Unknown};
+    ProbeStatus::Status status_[3] = {ProbeStatus::Unknown, ProbeStatus::Unknown,
+                                      ProbeStatus::Unknown};
     QString lastError_;
 
     struct Impl;

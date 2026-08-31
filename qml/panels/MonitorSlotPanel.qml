@@ -55,9 +55,9 @@ Rectangle {
 
             StatusDot {
                 Layout.alignment: Qt.AlignVCenter
-                status: !root.on ? ServerProbe.Failed
-                      : root.imagePath ? ServerProbe.Ok
-                                       : ServerProbe.Unknown
+                status: !root.on ? ProbeStatus.Failed
+                      : root.imagePath ? ProbeStatus.Ok
+                                       : ProbeStatus.Unknown
             }
         }
 

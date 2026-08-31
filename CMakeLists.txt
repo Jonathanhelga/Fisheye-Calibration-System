@@ -7,7 +7,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # QuickControls2 is needed for QQuickStyle (selecting the "Basic" style in main.cpp).
-# Network is needed for the reachability probes in ServerProbe.
+# Network is needed for the reachability probes in HttpServerProbe.
 find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2 Network)
 
 option(FISHEYE_ENABLE_SUBAPPS
@@ -148,7 +148,8 @@ qt_add_qml_module(moil_fisheye_cali
 
     SOURCES
         src/SubAppWindows.cpp src/SubAppWindows.h
-        src/ServerProbe.cpp src/ServerProbe.h
+        src/ProbeStatus.h
+        src/HttpServerProbe.cpp src/HttpServerProbe.h
         src/RosServerProbe.cpp src/RosServerProbe.h
         src/AxisState.cpp src/AxisState.h
         src/AxisController.cpp src/AxisController.h

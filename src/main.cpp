@@ -10,7 +10,7 @@ using FisheyeApplication = QGuiApplication;
 #include <QQuickStyle>
 #include <QStyleHints>
 #include "SubAppWindows.h"
-#include "ServerProbe.h"
+#include "HttpServerProbe.h"
 
 
 int main(int argc, char *argv[]) {

@@ -144,7 +144,7 @@ It fails at runtime, when the engine cannot find the type.
 | You changed | Stages to run |
 |---|---|
 | `CMakeLists.txt`, or added a new `.qml` file | configure, build, run |
-| `main.cpp`, `Bridge.*`, `ServerProbe.*` | build, run |
+| `main.cpp`, `SubAppWindows.*`, `HttpServerProbe.*` | build, run |
 | any existing `.qml` file | build, run |
 
 The one-liner that always works, once `build/` is configured:
@@ -201,7 +201,7 @@ find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2 Network)
 The default macOS style is native, meaning Qt does not draw the controls itself, so a custom `background` on a Button is silently discarded.
 `Basic` assembles every control out of plain `Rectangle` and `Text`, which is what makes it restylable.
 
-`Network` backs the reachability probes in `ServerProbe`.
+`Network` backs the reachability probes in `HttpServerProbe`.
 
 ```cmake
 qt_standard_project_setup(REQUIRES 6.5)
@@ -224,7 +224,7 @@ qt_add_qml_module(fisheye_cali_jojo
     VERSION 1.0
     QML_FILES ...
     RESOURCES assets/sample_shot.png
-    SOURCES Bridge.cpp Bridge.h ServerProbe.cpp ServerProbe.h
+    SOURCES SubAppWindows.cpp SubAppWindows.h HttpServerProbe.cpp HttpServerProbe.h
 )
 ```
 

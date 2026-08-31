@@ -24,8 +24,8 @@ Rectangle {
 
     readonly property bool receiving: streaming && preview.loaded
 
-    readonly property string sourceUrl: ServerProbe.host
-        ? "http://" + ServerProbe.host + ":" + ServerProbe.cameraPort + "/single_image"
+    readonly property string sourceUrl: HttpServerProbe.host
+        ? "http://" + HttpServerProbe.host + ":" + HttpServerProbe.cameraPort + "/single_image"
         : ""
 
     readonly property string frameSize: preview.sourceWidth + "x" + preview.sourceHeight
@@ -66,9 +66,9 @@ Rectangle {
 
             StatusDot {
                 Layout.alignment: Qt.AlignVCenter
-                status: root.receiving ? ServerProbe.Ok
-                      : root.streaming ? ServerProbe.Checking
-                                       : ServerProbe.cameraStatus
+                status: root.receiving ? ProbeStatus.Ok
+                      : root.streaming ? ProbeStatus.Checking
+                                       : HttpServerProbe.cameraStatus
             }
 
             Label {

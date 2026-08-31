@@ -27,11 +27,11 @@ Rectangle {
 
     readonly property int rosDomainStatus: {
         const statuses = [rosAxisStatus, rosMonitorStatus, rosCameraStatus]
-        if (statuses.some(s => s === ServerProbe.Checking)) return ServerProbe.Checking
-        if (statuses.some(s => s === ServerProbe.Unknown)) return ServerProbe.Unknown
-        const okCount = statuses.filter(s => s === ServerProbe.Ok).length
-        if (okCount === statuses.length) return ServerProbe.Ok
-        return okCount === 0 ? ServerProbe.Failed : ServerProbe.Partial
+        if (statuses.some(s => s === ProbeStatus.Checking)) return ProbeStatus.Checking
+        if (statuses.some(s => s === ProbeStatus.Unknown)) return ProbeStatus.Unknown
+        const okCount = statuses.filter(s => s === ProbeStatus.Ok).length
+        if (okCount === statuses.length) return ProbeStatus.Ok
+        return okCount === 0 ? ProbeStatus.Failed : ProbeStatus.Partial
     }
 
     signal rosUpdateRequested(int domainId, string axisNamespace, string monitorNamespace, string cameraTopic)
@@ -148,10 +148,10 @@ Rectangle {
                 placeholderText: "192.168.103.56"
                 text: root.host
                 showStatus: true
-                status: ServerProbe.hostStatus
+                status: HttpServerProbe.hostStatus
                 onEdited: (value) => {
                     root.host = value
-                    ServerProbe.resetAll()
+                    HttpServerProbe.resetAll()
                 }
             }
 
@@ -165,10 +165,10 @@ Rectangle {
                     text: root.axisPort
                     validator: IntValidator { bottom: 1; top: 65535 }
                     showStatus: true
-                    status: ServerProbe.axisStatus
+                    status: HttpServerProbe.axisStatus
                     onEdited: (value) => {
                         root.axisPort = parseInt(value)
-                        ServerProbe.markUnknown(ServerProbe.Axis)
+                        HttpServerProbe.markUnknown(HttpServerProbe.Axis)
                     }
                 }
 
@@ -178,10 +178,10 @@ Rectangle {
                     text: root.monitorPort
                     validator: IntValidator { bottom: 1; top: 65535 }
                     showStatus: true
-                    status: ServerProbe.monitorStatus
+                    status: HttpServerProbe.monitorStatus
                     onEdited: (value) => {
                         root.monitorPort = parseInt(value)
-                        ServerProbe.markUnknown(ServerProbe.Monitor)
+                        HttpServerProbe.markUnknown(HttpServerProbe.Monitor)
                     }
                 }
 
@@ -191,10 +191,10 @@ Rectangle {
                     text: root.cameraPort
                     validator: IntValidator { bottom: 1; top: 65535 }
                     showStatus: true
-                    status: ServerProbe.cameraStatus
+                    status: HttpServerProbe.cameraStatus
                     onEdited: (value) => {
                         root.cameraPort = parseInt(value)
-                        ServerProbe.markUnknown(ServerProbe.Camera)
+                        HttpServerProbe.markUnknown(HttpServerProbe.Camera)
                     }
                 }
             }
@@ -208,7 +208,7 @@ Rectangle {
 
             onClicked: {
                 if (root.mode === root.modeHttp) {
-                    ServerProbe.probeAll(root.host, root.axisPort,
+                    HttpServerProbe.probeAll(root.host, root.axisPort,
                                         root.monitorPort, root.cameraPort)
                 } else {
                     root.rosUpdateRequested(root.domainId, root.axisNamespace,

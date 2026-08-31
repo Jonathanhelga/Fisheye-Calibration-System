@@ -1,4 +1,4 @@
-#include "ServerProbe.h"
+#include "HttpServerProbe.h"
 
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -18,49 +18,49 @@ bool answeredHttp(QNetworkReply *reply) {
 
 } // namespace
 
-ServerProbe::ServerProbe(QObject *parent) : QObject(parent) {}
+HttpServerProbe::HttpServerProbe(QObject *parent) : QObject(parent) {}
 
-ServerProbe::~ServerProbe() = default;
+HttpServerProbe::~HttpServerProbe() = default;
 
-QString ServerProbe::urlFor(int port) const {
+QString HttpServerProbe::urlFor(int port) const {
     return QStringLiteral("http://%1:%2/").arg(host_, QString::number(port));
 }
 
-ServerProbe::Status ServerProbe::hostStatus() const {
+ProbeStatus::Status HttpServerProbe::hostStatus() const {
     int ok = 0;
     int failed = 0;
 
-    for (Status s : status_) {
-        if (s == Checking) return Checking;
-        if (s == Unknown) return Unknown;
-        if (s == Ok) ++ok;
+    for (ProbeStatus::Status s : status_) {
+        if (s == ProbeStatus::Checking) return ProbeStatus::Checking;
+        if (s == ProbeStatus::Unknown) return ProbeStatus::Unknown;
+        if (s == ProbeStatus::Ok) ++ok;
         else ++failed;
     }
 
-    if (failed == 0) return Ok;
-    return ok == 0 ? Failed : Partial;
+    if (failed == 0) return ProbeStatus::Ok;
+    return ok == 0 ? ProbeStatus::Failed : ProbeStatus::Partial;
 }
 
-void ServerProbe::markUnknown(Service service) {
+void HttpServerProbe::markUnknown(Service service) {
     cancel(service);
-    if (status_[service] == Unknown) return;
-    status_[service] = Unknown;
+    if (status_[service] == ProbeStatus::Unknown) return;
+    status_[service] = ProbeStatus::Unknown;
     emit statusesChanged();
 }
 
-void ServerProbe::resetAll() {
+void HttpServerProbe::resetAll() {
     bool changed = false;
     for (int i = 0; i < 3; ++i) {
         cancel(static_cast<Service>(i));
-        if (status_[i] != Unknown) {
-            status_[i] = Unknown;
+        if (status_[i] != ProbeStatus::Unknown) {
+            status_[i] = ProbeStatus::Unknown;
             changed = true;
         }
     }
     if (changed) emit statusesChanged();
 }
 
-void ServerProbe::probeAll(const QString &host, int axis, int monitor, int camera) {
+void HttpServerProbe::probeAll(const QString &host, int axis, int monitor, int camera) {
     host_ = host;
     port_[Axis] = axis;
     port_[Monitor] = monitor;
@@ -74,7 +74,7 @@ void ServerProbe::probeAll(const QString &host, int axis, int monitor, int camer
     emit statusesChanged();
 }
 
-void ServerProbe::cancel(Service service) {
+void HttpServerProbe::cancel(Service service) {
     ++gen_[service];
     if (QNetworkReply *reply = inFlight_[service]) {
         inFlight_[service] = nullptr;
@@ -82,7 +82,7 @@ void ServerProbe::cancel(Service service) {
     }
 }
 
-void ServerProbe::probeOne(Service service) {
+void HttpServerProbe::probeOne(Service service) {
     cancel(service);
 
     if (!nam_) {
@@ -97,13 +97,13 @@ void ServerProbe::probeOne(Service service) {
 
     QNetworkReply *reply = nam_->get(request);
     inFlight_[service] = reply;
-    status_[service] = Checking;
+    status_[service] = ProbeStatus::Checking;
 
     connect(reply, &QNetworkReply::finished, this, [this, service, generation, reply] {
         reply->deleteLater();
         if (generation != gen_[service]) return;
         inFlight_[service] = nullptr;
-        status_[service] = answeredHttp(reply) ? Ok : Failed;
+        status_[service] = answeredHttp(reply) ? ProbeStatus::Ok : ProbeStatus::Failed;
         emit statusesChanged();
     });
 }

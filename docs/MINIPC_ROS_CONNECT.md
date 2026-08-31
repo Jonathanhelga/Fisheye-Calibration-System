@@ -132,7 +132,7 @@ The plan file at `/home/minipc-103-1/.claude/plans/hi-claude-so-my-declarative-t
 In order, all covered by the plan file:
 
 1. Add the ROS 2 block to `CMakeLists.txt`, guarded by a `FISHEYE_ENABLE_ROS` cache option so the Mac build is unaffected.
-2. Write `RosServerProbe.h` / `.cpp` mirroring the shape of `ServerProbe.{h,cpp}`.
+2. Write `RosServerProbe.h` / `.cpp` mirroring the shape of `HttpServerProbe.{h,cpp}`.
 3. In `ServerConfigPanel.qml`, bind the three ROS status dots to `RosServerProbe.{axis,monitor,camera}Status`.
 4. In `Main.qml:51`, add the `onRosUpdateRequested` handler that calls `RosServerProbe.probeAll(...)`.
 5. Build in a shell that has `/opt/ros/jazzy/setup.bash` **and** `~/moil_ros_ws/install/setup.bash` sourced. Neither is optional — CMake needs both to find `rclcpp` and `moil_interfaces`.

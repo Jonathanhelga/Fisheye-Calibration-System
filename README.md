@@ -567,7 +567,7 @@ cd ~/Desktop/Fisheye_Calibration-Jojo_Version      # <- your clone
 
 ## D2. The 3D Verification sub-app
 
-`subapp_3d_verification/` is the old QWidget + uic dialog, copied verbatim from branch `v2.0_2026_main-cpp-ros`. Clicking *3D Verification* calls `Bridge::openMeasure3d()`, which opens it as its own top-level window. It is an offline image-file workflow and needs no rig.
+`subapp_3d_verification/` is the old QWidget + uic dialog, copied verbatim from branch `v2.0_2026_main-cpp-ros`. Clicking *3D Verification* calls `SubAppWindows::openMeasure3d()`, which opens it as its own top-level window. It is an offline image-file workflow and needs no rig.
 
 ```
 subapp_3d_verification/
@@ -588,7 +588,7 @@ subapp_3d_verification/
   C:\Qt\6.8.1\msvc2022_64\bin\uic.exe subapp_3d_verification\ui\UI3d_measurement.ui -o subapp_3d_verification\views\widgets\UI3d_measurement.h
   ```
   The committed header came from uic 6.4.2, so the first regeneration produces a large version-formatting diff on top of your edit.
-- `Bridge::openMeasure3d()` passes `nullptr` for the axis and camera clients — the dialog stores and never dereferences them.
+- `SubAppWindows::openMeasure3d()` passes `nullptr` for the axis and camera clients — the dialog stores and never dereferences them.
 
 The app is `QApplication`, not `QGuiApplication`, so this dialog can exist. That is also why `Qt6::Widgets` is a dependency.
 
@@ -623,9 +623,9 @@ Copy the **whole** error, not the last line — the useful part of a CMake error
 ## D4. Source layout
 
 ```
-src/                     QML app C++: ServerProbe (HTTP dots), RosServerProbe (ROS dots),
+src/                     QML app C++: HttpServerProbe (HTTP dots), RosServerProbe (ROS dots),
                          AxisState + AxisController (live axis, jog, stop),
-                         Bridge (C++/QML touchpoint, owns the 3D window)
+                         SubAppWindows (C++/QML touchpoint, owns the 3D window)
 qml/windows/             top-level ApplicationWindows
 qml/panels/              feature blocks, one file per panel
 qml/controls/            small reusable pieces
@@ -661,6 +661,6 @@ The rest of `docs/` is local-only and does not ship -- `.gitignore` keeps only t
 1. Create `qml/panels/<PanelName>.qml`.
 2. Add it to `QML_FILES` in `CMakeLists.txt`.
 3. Replace the matching placeholder in the relevant window.
-4. Live data goes on `Bridge`, or a new panel bridge class, as `Q_PROPERTY` / `Q_INVOKABLE`.
+4. Live data goes on `SubAppWindows`, or a new panel bridge class, as `Q_PROPERTY` / `Q_INVOKABLE`.
 
-There is no `setContextProperty`. C++ types reach QML through `QML_ELEMENT`, which is what lets `qmllint` see them statically. `Bridge`, `ServerProbe`, `RosServerProbe` and `AxisController` are `QML_SINGLETON` too, so QML calls them directly — `Bridge.openMeasure3d()` — rather than instantiating them.
+There is no `setContextProperty`. C++ types reach QML through `QML_ELEMENT`, which is what lets `qmllint` see them statically. `SubAppWindows`, `HttpServerProbe`, `RosServerProbe` and `AxisController` are `QML_SINGLETON` too, so QML calls them directly — `SubAppWindows.openMeasure3d()` — rather than instantiating them.

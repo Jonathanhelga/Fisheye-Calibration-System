@@ -95,9 +95,9 @@ Rectangle {
 
             StatusDot {
                 Layout.alignment: Qt.AlignVCenter
-                status: root.busy ? ServerProbe.Checking
-                      : root.imagePath ? ServerProbe.Ok
-                                       : ServerProbe.Unknown
+                status: root.busy ? ProbeStatus.Checking
+                      : root.imagePath ? ProbeStatus.Ok
+                                       : ProbeStatus.Unknown
             }
 
             Label {

@@ -11,21 +11,21 @@ Window {
     height: Math.min(fit.contentHeight, Screen.desktopAvailableHeight, Screen.height)
 
     property bool busy: false
-    property int loadStatus: ServerProbe.Unknown
+    property int loadStatus: ProbeStatus.Unknown
     property bool singleDistance: false
 
     property alias caliFolder: caliFolderField.text
     property alias caliSystem: caliSystemCombo.currentIndex
 
-    readonly property int folderStatus: root.busy ? ServerProbe.Checking
-                                      : root.caliFolder.length === 0 ? ServerProbe.Unknown
+    readonly property int folderStatus: root.busy ? ProbeStatus.Checking
+                                      : root.caliFolder.length === 0 ? ProbeStatus.Unknown
                                                                      : root.loadStatus
 
     readonly property string folderStatusText: root.busy ? qsTr("Loading...")
                                              : root.caliFolder.length === 0 ? qsTr("No folder chosen")
-                                             : root.loadStatus === ServerProbe.Ok ? qsTr("Loaded")
-                                             : root.loadStatus === ServerProbe.Partial ? qsTr("Partly loaded")
-                                             : root.loadStatus === ServerProbe.Failed ? qsTr("Load failed")
+                                             : root.loadStatus === ProbeStatus.Ok ? qsTr("Loaded")
+                                             : root.loadStatus === ProbeStatus.Partial ? qsTr("Partly loaded")
+                                             : root.loadStatus === ProbeStatus.Failed ? qsTr("Load failed")
                                                                                       : qsTr("Not loaded yet")
     readonly property int viewData: 0
     readonly property int viewParameter: 1

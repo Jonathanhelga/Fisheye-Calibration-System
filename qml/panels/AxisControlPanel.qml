@@ -116,15 +116,15 @@ Rectangle {
             StatusDot {
                 Layout.alignment: Qt.AlignVCenter
                 status: AxisController.connectionState === AxisController.Connected
-                            ? ServerProbe.Ok
+                            ? ProbeStatus.Ok
                       : AxisController.connectionState === AxisController.Degraded
-                            ? ServerProbe.Partial
+                            ? ProbeStatus.Partial
                       : AxisController.connectionState === AxisController.Connecting
-                            ? ServerProbe.Checking
+                            ? ProbeStatus.Checking
                       : AxisController.connectionState === AxisController.Failed
                         || AxisController.connectionState === AxisController.Stalled
-                            ? ServerProbe.Failed
-                            : ServerProbe.Unknown
+                            ? ProbeStatus.Failed
+                            : ProbeStatus.Unknown
             }
 
             Label {

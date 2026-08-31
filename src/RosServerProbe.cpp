@@ -51,9 +51,9 @@ void RosServerProbe::resetAll() {
     stopWorker();
     bool changed = !lastError_.isEmpty();
     lastError_.clear();
-    for (Status &status : status_) {
-        if (status != Unknown) {
-            status = Unknown;
+    for (ProbeStatus::Status &status : status_) {
+        if (status != ProbeStatus::Unknown) {
+            status = ProbeStatus::Unknown;
             changed = true;
         }
     }
@@ -61,7 +61,7 @@ void RosServerProbe::resetAll() {
 }
 
 void RosServerProbe::applyResult(int service, int status, const QString &error) {
-    status_[service] = static_cast<Status>(status);
+    status_[service] = static_cast<ProbeStatus::Status>(status);
     if (!error.isEmpty()) lastError_ = error;
     emit statusesChanged();
 }
@@ -71,7 +71,7 @@ void RosServerProbe::probeAll(int domainId, const QString &axisNamespace,
     stopWorker();
 
     lastError_.clear();
-    for (Status &status : status_) status = Checking;
+    for (ProbeStatus::Status &status : status_) status = ProbeStatus::Checking;
     emit statusesChanged();
 
     const quint64 generation = d_->generation.load();
@@ -92,14 +92,15 @@ void RosServerProbe::probeAll(int domainId, const QString &axisNamespace,
     Q_UNUSED(cameraTopicName)
 
     for (int service = 0; service < 3; ++service) {
-        applyResult(service, Failed,
+        applyResult(service, ProbeStatus::Failed,
                     QStringLiteral("this build has no ROS 2 support "
                                    "(configure with -DFISHEYE_ENABLE_ROS=ON on Linux)"));
     }
 #else
     d_->worker = std::thread([this, generation, domainId, axisService, monitorService,
                               cameraTopicName] {
-        auto post = [this, generation](int service, Status status, const QString &error) {
+        auto post = [this, generation](int service, ProbeStatus::Status status,
+                                       const QString &error) {
             if (generation != d_->generation.load()) return;
             QMetaObject::invokeMethod(this, "applyResult", Qt::QueuedConnection,
                                       Q_ARG(int, service), Q_ARG(int, static_cast<int>(status)),
@@ -117,7 +118,8 @@ void RosServerProbe::probeAll(int domainId, const QString &axisNamespace,
             nodeOptions.context(context);
         } catch (const std::exception &error) {
             const QString message = QString::fromUtf8(error.what());
-            for (int service = 0; service < 3; ++service) post(service, Failed, message);
+            for (int service = 0; service < 3; ++service)
+                post(service, ProbeStatus::Failed, message);
             return;
         }
 
@@ -134,15 +136,15 @@ void RosServerProbe::probeAll(int domainId, const QString &axisNamespace,
             while (generation == d_->generation.load()) {
                 if (!found[Axis] && axisClient->service_is_ready()) {
                     found[Axis] = true;
-                    post(Axis, Ok, {});
+                    post(Axis, ProbeStatus::Ok, {});
                 }
                 if (!found[Monitor] && monitorClient->service_is_ready()) {
                     found[Monitor] = true;
-                    post(Monitor, Ok, {});
+                    post(Monitor, ProbeStatus::Ok, {});
                 }
                 if (!found[Camera] && node->count_publishers(cameraTopicName) > 0) {
                     found[Camera] = true;
-                    post(Camera, Ok, {});
+                    post(Camera, ProbeStatus::Ok, {});
                 }
 
                 if (found[Axis] && found[Monitor] && found[Camera]) break;
@@ -153,7 +155,7 @@ void RosServerProbe::probeAll(int domainId, const QString &axisNamespace,
 
             for (int service = 0; service < 3; ++service) {
                 if (found[service]) continue;
-                post(service, Failed,
+                post(service, ProbeStatus::Failed,
                      QStringLiteral("no responder on domain %1 within %2 s "
                                     "(wrong domain, wrong subnet, node not running, "
                                     "or namespace mismatch)")
@@ -162,7 +164,8 @@ void RosServerProbe::probeAll(int domainId, const QString &axisNamespace,
             }
         } catch (const std::exception &error) {
             const QString message = QString::fromUtf8(error.what());
-            for (int service = 0; service < 3; ++service) post(service, Failed, message);
+            for (int service = 0; service < 3; ++service)
+                post(service, ProbeStatus::Failed, message);
         }
 
         context->shutdown("probe finished");
