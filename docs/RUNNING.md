@@ -97,7 +97,7 @@ To build the frontend without any ROS wiring — useful for pure UI work with no
 
 ```bash
 cmake --build build -j6
-./build/fisheye_cali_jojo
+./build/moil_fisheye_cali
 ```
 
 No sourcing needed at run time: `CMakeLists.txt` passes `-Wl,--disable-new-dtags` when ROS is enabled, which turns the linker's RUNPATH into an RPATH.

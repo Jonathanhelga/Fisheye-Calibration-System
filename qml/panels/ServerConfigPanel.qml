@@ -41,7 +41,7 @@ Rectangle {
     color: Theme.panelBackground
     border.color: Theme.panelBorder
     radius: Theme.radius
-
+q
     ColumnLayout {
         id: content
 

@@ -33,6 +33,8 @@ QtObject {
     readonly property int minPanelHeight:       Math.round(unit * 30)
     readonly property int minHistogramHeight:   Math.round(unit * 13)
 
+    readonly property int designWidth:  minColumnLeft + minColumnCenter + minColumnRight + 2 * spaceMd
+    readonly property int designHeight: minPanelHeight + 2 * minHistogramHeight + 2 * spaceMd
 
     readonly property real ratioLeft:   0.35
     readonly property real ratioCenter: 0.40

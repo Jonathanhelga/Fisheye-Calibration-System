@@ -13,6 +13,7 @@ ColumnLayout {
 
     property bool showStatus: false
     property int status: ProbeStatus.Unknown
+    
     property alias showStatusText: statusDot.showLabel
     property alias statusOkText: statusDot.okText
     property alias statusFailedText: statusDot.failedText
