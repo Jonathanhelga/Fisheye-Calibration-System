@@ -67,11 +67,15 @@ option(FISHEYE_ENABLE_ROS "Build the ROS 2 server probe" ${FISHEYE_ROS_DEFAULT})
 # FISHEYE_ROS_ENABLED is absent.
 if(FISHEYE_ENABLE_ROS)
     find_package(rclcpp QUIET)
+    find_package(rclcpp_action QUIET)
     find_package(moil_interfaces QUIET)
 
     set(FISHEYE_ROS_MISSING "")
     if(NOT rclcpp_FOUND)
         list(APPEND FISHEYE_ROS_MISSING "rclcpp")
+    endif()
+    if(NOT rclcpp_action_FOUND)
+        list(APPEND FISHEYE_ROS_MISSING "rclcpp_action")
     endif()
     if(NOT moil_interfaces_FOUND)
         list(APPEND FISHEYE_ROS_MISSING "moil_interfaces")
@@ -244,6 +248,7 @@ endif()
 if(FISHEYE_ENABLE_ROS)
     target_link_libraries(moil_fisheye_cali PRIVATE
         rclcpp::rclcpp
+        rclcpp_action::rclcpp_action
         ${moil_interfaces_TARGETS}
     )
     target_compile_definitions(moil_fisheye_cali PRIVATE FISHEYE_ROS_ENABLED)

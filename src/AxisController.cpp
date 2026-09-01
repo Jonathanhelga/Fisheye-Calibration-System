@@ -15,7 +15,9 @@
 #include <string>
 
 #include <rclcpp/rclcpp.hpp>
+#include <rclcpp_action/rclcpp_action.hpp>
 
+#include "moil_interfaces/action/axis_home.hpp"
 #include "moil_interfaces/msg/axis_state.hpp"
 #include "moil_interfaces/srv/axis_command.hpp"
 #include "moil_interfaces/srv/axis_move.hpp"
@@ -34,6 +36,10 @@ constexpr int kMaxDomainId = 232;
 constexpr int kStopTimeoutMs = 8000;
 constexpr int kLimitCheckTimeoutMs = 4000;
 constexpr int kMoveTimeoutMs = 120000;
+
+constexpr int kHomeIdleNeeded = 3;
+constexpr double kHomeAxisTimeoutS = 120.0;
+constexpr int kHomeGuardMarginMs = 15000;
 
 #ifdef FISHEYE_ROS_ENABLED
 struct AxisSensorNames {
@@ -130,6 +136,18 @@ QString axisLabel(const QString &axis) {
     return axis.toUpper();
 }
 
+QString groupLabel(AxisController::Group group) {
+    switch (group) {
+    case AxisController::GroupXY:
+        return QStringLiteral("X and Y");
+    case AxisController::GroupZ:
+        return QStringLiteral("Z");
+    case AxisController::GroupRotation:
+        return QStringLiteral("Yaw and Pitch");
+    }
+    return QString();
+}
+
 } // namespace
 
 struct AxisController::Impl {
@@ -139,12 +157,18 @@ struct AxisController::Impl {
 
     std::mutex focusMutex;
     QString watchFocus;
+    QStringList pendingSweep;
 
     std::mutex commandMutex;
 #ifdef FISHEYE_ROS_ENABLED
+    using HomeAction = moil_interfaces::action::AxisHome;
+    using HomeGoalHandle = rclcpp_action::ClientGoalHandle<HomeAction>;
+
     rclcpp::Client<moil_interfaces::srv::AxisMove>::SharedPtr moveClient;
     rclcpp::Client<moil_interfaces::srv::AxisCommand>::SharedPtr commandClient;
     rclcpp::Client<moil_interfaces::srv::AxisSensor>::SharedPtr sensorClient;
+    rclcpp_action::Client<HomeAction>::SharedPtr homeClient;
+    HomeGoalHandle::SharedPtr homeGoal;
 #endif
 
     AxisState *x = nullptr;
@@ -293,11 +317,13 @@ void AxisController::applyStateCapabilities(bool sensor, bool position, int stat
     emit capabilitiesChanged();
 }
 
-void AxisController::applyCommandCapabilities(bool move, bool command, quint64 generation) {
+void AxisController::applyCommandCapabilities(bool move, bool command, bool home,
+                                              quint64 generation) {
     if (generation != d_->generation.load()) return;
 
     moveAvailable_ = move;
     commandAvailable_ = command;
+    homeActionAvailable_ = home;
     emit capabilitiesChanged();
 }
 
@@ -491,6 +517,103 @@ bool AxisController::sendLimitCheck(const QString &axis, const QString &sensor) 
 #endif
 }
 
+bool AxisController::sendHome(Group group, const QStringList &axes) {
+#ifdef FISHEYE_ROS_ENABLED
+    rclcpp_action::Client<Impl::HomeAction>::SharedPtr client;
+    {
+        std::lock_guard<std::mutex> lock(d_->commandMutex);
+        client = d_->homeClient;
+    }
+    if (!client || !client->action_server_is_ready()) return false;
+
+    Impl::HomeAction::Goal goal;
+    for (const QString &axis : axes) goal.axes.push_back(axis.toStdString());
+    goal.idle_needed = kHomeIdleNeeded;
+    goal.timeout = kHomeAxisTimeoutS;
+    goal.capture_zero = true;
+
+    const quint64 generation = d_->generation.load();
+    const int groupId = static_cast<int>(group);
+
+    rclcpp_action::Client<Impl::HomeAction>::SendGoalOptions options;
+
+    options.goal_response_callback = [this, generation,
+                                      groupId](Impl::HomeGoalHandle::SharedPtr handle) {
+        {
+            std::lock_guard<std::mutex> lock(d_->commandMutex);
+            d_->homeGoal = handle;
+        }
+        if (handle) return;
+        QMetaObject::invokeMethod(this, "applyHomeFinished", Qt::QueuedConnection,
+                                  Q_ARG(int, groupId), Q_ARG(bool, false),
+                                  Q_ARG(QString, tr("the axis node refused the home request")),
+                                  Q_ARG(quint64, generation));
+    };
+
+    options.feedback_callback =
+        [this, generation](Impl::HomeGoalHandle::SharedPtr,
+                           const std::shared_ptr<const Impl::HomeAction::Feedback> feedback) {
+            QMetaObject::invokeMethod(
+                this, "applyHomeFeedback", Qt::QueuedConnection,
+                Q_ARG(QString, QString::fromStdString(feedback->axis).trimmed().toLower()),
+                Q_ARG(int, static_cast<int>(feedback->elapsed)), Q_ARG(quint64, generation));
+        };
+
+    options.result_callback = [this, generation,
+                               groupId](const Impl::HomeGoalHandle::WrappedResult &wrapped) {
+        const auto result = wrapped.result;
+        const bool ok =
+            wrapped.code == rclcpp_action::ResultCode::SUCCEEDED && result && result->success;
+
+        QString message = result ? QString::fromStdString(result->message) : QString();
+        if (wrapped.code == rclcpp_action::ResultCode::CANCELED ||
+            (result && result->cancelled)) {
+            message = tr("homing was stopped");
+        } else if (result && !result->timed_out.empty()) {
+            QStringList names;
+            for (const std::string &axis : result->timed_out)
+                names << axisLabel(QString::fromStdString(axis));
+            message = tr("%1 did not reach home").arg(names.join(QStringLiteral(", ")));
+        } else if (wrapped.code == rclcpp_action::ResultCode::ABORTED && message.isEmpty()) {
+            message = tr("the rig aborted the home");
+        }
+
+        QMetaObject::invokeMethod(this, "applyHomeFinished", Qt::QueuedConnection,
+                                  Q_ARG(int, groupId), Q_ARG(bool, ok), Q_ARG(QString, message),
+                                  Q_ARG(quint64, generation));
+    };
+
+    client->async_send_goal(goal, options);
+    return true;
+#else
+    Q_UNUSED(group)
+    Q_UNUSED(axes)
+    return false;
+#endif
+}
+
+void AxisController::cancelHome() {
+#ifdef FISHEYE_ROS_ENABLED
+    rclcpp_action::Client<Impl::HomeAction>::SharedPtr client;
+    Impl::HomeGoalHandle::SharedPtr goal;
+    {
+        std::lock_guard<std::mutex> lock(d_->commandMutex);
+        client = d_->homeClient;
+        goal = d_->homeGoal;
+        d_->homeGoal.reset();
+    }
+    if (client && goal) client->async_cancel_goal(goal);
+#endif
+}
+
+void AxisController::requestSweep(const QStringList &axes) {
+    if (axes.isEmpty()) return;
+    std::lock_guard<std::mutex> lock(d_->focusMutex);
+    for (const QString &axis : axes) {
+        if (!d_->pendingSweep.contains(axis)) d_->pendingSweep.append(axis);
+    }
+}
+
 quint64 AxisController::armTimeout(const QString &axis, int ms, const QString &what) {
     const quint64 token = ++commandToken_[axis];
     const quint64 generation = d_->generation.load();
@@ -563,17 +686,23 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                 node->create_client<moil_interfaces::srv::AxisCommand>(nsStd + "/command");
             auto sensorClient =
                 node->create_client<moil_interfaces::srv::AxisSensor>(nsStd + "/sensor");
+            auto homeClient =
+                rclcpp_action::create_client<Impl::HomeAction>(node, nsStd + "/home");
 
             {
                 std::lock_guard<std::mutex> lock(d_->commandMutex);
                 d_->moveClient = moveClient;
                 d_->commandClient = commandClient;
                 d_->sensorClient = sensorClient;
+                d_->homeClient = homeClient;
             }
 
             const auto deadline = std::chrono::steady_clock::now() +
                                   std::chrono::milliseconds(kDiscoveryTimeoutMs);
             bool announced = false;
+            bool lastMove = false;
+            bool lastCommand = false;
+            bool lastHome = false;
 
             while (alive()) {
                 executor.spin_some(std::chrono::milliseconds(kSpinSliceMs));
@@ -581,13 +710,21 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
 
                 const bool moveReady = moveClient->service_is_ready();
                 const bool commandReady = commandClient->service_is_ready();
+                const bool homeReady = homeClient->action_server_is_ready();
 
-                if (!announced &&
-                    ((moveReady && commandReady) || std::chrono::steady_clock::now() > deadline)) {
+                const bool settled = moveReady && commandReady && homeReady;
+                const bool expired = std::chrono::steady_clock::now() > deadline;
+                const bool changed = moveReady != lastMove || commandReady != lastCommand ||
+                                     homeReady != lastHome;
+
+                if ((announced && changed) || (!announced && (settled || expired))) {
                     announced = true;
+                    lastMove = moveReady;
+                    lastCommand = commandReady;
+                    lastHome = homeReady;
                     QMetaObject::invokeMethod(this, "applyCommandCapabilities",
                                               Qt::QueuedConnection, Q_ARG(bool, moveReady),
-                                              Q_ARG(bool, commandReady),
+                                              Q_ARG(bool, commandReady), Q_ARG(bool, homeReady),
                                               Q_ARG(quint64, generation));
                 }
 
@@ -599,10 +736,12 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                 d_->moveClient.reset();
                 d_->commandClient.reset();
                 d_->sensorClient.reset();
+                d_->homeClient.reset();
+                d_->homeGoal.reset();
             }
         } catch (const std::exception &error) {
             QMetaObject::invokeMethod(this, "applyCommandCapabilities", Qt::QueuedConnection,
-                                      Q_ARG(bool, false), Q_ARG(bool, false),
+                                      Q_ARG(bool, false), Q_ARG(bool, false), Q_ARG(bool, false),
                                       Q_ARG(quint64, generation));
             qWarning("axis command link failed: %s", error.what());
         }
@@ -829,10 +968,21 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                 if (!alive()) break;
 
                 QString focus;
+                QStringList sweeps;
                 {
                     std::lock_guard<std::mutex> lock(d_->focusMutex);
                     focus = d_->watchFocus;
+                    sweeps.swap(d_->pendingSweep);
                 }
+
+                for (const QString &name : std::as_const(sweeps)) {
+                    for (int i = 0; i < kAxisCount && alive(); ++i) {
+                        if (name != QLatin1String(kSensorNames[i].axis)) continue;
+                        sweepAxis(i);
+                        break;
+                    }
+                }
+                if (!alive()) break;
 
                 if (source == WatchTopic) {
                     if (focus != appliedFocus) {
@@ -889,6 +1039,7 @@ void AxisController::stopWorkers() {
     {
         std::lock_guard<std::mutex> lock(d_->focusMutex);
         d_->watchFocus.clear();
+        d_->pendingSweep.clear();
     }
     if (d_->worker.joinable()) d_->worker.join();
     if (d_->commandWorker.joinable()) d_->commandWorker.join();
@@ -904,6 +1055,8 @@ void AxisController::teardownSession() {
     for (AxisState *state : std::as_const(d_->all)) state->resetToUnknown();
 
     homingGroup_.clear();
+    homingDetail_.clear();
+    ++homeToken_;
     clearCapabilities();
     recomputeActivity();
 }
@@ -995,15 +1148,78 @@ void AxisController::homeGroup(Group group) {
         emit commandRejected(QString(), tr("not connected to the axis node"));
         return;
     }
+    if (!homeActionAvailable_) {
+        emit commandRejected(QString(),
+                             tr("the axis node is not serving %1/home").arg(axisNamespace_));
+        return;
+    }
     if (busy()) {
         emit commandRejected(QString(), tr("an axis is already moving"));
         return;
     }
-    emit homeGroupFinished(group, false, tr("homing is not wired to the rig yet"));
+
+    const QStringList axes = axesInGroup(group);
+    if (axes.isEmpty()) return;
+
+    if (!sendHome(group, axes)) {
+        emit commandRejected(QString(),
+                             tr("the axis node is not serving %1/home").arg(axisNamespace_));
+        return;
+    }
+
+    setWatchFocus(QString());
+
+    homingGroup_ = groupLabel(group);
+    homingDetail_.clear();
+    recomputeActivity();
+
+    const quint64 token = ++homeToken_;
+    const quint64 generation = d_->generation.load();
+    const int guardMs = static_cast<int>(axes.size()) *
+                            static_cast<int>(kHomeAxisTimeoutS * 1000) +
+                        kHomeGuardMarginMs;
+    QTimer::singleShot(guardMs, this, [this, group, token, generation] {
+        if (generation != d_->generation.load()) return;
+        if (token != homeToken_ || !homing()) return;
+        cancelHome();
+        applyHomeFinished(static_cast<int>(group), false,
+                          tr("the rig stopped answering during homing"), generation);
+    });
+}
+
+void AxisController::applyHomeFeedback(const QString &axis, int elapsedSeconds,
+                                       quint64 generation) {
+    if (generation != d_->generation.load()) return;
+    if (!homing()) return;
+
+    homingDetail_ = tr("%1, %2 s").arg(axisLabel(axis)).arg(elapsedSeconds);
+    recomputeActivity();
+}
+
+void AxisController::applyHomeFinished(int group, bool ok, const QString &message,
+                                       quint64 generation) {
+    if (generation != d_->generation.load()) return;
+    if (!homing()) return;
+
+    ++homeToken_;
+    homingGroup_.clear();
+    homingDetail_.clear();
+#ifdef FISHEYE_ROS_ENABLED
+    {
+        std::lock_guard<std::mutex> lock(d_->commandMutex);
+        d_->homeGoal.reset();
+    }
+#endif
+
+    const Group id = static_cast<Group>(group);
+    requestSweep(axesInGroup(id));
+    recomputeActivity();
+
+    emit homeGroupFinished(id, ok, message);
 }
 
 bool AxisController::expectingSamples() const {
-    return stateSource_ != NoSource && busy();
+    return stateSource_ != NoSource && busy() && !homing();
 }
 
 bool AxisController::guardStop(const QString &axis) {
@@ -1020,6 +1236,8 @@ bool AxisController::guardStop(const QString &axis) {
 }
 
 void AxisController::stopAxis(const QString &axis) {
+    if (homing()) cancelHome();
+
     const QString key = axis.trimmed().toLower();
     if (!guardStop(key)) return;
     if (!axisOrNull(key)) {
@@ -1040,6 +1258,7 @@ void AxisController::stopAxis(const QString &axis) {
 }
 
 void AxisController::stopAll() {
+    if (homing()) cancelHome();
     if (!guardStop(QString())) return;
 
     for (AxisState *state : std::as_const(d_->all)) stopAxis(state->name());
@@ -1055,7 +1274,11 @@ void AxisController::recomputeActivity() {
                                     : tr("%1 is stopping").arg(label);
         break;
     }
-    if (homing()) text = tr("Homing %1").arg(homingGroup_);
+    if (homing()) {
+        text = homingDetail_.isEmpty()
+                   ? tr("Homing %1").arg(homingGroup_)
+                   : tr("Homing %1 (%2)").arg(homingGroup_, homingDetail_);
+    }
 
     if (text == activityText_ && busy() == busyReported_ && anyMoving() == movingReported_ &&
         dataFresh() == freshReported_)

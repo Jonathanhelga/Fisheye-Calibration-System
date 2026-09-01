@@ -136,7 +136,8 @@ private:
     Q_INVOKABLE void applyConnection(int state, const QString &message, quint64 generation);
     Q_INVOKABLE void applyStateCapabilities(bool sensor, bool position, int stateSource,
                                             const QString &text, quint64 generation);
-    Q_INVOKABLE void applyCommandCapabilities(bool move, bool command, quint64 generation);
+    Q_INVOKABLE void applyCommandCapabilities(bool move, bool command, bool home,
+                                              quint64 generation);
     Q_INVOKABLE void applySample(const AxisSample &sample, quint64 generation);
     Q_INVOKABLE void applyLimitCheck(const QString &axis, bool ok, bool triggered,
                                      const QString &message, quint64 generation);
@@ -144,6 +145,10 @@ private:
                                       quint64 generation);
     Q_INVOKABLE void applyStopOutcome(const QString &axis, bool ok, const QString &message,
                                       quint64 generation);
+    Q_INVOKABLE void applyHomeFeedback(const QString &axis, int elapsedSeconds,
+                                       quint64 generation);
+    Q_INVOKABLE void applyHomeFinished(int group, bool ok, const QString &message,
+                                       quint64 generation);
 
     void setConnectionState(ConnectionState state, const QString &message);
     void clearCapabilities();
@@ -154,6 +159,9 @@ private:
                   const QString &speed);
     bool sendStop(const QString &axis);
     bool sendLimitCheck(const QString &axis, const QString &sensor);
+    bool sendHome(Group group, const QStringList &axes);
+    void cancelHome();
+    void requestSweep(const QStringList &axes);
     quint64 armTimeout(const QString &axis, int ms, const QString &what);
     void setWatchFocus(const QString &axis);
     bool hasSession() const { return connected() || connectionState_ == Stalled; }
@@ -183,6 +191,8 @@ private:
     bool freshReported_ = false;
     QString lastError_;
     QString homingGroup_;
+    QString homingDetail_;
+    quint64 homeToken_ = 0;
 
     struct PendingJog {
         Side side = LowSide;

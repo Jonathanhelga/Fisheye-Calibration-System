@@ -53,7 +53,7 @@ Rectangle {
             root.report(axis, qsTr("%1 timed out after %2 s").arg(what).arg(Math.round(ms / 1000)))
         }
         function onHomeGroupFinished(group, ok, message) {
-            if (!ok) root.report("", message)
+            if (message.length > 0) root.report("", message)
         }
         function onConnectionChanged() { root.notice = "" }
     }
@@ -255,7 +255,7 @@ Rectangle {
                     danger: !root.stepMode
                     centerText: "X Y"
                     homeText: qsTr("HOME")
-                    homeEnabled: root.ready && !root.moving
+                    homeEnabled: root.ready && !root.moving && AxisController.homeActionAvailable
 
                     activeDirection: root.litFor("x", "y")
 
@@ -317,7 +317,7 @@ Rectangle {
                     danger: !root.stepMode
                     centerText: "Z"
                     homeText: qsTr("HOME")
-                    homeEnabled: root.ready && !root.moving
+                    homeEnabled: root.ready && !root.moving && AxisController.homeActionAvailable
 
                     activeDirection: root.litFor("z", "z")
 
@@ -358,7 +358,7 @@ Rectangle {
                     danger: !root.stepMode
                     centerText: "YAW\nPITCH"
                     homeText: qsTr("HOME")
-                    homeEnabled: root.ready && !root.moving
+                    homeEnabled: root.ready && !root.moving && AxisController.homeActionAvailable
 
                     activeDirection: root.litFor("yaw", "pitch")
 
