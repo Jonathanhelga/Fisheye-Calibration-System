@@ -32,6 +32,7 @@ constexpr int kMinDomainId = 0;
 constexpr int kMaxDomainId = 232;
 
 constexpr int kStopTimeoutMs = 8000;
+constexpr int kLimitCheckTimeoutMs = 4000;
 constexpr int kMoveTimeoutMs = 120000;
 
 #ifdef FISHEYE_ROS_ENABLED
@@ -63,7 +64,6 @@ constexpr int kWaitSliceMs = 200;
 constexpr double kSerialRoundTripsPerSecond = 5.7;
 constexpr int kRoundTripsPerAxisSample = 5;
 constexpr double kLinkBudget = 0.85;
-constexpr double kIdleLinkBudget = 0.30;
 constexpr double kAxisSampleSeconds = kRoundTripsPerAxisSample / kSerialRoundTripsPerSecond;
 
 constexpr double watchHzFor(double budget, int axes) {
@@ -75,10 +75,8 @@ constexpr int pollGapMsFor(double budget) {
 }
 
 constexpr int kActivePollGapMs = pollGapMsFor(kLinkBudget);
-constexpr int kIdlePollGapMs = pollGapMsFor(kIdleLinkBudget);
 constexpr int kWatchCallTimeoutMs = 6000;
 constexpr int kWatchCallAttempts = 2;
-constexpr double kIdleWatchHz = watchHzFor(kIdleLinkBudget, kAxisCount);
 constexpr double kFocusWatchHz = watchHzFor(kLinkBudget, 1);
 
 int triFrom(bool success, bool value) { 
@@ -146,6 +144,7 @@ struct AxisController::Impl {
 #ifdef FISHEYE_ROS_ENABLED
     rclcpp::Client<moil_interfaces::srv::AxisMove>::SharedPtr moveClient;
     rclcpp::Client<moil_interfaces::srv::AxisCommand>::SharedPtr commandClient;
+    rclcpp::Client<moil_interfaces::srv::AxisSensor>::SharedPtr sensorClient;
 #endif
 
     AxisState *x = nullptr;
@@ -177,7 +176,7 @@ AxisController::AxisController(QObject *parent) : QObject(parent), d_(new Impl) 
     connect(stalenessTimer_, &QTimer::timeout, this, [this] {
         for (AxisState *state : std::as_const(d_->all)) state->refreshStaleness();
 
-        if (!connected()) return;
+        if (!connected() || !expectingSamples()) return;
         for (AxisState *state : std::as_const(d_->all)) {
             if (!state->stale()) return;
         }
@@ -314,6 +313,58 @@ void AxisController::applySample(const AxisSample &sample, quint64 generation) {
     if (connectionState_ == Stalled) setConnectionState(stalledFrom_, QString());
 }
 
+void AxisController::applyLimitCheck(const QString &axis, bool ok, bool triggered,
+                                     const QString &message, quint64 generation) {
+    Q_UNUSED(message)
+    if (generation != d_->generation.load()) return;
+
+    const auto it = pendingJog_.find(axis);
+    if (it == pendingJog_.end()) return;
+
+    const PendingJog request = *it;
+    pendingJog_.erase(it);
+
+    if (commandToken_.value(axis) != request.token) return;
+    ++commandToken_[axis];
+
+    AxisState *state = axisOrNull(axis);
+    if (!state) return;
+
+    const bool high = request.side == HighSide;
+    const QString label = axisLabel(axis);
+    const QString side = sideWord(axis, request.side);
+
+    if (!ok) {
+        state->setCommandPending(false, QString());
+        emit commandRejected(
+            axis, tr("%1 %2 limit sensor could not be read, the move was not sent")
+                      .arg(label, side));
+        return;
+    }
+
+    state->applyLimitFeedback(triggered ? AxisState::Triggered : AxisState::Clear, high,
+                              QString());
+
+    if (triggered) {
+        state->setCommandPending(false, QString());
+        emit commandRejected(axis, tr("%1 %2 is blocked by its limit sensor").arg(label, side));
+        return;
+    }
+
+    const QString direction = directionWord(axis, request.side);
+    if (!sendMove(axis, axis + QLatin1Char('_') + direction, request.distance,
+                  speedWord(request.speed))) {
+        state->setCommandPending(false, QString());
+        emit commandRejected(axis, tr("the axis node is not serving %1/move").arg(axisNamespace_));
+        return;
+    }
+
+    cancelledMoves_.remove(axis);
+    state->setCommandPending(true, tr("Moving %1 %2").arg(label, side));
+    armTimeout(axis, kMoveTimeoutMs, tr("move"));
+    setWatchFocus(axis);
+}
+
 void AxisController::applyMoveOutcome(const QString &axis, bool ok, const QString &message,
                                       quint64 generation) {
     if (generation != d_->generation.load()) return;
@@ -409,7 +460,38 @@ bool AxisController::sendStop(const QString &axis) {
 #endif
 }
 
-void AxisController::armTimeout(const QString &axis, int ms, const QString &what) {
+bool AxisController::sendLimitCheck(const QString &axis, const QString &sensor) {
+#ifdef FISHEYE_ROS_ENABLED
+    rclcpp::Client<moil_interfaces::srv::AxisSensor>::SharedPtr client;
+    {
+        std::lock_guard<std::mutex> lock(d_->commandMutex);
+        client = d_->sensorClient;
+    }
+    if (!client || !client->service_is_ready()) return false;
+
+    auto message = std::make_shared<moil_interfaces::srv::AxisSensor::Request>();
+    message->name = sensor.toStdString();
+
+    const quint64 generation = d_->generation.load();
+    client->async_send_request(
+        message, [this, axis, generation](
+                     rclcpp::Client<moil_interfaces::srv::AxisSensor>::SharedFuture future) {
+            const auto response = future.get();
+            QMetaObject::invokeMethod(this, "applyLimitCheck", Qt::QueuedConnection,
+                                      Q_ARG(QString, axis), Q_ARG(bool, response->success),
+                                      Q_ARG(bool, response->value),
+                                      Q_ARG(QString, QString::fromStdString(response->message)),
+                                      Q_ARG(quint64, generation));
+        });
+    return true;
+#else
+    Q_UNUSED(axis)
+    Q_UNUSED(sensor)
+    return false;
+#endif
+}
+
+quint64 AxisController::armTimeout(const QString &axis, int ms, const QString &what) {
     const quint64 token = ++commandToken_[axis];
     const quint64 generation = d_->generation.load();
     QTimer::singleShot(ms, this, [this, axis, token, generation, ms, what] {
@@ -421,6 +503,7 @@ void AxisController::armTimeout(const QString &axis, int ms, const QString &what
         if (AxisState *state = axisOrNull(axis)) state->setCommandPending(false, QString());
         emit operationTimedOut(axis, what, ms);
     });
+    return token;
 }
 
 void AxisController::connectTo(int domainId, const QString &axisNamespace, bool force) {
@@ -478,11 +561,14 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
             auto moveClient = node->create_client<moil_interfaces::srv::AxisMove>(nsStd + "/move");
             auto commandClient =
                 node->create_client<moil_interfaces::srv::AxisCommand>(nsStd + "/command");
+            auto sensorClient =
+                node->create_client<moil_interfaces::srv::AxisSensor>(nsStd + "/sensor");
 
             {
                 std::lock_guard<std::mutex> lock(d_->commandMutex);
                 d_->moveClient = moveClient;
                 d_->commandClient = commandClient;
+                d_->sensorClient = sensorClient;
             }
 
             const auto deadline = std::chrono::steady_clock::now() +
@@ -512,6 +598,7 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                 std::lock_guard<std::mutex> lock(d_->commandMutex);
                 d_->moveClient.reset();
                 d_->commandClient.reset();
+                d_->sensorClient.reset();
             }
         } catch (const std::exception &error) {
             QMetaObject::invokeMethod(this, "applyCommandCapabilities", Qt::QueuedConnection,
@@ -629,12 +716,8 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
 
             auto callWatch = [&](const QString &focus, bool on) {
                 auto request = std::make_shared<moil_interfaces::srv::AxisWatch::Request>();
-                if (!on) {
+                if (!on || focus.isEmpty()) {
                     request->hz = 0.0;
-                } else if (focus.isEmpty()) {
-                    for (const AxisSensorNames &names : kSensorNames)
-                        request->axes.emplace_back(names.axis);
-                    request->hz = kIdleWatchHz;
                 } else {
                     request->axes.emplace_back(focus.toStdString());
                     request->hz = kFocusWatchHz;
@@ -674,18 +757,6 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                 if (source != WatchTopic) subscription.reset();
             }
 
-            postCapabilities(true, positionReady, source,
-                             source == WatchTopic
-                                 ? QStringLiteral("streaming %1/state").arg(ns)
-                                 : QStringLiteral("polling %1/sensor").arg(ns));
-
-            postConnection(positionReady ? Connected : Degraded,
-                           positionReady
-                               ? QString()
-                               : QStringLiteral("%1/position is not being served, "
-                                                "coordinates are unavailable")
-                                     .arg(ns));
-
             auto readSensor = [&](const char *name) -> int {
                 if (!alive()) return AxisState::Unreadable;
                 auto request = std::make_shared<moil_interfaces::srv::AxisSensor::Request>();
@@ -716,53 +787,7 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                 sample.positionValid = !sample.coordinate.isEmpty();
             };
 
-            int cursor = 0;
-            int primed = 0;
-            QString appliedFocus;
-
-            while (alive()) {
-                executor.spin_some(std::chrono::milliseconds(kSpinSliceMs));
-                if (!alive()) break;
-
-                if (source == WatchTopic) {
-                    QString desiredFocus;
-                    {
-                        std::lock_guard<std::mutex> lock(d_->focusMutex);
-                        desiredFocus = d_->watchFocus;
-                    }
-
-                    if (desiredFocus != appliedFocus) {
-                        callWatch(desiredFocus, true);
-                        appliedFocus = desiredFocus;
-                    }
-                }
-
-                if (source == WatchTopic) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(kSpinSliceMs));
-                    continue;
-                }
-
-                QString focus;
-                {
-                    std::lock_guard<std::mutex> lock(d_->focusMutex);
-                    focus = d_->watchFocus;
-                }
-
-                int index = -1;
-                if (!focus.isEmpty()) {
-                    for (int i = 0; i < kAxisCount; ++i) {
-                        if (focus == QLatin1String(kSensorNames[i].axis)) {
-                            index = i;
-                            break;
-                        }
-                    }
-                }
-                if (index < 0) {
-                    index = cursor;
-                    cursor = (cursor + 1) % kAxisCount;
-                }
-                if (primed < kAxisCount) ++primed;
-
+            auto sweepAxis = [&](int index) {
                 const AxisSensorNames &names = kSensorNames[index];
 
                 AxisSample sample;
@@ -773,7 +798,7 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                 sample.moving = readSensor(names.moving);
                 if (positionReady) readPosition(sample);
 
-                if (!alive()) break;
+                if (!alive()) return;
 
                 const bool heardSomething = sample.low != AxisState::Unreadable ||
                                             sample.org != AxisState::Unreadable ||
@@ -781,16 +806,61 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                                             sample.moving != AxisState::Unreadable ||
                                             sample.positionValid;
                 if (heardSomething) postSample(sample);
+            };
 
-                const bool idle = focus.isEmpty() && primed >= kAxisCount;
-                const int gap = idle ? kIdlePollGapMs : kActivePollGapMs;
+            for (int i = 0; i < kAxisCount && alive(); ++i) sweepAxis(i);
 
-                for (int slept = 0; slept < gap && alive(); slept += kSpinSliceMs) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(kSpinSliceMs));
-                    if (!idle) continue;
+            postCapabilities(true, positionReady, source,
+                             source == WatchTopic
+                                 ? QStringLiteral("streaming %1/state").arg(ns)
+                                 : QStringLiteral("polling %1/sensor").arg(ns));
+
+            postConnection(positionReady ? Connected : Degraded,
+                           positionReady
+                               ? QString()
+                               : QStringLiteral("%1/position is not being served, "
+                                                "coordinates are unavailable")
+                                     .arg(ns));
+
+            QString appliedFocus;
+
+            while (alive()) {
+                executor.spin_some(std::chrono::milliseconds(kSpinSliceMs));
+                if (!alive()) break;
+
+                QString focus;
+                {
                     std::lock_guard<std::mutex> lock(d_->focusMutex);
-                    if (!d_->watchFocus.isEmpty()) break;
+                    focus = d_->watchFocus;
                 }
+
+                if (source == WatchTopic) {
+                    if (focus != appliedFocus) {
+                        callWatch(focus, true);
+                        appliedFocus = focus;
+                    }
+                    std::this_thread::sleep_for(std::chrono::milliseconds(kSpinSliceMs));
+                    continue;
+                }
+
+                if (focus.isEmpty()) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(kSpinSliceMs));
+                    continue;
+                }
+
+                int index = -1;
+                for (int i = 0; i < kAxisCount; ++i) {
+                    if (focus == QLatin1String(kSensorNames[i].axis)) {
+                        index = i;
+                        break;
+                    }
+                }
+                if (index < 0) continue;
+
+                sweepAxis(index);
+
+                for (int slept = 0; slept < kActivePollGapMs && alive(); slept += kSpinSliceMs)
+                    std::this_thread::sleep_for(std::chrono::milliseconds(kSpinSliceMs));
             }
 
             if (source == WatchTopic) callWatch(QString(), false);
@@ -828,6 +898,7 @@ void AxisController::teardownSession() {
     stopWorkers();
     commandToken_.clear();
     cancelledMoves_.clear();
+    pendingJog_.clear();
     stalenessTimer_->stop();
 
     for (AxisState *state : std::as_const(d_->all)) state->resetToUnknown();
@@ -885,15 +956,16 @@ void AxisController::jog(const QString &axis, Side side, double distance, Speed 
         return;
     }
 
-    if (!sendMove(key, key + QLatin1Char('_') + direction, distance, speedWord(speed))) {
-        emit commandRejected(key, tr("the axis node is not serving %1/move").arg(axisNamespace_));
+    if (!sendLimitCheck(key, key + QLatin1Char('_') + direction)) {
+        emit commandRejected(key, tr("the axis node is not serving %1/sensor, "
+                                     "the move was not sent").arg(axisNamespace_));
         return;
     }
 
-    cancelledMoves_.remove(key);
-    state->setCommandPending(true, tr("Moving %1 %2").arg(axisLabel(key), sideWord(key, side)));
-    armTimeout(key, kMoveTimeoutMs, tr("move"));
-    setWatchFocus(key);
+    state->setCommandPending(true, tr("Checking %1 %2 limit")
+                                       .arg(axisLabel(key), sideWord(key, side)));
+    pendingJog_.insert(key, PendingJog{side, distance, speed,
+                                       armTimeout(key, kLimitCheckTimeoutMs, tr("limit check"))});
 }
 
 void AxisController::driveToLimit(const QString &axis, Side side, Speed speed) {
@@ -927,11 +999,11 @@ void AxisController::homeGroup(Group group) {
         emit commandRejected(QString(), tr("an axis is already moving"));
         return;
     }
-    if (!dataFresh()) {
-        emit commandRejected(QString(), tr("axis state is stale, position is unknown"));
-        return;
-    }
     emit homeGroupFinished(group, false, tr("homing is not wired to the rig yet"));
+}
+
+bool AxisController::expectingSamples() const {
+    return stateSource_ != NoSource && busy();
 }
 
 bool AxisController::guardStop(const QString &axis) {

@@ -97,10 +97,9 @@ void RosServerProbe::probeAll(int domainId, const QString &axisNamespace,
                                    "(configure with -DFISHEYE_ENABLE_ROS=ON on Linux)"));
     }
 #else
-    d_->worker = std::thread([this, generation, domainId, axisService, monitorService,
-                              cameraTopicName] {
-        auto post = [this, generation](int service, ProbeStatus::Status status,
-                                       const QString &error) {
+    d_->worker = std::thread([this, generation, domainId, axisService, monitorService, cameraTopicName] {
+        
+        auto post = [this, generation](int service, ProbeStatus::Status status, const QString &error) {
             if (generation != d_->generation.load()) return;
             QMetaObject::invokeMethod(this, "applyResult", Qt::QueuedConnection,
                                       Q_ARG(int, service), Q_ARG(int, static_cast<int>(status)),

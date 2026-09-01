@@ -17,7 +17,6 @@ Rectangle {
     readonly property bool stepMode: travelMode.currentIndex === 1
     readonly property bool moving: AxisController.busy
     readonly property bool ready: AxisController.connected
-    readonly property bool fresh: AxisController.dataFresh
 
     readonly property int speed: [AxisController.High,
                                   AxisController.Mid,
@@ -256,7 +255,7 @@ Rectangle {
                     danger: !root.stepMode
                     centerText: "X Y"
                     homeText: qsTr("HOME")
-                    homeEnabled: root.ready && !root.moving && root.fresh
+                    homeEnabled: root.ready && !root.moving
 
                     activeDirection: root.litFor("x", "y")
 
@@ -318,7 +317,7 @@ Rectangle {
                     danger: !root.stepMode
                     centerText: "Z"
                     homeText: qsTr("HOME")
-                    homeEnabled: root.ready && !root.moving && root.fresh
+                    homeEnabled: root.ready && !root.moving
 
                     activeDirection: root.litFor("z", "z")
 
@@ -359,7 +358,7 @@ Rectangle {
                     danger: !root.stepMode
                     centerText: "YAW\nPITCH"
                     homeText: qsTr("HOME")
-                    homeEnabled: root.ready && !root.moving && root.fresh
+                    homeEnabled: root.ready && !root.moving
 
                     activeDirection: root.litFor("yaw", "pitch")
 

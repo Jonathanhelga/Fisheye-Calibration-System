@@ -138,6 +138,8 @@ private:
                                             const QString &text, quint64 generation);
     Q_INVOKABLE void applyCommandCapabilities(bool move, bool command, quint64 generation);
     Q_INVOKABLE void applySample(const AxisSample &sample, quint64 generation);
+    Q_INVOKABLE void applyLimitCheck(const QString &axis, bool ok, bool triggered,
+                                     const QString &message, quint64 generation);
     Q_INVOKABLE void applyMoveOutcome(const QString &axis, bool ok, const QString &message,
                                       quint64 generation);
     Q_INVOKABLE void applyStopOutcome(const QString &axis, bool ok, const QString &message,
@@ -151,11 +153,13 @@ private:
     bool sendMove(const QString &axis, const QString &direction, double distance,
                   const QString &speed);
     bool sendStop(const QString &axis);
-    void armTimeout(const QString &axis, int ms, const QString &what);
+    bool sendLimitCheck(const QString &axis, const QString &sensor);
+    quint64 armTimeout(const QString &axis, int ms, const QString &what);
     void setWatchFocus(const QString &axis);
     bool hasSession() const { return connected() || connectionState_ == Stalled; }
     bool guardCommand(const QString &axis, bool needsMove);
     bool guardStop(const QString &axis);
+    bool expectingSamples() const;
 
     AxisState *axisOrNull(const QString &name) const;
 
@@ -179,6 +183,14 @@ private:
     bool freshReported_ = false;
     QString lastError_;
     QString homingGroup_;
+
+    struct PendingJog {
+        Side side = LowSide;
+        double distance = 0.0;
+        Speed speed = Mid;
+        quint64 token = 0;
+    };
+    QHash<QString, PendingJog> pendingJog_;
 
     QHash<QString, quint64> commandToken_;
     QSet<QString> cancelledMoves_;
