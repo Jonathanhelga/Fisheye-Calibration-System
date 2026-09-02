@@ -56,6 +56,7 @@ class AxisController : public QObject {
     Q_PROPERTY(bool anyMoving READ anyMoving NOTIFY activityChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY activityChanged)
     Q_PROPERTY(bool homing READ homing NOTIFY activityChanged)
+    Q_PROPERTY(bool driving READ driving NOTIFY activityChanged)
     Q_PROPERTY(bool dataFresh READ dataFresh NOTIFY activityChanged)
     Q_PROPERTY(QString activityText READ activityText NOTIFY activityChanged)
     Q_PROPERTY(QString lastError READ lastError NOTIFY statusChanged)
@@ -103,6 +104,7 @@ public:
     bool anyMoving() const;
     bool busy() const;
     bool homing() const { return !homingGroup_.isEmpty(); }
+    bool driving() const { return !drivingAxis_.isEmpty(); }
     bool dataFresh() const;
     QString activityText() const { return activityText_; }
     QString lastError() const { return lastError_; }
@@ -131,12 +133,13 @@ signals:
     void operationTimedOut(const QString &axis, const QString &what, int ms);
 
     void homeGroupFinished(Group group, bool ok, const QString &message);
+    void limitMoveFinished(const QString &axis, bool reachedSensor, const QString &message);
 
 private:
     Q_INVOKABLE void applyConnection(int state, const QString &message, quint64 generation);
     Q_INVOKABLE void applyStateCapabilities(bool sensor, bool position, int stateSource,
                                             const QString &text, quint64 generation);
-    Q_INVOKABLE void applyCommandCapabilities(bool move, bool command, bool home,
+    Q_INVOKABLE void applyCommandCapabilities(bool move, bool command, bool home, bool limit,
                                               quint64 generation);
     Q_INVOKABLE void applySample(const AxisSample &sample, quint64 generation);
     Q_INVOKABLE void applyLimitCheck(const QString &axis, bool ok, bool triggered,
@@ -149,6 +152,10 @@ private:
                                        quint64 generation);
     Q_INVOKABLE void applyHomeFinished(int group, bool ok, const QString &message,
                                        quint64 generation);
+    Q_INVOKABLE void applyLimitFeedback(const QString &axis, int sensor,
+                                        const QString &coordinate, quint64 generation);
+    Q_INVOKABLE void applyLimitMoveFinished(const QString &axis, bool reachedSensor,
+                                            const QString &message, quint64 generation);
 
     void setConnectionState(ConnectionState state, const QString &message);
     void clearCapabilities();
@@ -161,6 +168,8 @@ private:
     bool sendLimitCheck(const QString &axis, const QString &sensor);
     bool sendHome(Group group, const QStringList &axes);
     void cancelHome();
+    bool sendLimitMove(const QString &axis, Side side, Speed speed);
+    void cancelLimitMove();
     void requestSweep(const QStringList &axes);
     quint64 armTimeout(const QString &axis, int ms, const QString &what);
     void setWatchFocus(const QString &axis);
@@ -193,6 +202,10 @@ private:
     QString homingGroup_;
     QString homingDetail_;
     quint64 homeToken_ = 0;
+    QString drivingAxis_;
+    bool drivingHigh_ = false;
+    QString drivingDetail_;
+    quint64 driveToken_ = 0;
 
     struct PendingJog {
         Side side = LowSide;

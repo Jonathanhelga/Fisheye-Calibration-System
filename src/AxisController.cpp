@@ -18,6 +18,7 @@
 #include <rclcpp_action/rclcpp_action.hpp>
 
 #include "moil_interfaces/action/axis_home.hpp"
+#include "moil_interfaces/action/axis_limit_move.hpp"
 #include "moil_interfaces/msg/axis_state.hpp"
 #include "moil_interfaces/srv/axis_command.hpp"
 #include "moil_interfaces/srv/axis_move.hpp"
@@ -39,7 +40,8 @@ constexpr int kMoveTimeoutMs = 120000;
 
 constexpr int kHomeIdleNeeded = 3;
 constexpr double kHomeAxisTimeoutS = 120.0;
-constexpr int kHomeGuardMarginMs = 15000;
+constexpr int kLimitMoveTimeoutMs = 180000;
+constexpr int kActionGuardMarginMs = 15000;
 
 #ifdef FISHEYE_ROS_ENABLED
 struct AxisSensorNames {
@@ -130,6 +132,20 @@ QString speedWord(AxisController::Speed speed) {
     return QStringLiteral("Mid");
 }
 
+#ifdef FISHEYE_ROS_ENABLED
+QString speedKey(AxisController::Speed speed) {
+    switch (speed) {
+    case AxisController::Low:
+        return QStringLiteral("low");
+    case AxisController::Mid:
+        return QStringLiteral("mid");
+    case AxisController::High:
+        return QStringLiteral("high");
+    }
+    return QStringLiteral("mid");
+}
+#endif
+
 QString axisLabel(const QString &axis) {
     if (axis == QLatin1String("yaw")) return QStringLiteral("Yaw");
     if (axis == QLatin1String("pitch")) return QStringLiteral("Pitch");
@@ -163,12 +179,16 @@ struct AxisController::Impl {
 #ifdef FISHEYE_ROS_ENABLED
     using HomeAction = moil_interfaces::action::AxisHome;
     using HomeGoalHandle = rclcpp_action::ClientGoalHandle<HomeAction>;
+    using LimitAction = moil_interfaces::action::AxisLimitMove;
+    using LimitGoalHandle = rclcpp_action::ClientGoalHandle<LimitAction>;
 
     rclcpp::Client<moil_interfaces::srv::AxisMove>::SharedPtr moveClient;
     rclcpp::Client<moil_interfaces::srv::AxisCommand>::SharedPtr commandClient;
     rclcpp::Client<moil_interfaces::srv::AxisSensor>::SharedPtr sensorClient;
     rclcpp_action::Client<HomeAction>::SharedPtr homeClient;
     HomeGoalHandle::SharedPtr homeGoal;
+    rclcpp_action::Client<LimitAction>::SharedPtr limitClient;
+    LimitGoalHandle::SharedPtr limitGoal;
 #endif
 
     AxisState *x = nullptr;
@@ -240,7 +260,7 @@ bool AxisController::anyMoving() const {
 }
 
 bool AxisController::busy() const {
-    if (homing()) return true;
+    if (homing() || driving()) return true;
     for (AxisState *state : std::as_const(d_->all)) {
         if (state->busy()) return true;
     }
@@ -317,13 +337,14 @@ void AxisController::applyStateCapabilities(bool sensor, bool position, int stat
     emit capabilitiesChanged();
 }
 
-void AxisController::applyCommandCapabilities(bool move, bool command, bool home,
+void AxisController::applyCommandCapabilities(bool move, bool command, bool home, bool limit,
                                               quint64 generation) {
     if (generation != d_->generation.load()) return;
 
     moveAvailable_ = move;
     commandAvailable_ = command;
     homeActionAvailable_ = home;
+    limitMoveAvailable_ = limit;
     emit capabilitiesChanged();
 }
 
@@ -606,6 +627,97 @@ void AxisController::cancelHome() {
 #endif
 }
 
+bool AxisController::sendLimitMove(const QString &axis, Side side, Speed speed) {
+#ifdef FISHEYE_ROS_ENABLED
+    rclcpp_action::Client<Impl::LimitAction>::SharedPtr client;
+    {
+        std::lock_guard<std::mutex> lock(d_->commandMutex);
+        client = d_->limitClient;
+    }
+    if (!client || !client->action_server_is_ready()) return false;
+
+    Impl::LimitAction::Goal goal;
+    goal.axis = axis.toStdString();
+    goal.high_side = side == HighSide;
+    goal.speed = speedKey(speed).toStdString();
+
+    const quint64 generation = d_->generation.load();
+    const QString label = axisLabel(axis);
+    const QString end = sideWord(axis, side);
+
+    rclcpp_action::Client<Impl::LimitAction>::SendGoalOptions options;
+
+    options.goal_response_callback = [this, generation,
+                                      axis](Impl::LimitGoalHandle::SharedPtr handle) {
+        {
+            std::lock_guard<std::mutex> lock(d_->commandMutex);
+            d_->limitGoal = handle;
+        }
+        if (handle) return;
+        QMetaObject::invokeMethod(this, "applyLimitMoveFinished", Qt::QueuedConnection,
+                                  Q_ARG(QString, axis), Q_ARG(bool, false),
+                                  Q_ARG(QString, tr("the axis node refused the drive")),
+                                  Q_ARG(quint64, generation));
+    };
+
+    options.feedback_callback =
+        [this, generation, axis](
+            Impl::LimitGoalHandle::SharedPtr,
+            const std::shared_ptr<const Impl::LimitAction::Feedback> feedback) {
+            QMetaObject::invokeMethod(
+                this, "applyLimitFeedback", Qt::QueuedConnection, Q_ARG(QString, axis),
+                Q_ARG(int, static_cast<int>(feedback->sensor)),
+                Q_ARG(QString, QString::fromStdString(feedback->coordinate).trimmed()),
+                Q_ARG(quint64, generation));
+        };
+
+    options.result_callback = [this, generation, axis, label,
+                               end](const Impl::LimitGoalHandle::WrappedResult &wrapped) {
+        const auto result = wrapped.result;
+        const bool reached = wrapped.code == rclcpp_action::ResultCode::SUCCEEDED && result &&
+                             result->success && result->reached_sensor;
+
+        QString message;
+        if (wrapped.code == rclcpp_action::ResultCode::CANCELED ||
+            (result && result->cancelled)) {
+            message = tr("the drive was stopped");
+        } else if (!reached) {
+            const QString why =
+                result ? QString::fromStdString(result->message).trimmed() : QString();
+            message = why.isEmpty()
+                          ? tr("%1 stopped before its %2 end").arg(label, end)
+                          : tr("%1 stopped before its %2 end: %3").arg(label, end, why);
+        }
+
+        QMetaObject::invokeMethod(this, "applyLimitMoveFinished", Qt::QueuedConnection,
+                                  Q_ARG(QString, axis), Q_ARG(bool, reached),
+                                  Q_ARG(QString, message), Q_ARG(quint64, generation));
+    };
+
+    client->async_send_goal(goal, options);
+    return true;
+#else
+    Q_UNUSED(axis)
+    Q_UNUSED(side)
+    Q_UNUSED(speed)
+    return false;
+#endif
+}
+
+void AxisController::cancelLimitMove() {
+#ifdef FISHEYE_ROS_ENABLED
+    rclcpp_action::Client<Impl::LimitAction>::SharedPtr client;
+    Impl::LimitGoalHandle::SharedPtr goal;
+    {
+        std::lock_guard<std::mutex> lock(d_->commandMutex);
+        client = d_->limitClient;
+        goal = d_->limitGoal;
+        d_->limitGoal.reset();
+    }
+    if (client && goal) client->async_cancel_goal(goal);
+#endif
+}
+
 void AxisController::requestSweep(const QStringList &axes) {
     if (axes.isEmpty()) return;
     std::lock_guard<std::mutex> lock(d_->focusMutex);
@@ -688,6 +800,8 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                 node->create_client<moil_interfaces::srv::AxisSensor>(nsStd + "/sensor");
             auto homeClient =
                 rclcpp_action::create_client<Impl::HomeAction>(node, nsStd + "/home");
+            auto limitClient =
+                rclcpp_action::create_client<Impl::LimitAction>(node, nsStd + "/limit_move");
 
             {
                 std::lock_guard<std::mutex> lock(d_->commandMutex);
@@ -695,6 +809,7 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                 d_->commandClient = commandClient;
                 d_->sensorClient = sensorClient;
                 d_->homeClient = homeClient;
+                d_->limitClient = limitClient;
             }
 
             const auto deadline = std::chrono::steady_clock::now() +
@@ -703,6 +818,7 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
             bool lastMove = false;
             bool lastCommand = false;
             bool lastHome = false;
+            bool lastLimit = false;
 
             while (alive()) {
                 executor.spin_some(std::chrono::milliseconds(kSpinSliceMs));
@@ -711,20 +827,23 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                 const bool moveReady = moveClient->service_is_ready();
                 const bool commandReady = commandClient->service_is_ready();
                 const bool homeReady = homeClient->action_server_is_ready();
+                const bool limitReady = limitClient->action_server_is_ready();
 
-                const bool settled = moveReady && commandReady && homeReady;
+                const bool settled = moveReady && commandReady && homeReady && limitReady;
                 const bool expired = std::chrono::steady_clock::now() > deadline;
                 const bool changed = moveReady != lastMove || commandReady != lastCommand ||
-                                     homeReady != lastHome;
+                                     homeReady != lastHome || limitReady != lastLimit;
 
                 if ((announced && changed) || (!announced && (settled || expired))) {
                     announced = true;
                     lastMove = moveReady;
                     lastCommand = commandReady;
                     lastHome = homeReady;
+                    lastLimit = limitReady;
                     QMetaObject::invokeMethod(this, "applyCommandCapabilities",
                                               Qt::QueuedConnection, Q_ARG(bool, moveReady),
                                               Q_ARG(bool, commandReady), Q_ARG(bool, homeReady),
+                                              Q_ARG(bool, limitReady),
                                               Q_ARG(quint64, generation));
                 }
 
@@ -738,11 +857,13 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
                 d_->sensorClient.reset();
                 d_->homeClient.reset();
                 d_->homeGoal.reset();
+                d_->limitClient.reset();
+                d_->limitGoal.reset();
             }
         } catch (const std::exception &error) {
             QMetaObject::invokeMethod(this, "applyCommandCapabilities", Qt::QueuedConnection,
                                       Q_ARG(bool, false), Q_ARG(bool, false), Q_ARG(bool, false),
-                                      Q_ARG(quint64, generation));
+                                      Q_ARG(bool, false), Q_ARG(quint64, generation));
             qWarning("axis command link failed: %s", error.what());
         }
 
@@ -1057,6 +1178,9 @@ void AxisController::teardownSession() {
     homingGroup_.clear();
     homingDetail_.clear();
     ++homeToken_;
+    drivingAxis_.clear();
+    drivingDetail_.clear();
+    ++driveToken_;
     clearCapabilities();
     recomputeActivity();
 }
@@ -1122,12 +1246,11 @@ void AxisController::jog(const QString &axis, Side side, double distance, Speed 
 }
 
 void AxisController::driveToLimit(const QString &axis, Side side, Speed speed) {
-    Q_UNUSED(speed)
-
     const QString key = axis.trimmed().toLower();
     if (!guardCommand(key, false)) return;
     if (!limitMoveAvailable_) {
-        emit commandRejected(key, tr("drive-to-limit is not wired to the rig yet"));
+        emit commandRejected(
+            key, tr("the axis node is not serving %1/limit_move").arg(axisNamespace_));
         return;
     }
 
@@ -1140,7 +1263,31 @@ void AxisController::driveToLimit(const QString &axis, Side side, Speed speed) {
         return;
     }
 
-    emit commandRejected(key, tr("drive-to-limit is not wired to the rig yet"));
+    if (!sendLimitMove(key, side, speed)) {
+        emit commandRejected(
+            key, tr("the axis node is not serving %1/limit_move").arg(axisNamespace_));
+        return;
+    }
+
+    setWatchFocus(QString());
+
+    drivingAxis_ = key;
+    drivingHigh_ = high;
+    drivingDetail_.clear();
+    state->setCommandPending(true, tr("Driving to the %1 end").arg(sideWord(key, side)));
+    recomputeActivity();
+
+    const quint64 token = ++driveToken_;
+    const quint64 generation = d_->generation.load();
+    QTimer::singleShot(kLimitMoveTimeoutMs + kActionGuardMarginMs, this,
+                       [this, key, token, generation] {
+                           if (generation != d_->generation.load()) return;
+                           if (token != driveToken_ || !driving()) return;
+                           cancelLimitMove();
+                           applyLimitMoveFinished(
+                               key, false, tr("the rig stopped answering during the drive"),
+                               generation);
+                       });
 }
 
 void AxisController::homeGroup(Group group) {
@@ -1177,7 +1324,7 @@ void AxisController::homeGroup(Group group) {
     const quint64 generation = d_->generation.load();
     const int guardMs = static_cast<int>(axes.size()) *
                             static_cast<int>(kHomeAxisTimeoutS * 1000) +
-                        kHomeGuardMarginMs;
+                        kActionGuardMarginMs;
     QTimer::singleShot(guardMs, this, [this, group, token, generation] {
         if (generation != d_->generation.load()) return;
         if (token != homeToken_ || !homing()) return;
@@ -1218,8 +1365,45 @@ void AxisController::applyHomeFinished(int group, bool ok, const QString &messag
     emit homeGroupFinished(id, ok, message);
 }
 
+void AxisController::applyLimitFeedback(const QString &axis, int sensor,
+                                        const QString &coordinate, quint64 generation) {
+    if (generation != d_->generation.load()) return;
+    if (!driving() || axis != drivingAxis_) return;
+
+    if (AxisState *state = axisOrNull(axis)) {
+        state->markRigReplied();
+        state->applyLimitFeedback(sensor, drivingHigh_, coordinate);
+    }
+
+    drivingDetail_ = coordinate;
+    recomputeActivity();
+}
+
+void AxisController::applyLimitMoveFinished(const QString &axis, bool reachedSensor,
+                                            const QString &message, quint64 generation) {
+    if (generation != d_->generation.load()) return;
+    if (!driving()) return;
+
+    ++driveToken_;
+    drivingAxis_.clear();
+    drivingDetail_.clear();
+#ifdef FISHEYE_ROS_ENABLED
+    {
+        std::lock_guard<std::mutex> lock(d_->commandMutex);
+        d_->limitGoal.reset();
+    }
+#endif
+
+    if (AxisState *state = axisOrNull(axis)) state->setCommandPending(false, QString());
+
+    requestSweep({axis});
+    recomputeActivity();
+
+    emit limitMoveFinished(axis, reachedSensor, message);
+}
+
 bool AxisController::expectingSamples() const {
-    return stateSource_ != NoSource && busy() && !homing();
+    return stateSource_ != NoSource && busy() && !homing() && !driving();
 }
 
 bool AxisController::guardStop(const QString &axis) {
@@ -1237,6 +1421,7 @@ bool AxisController::guardStop(const QString &axis) {
 
 void AxisController::stopAxis(const QString &axis) {
     if (homing()) cancelHome();
+    if (driving()) cancelLimitMove();
 
     const QString key = axis.trimmed().toLower();
     if (!guardStop(key)) return;
@@ -1259,6 +1444,7 @@ void AxisController::stopAxis(const QString &axis) {
 
 void AxisController::stopAll() {
     if (homing()) cancelHome();
+    if (driving()) cancelLimitMove();
     if (!guardStop(QString())) return;
 
     for (AxisState *state : std::as_const(d_->all)) stopAxis(state->name());
@@ -1278,6 +1464,15 @@ void AxisController::recomputeActivity() {
         text = homingDetail_.isEmpty()
                    ? tr("Homing %1").arg(homingGroup_)
                    : tr("Homing %1 (%2)").arg(homingGroup_, homingDetail_);
+    }
+    if (driving()) {
+        const Side side = drivingHigh_ ? HighSide : LowSide;
+        text = tr("Driving %1 %2").arg(axisLabel(drivingAxis_), sideWord(drivingAxis_, side));
+        if (!drivingDetail_.isEmpty()) {
+            const AxisState *state = axisOrNull(drivingAxis_);
+            text = tr("%1 (%2 %3)")
+                       .arg(text, drivingDetail_, state ? state->unit() : QString());
+        }
     }
 
     if (text == activityText_ && busy() == busyReported_ && anyMoving() == movingReported_ &&

@@ -55,6 +55,9 @@ Rectangle {
         function onHomeGroupFinished(group, ok, message) {
             if (message.length > 0) root.report("", message)
         }
+        function onLimitMoveFinished(axis, reachedSensor, message) {
+            if (message.length > 0) root.report(reachedSensor ? "" : axis, message)
+        }
         function onConnectionChanged() { root.notice = "" }
     }
 
