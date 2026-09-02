@@ -204,27 +204,30 @@ Rectangle {
                 elide: Text.ElideRight
             }
 
-            IhRangeControl {
-                id: ihRange
+            RangeControl {
+                label: plotView.yLabel
+                compact: true
 
+                from: plotView.defaultYMin
+                to: plotView.defaultYMax
+                lowerValue: plotView.yMin
+                upperValue: plotView.yMax
+
+                onLowerMoved: (value) => plotView.yMin = value
+                onUpperMoved: (value) => plotView.yMax = value
+            }
+
+            RangeControl {
+                label: plotView.xLabel
                 compact: true
 
                 from: plotView.defaultXMin
                 to: plotView.defaultXMax
+                lowerValue: plotView.xMin
+                upperValue: plotView.xMax
 
                 onLowerMoved: (value) => plotView.xMin = value
                 onUpperMoved: (value) => plotView.xMax = value
-
-                Connections {
-                    target: plotView
-                    function onXMinChanged() { ihRange.lowerValue = plotView.xMin }
-                    function onXMaxChanged() { ihRange.upperValue = plotView.xMax }
-                }
-
-                Component.onCompleted: {
-                    lowerValue = plotView.xMin
-                    upperValue = plotView.xMax
-                }
             }
 
             ActionButton {
@@ -406,28 +409,32 @@ Rectangle {
                     }
                 }
 
-                IhRangeControl {
-                    id: popIhRange
+                RangeControl {
+                    label: popPlotView.yLabel
+                    compact: true
+                    Layout.fillWidth: true
 
+                    from: popPlotView.defaultYMin
+                    to: popPlotView.defaultYMax
+                    lowerValue: popPlotView.yMin
+                    upperValue: popPlotView.yMax
+
+                    onLowerMoved: (value) => popPlotView.yMin = value
+                    onUpperMoved: (value) => popPlotView.yMax = value
+                }
+
+                RangeControl {
+                    label: popPlotView.xLabel
                     compact: true
                     Layout.fillWidth: true
 
                     from: popPlotView.defaultXMin
                     to: popPlotView.defaultXMax
+                    lowerValue: popPlotView.xMin
+                    upperValue: popPlotView.xMax
 
                     onLowerMoved: (value) => popPlotView.xMin = value
                     onUpperMoved: (value) => popPlotView.xMax = value
-
-                    Connections {
-                        target: popPlotView
-                        function onXMinChanged() { popIhRange.lowerValue = popPlotView.xMin }
-                        function onXMaxChanged() { popIhRange.upperValue = popPlotView.xMax }
-                    }
-
-                    Component.onCompleted: {
-                        lowerValue = popPlotView.xMin
-                        upperValue = popPlotView.xMax
-                    }
                 }
             }
 

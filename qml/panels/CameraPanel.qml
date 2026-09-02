@@ -25,6 +25,8 @@ Rectangle {
     property int roiRadius: 0
     property bool centerLocked: false
 
+    property alias cameraFov: fovSpin.value
+
     readonly property bool hasPositive: positivePath !== ""
     readonly property bool hasNegative: negativePath !== ""
     readonly property bool hasPair: hasPositive && hasNegative
@@ -61,6 +63,7 @@ Rectangle {
     signal browseRequested()
     signal directionDiffRequested()
     signal centerPicked(string mode, int x, int y)
+    signal fovEdited(int value)
 
     function requestCapture(mode) {
         pendingMode = mode
@@ -182,7 +185,7 @@ Rectangle {
             Layout.fillWidth: true
             spacing: Theme.rowSpacing
 
-            SegmentedControl {
+          SegmentedControl {
                 id: viewSelector
                 model: [qsTr("Single"), qsTr("Pos"), qsTr("Neg")]
                 currentIndex: 0
@@ -197,16 +200,34 @@ Rectangle {
                 font.pixelSize: Theme.captionFontSize
                 elide: Text.ElideRight
             }
+            
 
-            AxisReadout {
-                label: qsTr("Source")
-                value: preview.loaded
-                    ? preview.sourceWidth + "x" + preview.sourceHeight
-                    : "?"
+            ValueSpinBox {
+                id: fovSpin
+
+                label: qsTr("FOV")
+                from: 150
+                to: 300
+                value: 180
+
+                onEdited: (value) => root.fovEdited(value)
+
+                ToolTip.visible: hovered
+                ToolTip.delay: Theme.animSlow
+                ToolTip.text: qsTr("Camera field of view in degrees, used during calibration")
             }
 
             AxisReadout {
+                Layout.fillWidth: true;
+                label: qsTr("Resolution")
+                fieldWidth: Theme.charUnit * 10
+                value: preview.loaded ? preview.sourceWidth + "x" + preview.sourceHeight: "?"
+            }
+
+            AxisReadout {
+                Layout.fillWidth: true;
                 label: qsTr("Zoom")
+                fieldWidth: Theme.charUnit * 10
                 value: preview.loaded ? Math.round(preview.zoom * 100) + "%" : "?"
             }
         }
@@ -258,7 +279,7 @@ Rectangle {
                 enabled: !root.busy
                 onClicked: root.requestCapture("")
             }
-
+            
             ActionButton {
                 Layout.preferredWidth: Math.round(Theme.charUnit * 8)
                 text: qsTr("Pos")

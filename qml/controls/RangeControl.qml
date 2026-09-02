@@ -14,6 +14,7 @@ RowLayout {
     property real upperValue: to
     property real minRange: (to - from) * 0.02
     property bool compact: false
+    property string label: ""
 
     signal lowerMoved(real value)
     signal upperMoved(real value)
@@ -23,8 +24,8 @@ RowLayout {
     spacing: Theme.labelSpacing
 
     Label {
-        visible: !control.compact
-        text: qsTr("IH Range")
+        visible: control.label !== ""
+        text: control.label
         color: Theme.textCaption
         font.pixelSize: Theme.captionFontSize
     }
@@ -93,11 +94,9 @@ RowLayout {
 
                 onPositionChanged: (mouse) => {
                     const px = lowerHandle.x + mouse.x
-                    const value = control.clamp(track.pxToValue(px),
-                                                 control.from,
-                                                 control.upperValue - control.minRange)
-                    control.lowerValue = value
-                    control.lowerMoved(value)
+                    control.lowerMoved(control.clamp(track.pxToValue(px),
+                                                     control.from,
+                                                     control.upperValue - control.minRange))
                 }
             }
         }
@@ -123,11 +122,9 @@ RowLayout {
 
                 onPositionChanged: (mouse) => {
                     const px = upperHandle.x + mouse.x
-                    const value = control.clamp(track.pxToValue(px),
-                                                 control.lowerValue + control.minRange,
-                                                 control.to)
-                    control.upperValue = value
-                    control.upperMoved(value)
+                    control.upperMoved(control.clamp(track.pxToValue(px),
+                                                     control.lowerValue + control.minRange,
+                                                     control.to))
                 }
             }
         }

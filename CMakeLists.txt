@@ -134,6 +134,7 @@ qt_add_qml_module(moil_fisheye_cali
         qml/controls/LabeledField.qml
         qml/controls/StatusDot.qml
         qml/controls/SegmentedControl.qml
+        qml/controls/ValueSpinBox.qml
         qml/controls/PatternToggleSwitch.qml
         qml/controls/PatternColorButton.qml
         qml/controls/DpadDirectionControl.qml
@@ -145,7 +146,7 @@ qt_add_qml_module(moil_fisheye_cali
         qml/controls/StripelineLayerRow.qml
         qml/controls/CaliResultRow.qml
         qml/controls/HistogramPlotView.qml
-        qml/controls/IhRangeControl.qml
+        qml/controls/RangeControl.qml
         qml/controls/AxisReadout.qml
         qml/controls/AxisStateReadout.qml
         qml/controls/SectionFrame.qml

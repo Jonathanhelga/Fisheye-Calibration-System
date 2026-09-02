@@ -227,8 +227,7 @@ AxisController::AxisController(QObject *parent) : QObject(parent), d_(new Impl) 
         }
 
         stalledFrom_ = connectionState_;
-        setConnectionState(Stalled,
-                           tr("the axis node stopped answering, press Update to reconnect"));
+        setConnectionState(Stalled, tr("the axis node stopped answering, press Update to reconnect"));
     });
 
     connect(qApp, &QCoreApplication::aboutToQuit, this, [this] { teardownSession(); });
