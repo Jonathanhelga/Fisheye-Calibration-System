@@ -569,6 +569,8 @@ cd ~/Desktop/Fisheye_Calibration-Jojo_Version      # <- your clone
 
 `subapp_3d_verification/` is the old QWidget + uic dialog, copied verbatim from branch `v2.0_2026_main-cpp-ros`. Clicking *3D Verification* calls `SubAppWindows::openMeasure3d()`, which opens it as its own top-level window. It is an offline image-file workflow and needs no rig.
 
+**Its sources are byte-identical to files that also exist in `cpp/` on the v2.0 branch, and that is not a sign they are dead.** They were ported here deliberately — `subapp_3d_verification/` on 2026-08-28, `subapp_center_setup/` on 2026-08-31 — and both are live CMake targets. Byte-identity says where the code came from, not whether it is still in use; check `git log -- <path>` before concluding anything from it.
+
 ```
 subapp_3d_verification/
 ├── app/                 Help.h  Help.cpp
@@ -590,7 +592,9 @@ subapp_3d_verification/
   The committed header came from uic 6.4.2, so the first regeneration produces a large version-formatting diff on top of your edit.
 - `SubAppWindows::openMeasure3d()` passes `nullptr` for the axis and camera clients — the dialog stores and never dereferences them.
 
-The app is `QApplication`, not `QGuiApplication`, so this dialog can exist. That is also why `Qt6::Widgets` is a dependency.
+`subapp_center_setup/` is the same arrangement for the *Center Setup* dialog, except that its `ui/center_setup.ui` **is** an AUTOUIC source and works only because the target sets `AUTOUIC_SEARCH_PATHS` — the `.cpp` lives in `controllers/`, the `.ui` in `ui/`.
+
+The app is `QApplication`, not `QGuiApplication`, so these dialogs can exist. That is also why `Qt6::Widgets` is a dependency.
 
 Output goes to `image_cali/output_3D/`, relative to the working directory the app started from.
 
@@ -625,18 +629,23 @@ Copy the **whole** error, not the last line — the useful part of a CMake error
 ```
 src/                     QML app C++: HttpServerProbe (HTTP dots), RosServerProbe (ROS dots),
                          AxisState + AxisController (live axis, jog, stop),
-                         SubAppWindows (C++/QML touchpoint, owns the 3D window)
+                         SubAppWindows (C++/QML touchpoint, owns the two sub-app windows)
+subapp_3d_verification/  the copied QWidget 3D dialog (D2)
+subapp_center_setup/     the copied QWidget centre-setup dialog (D2)
 qml/windows/             top-level ApplicationWindows
 qml/panels/              feature blocks, one file per panel
 qml/controls/            small reusable pieces
 qml/Theme.qml            singleton: colours, spacing, font sizes
-subapp_3d_verification/  the copied QWidget 3D dialog (D2)
-ros/                     colcon build output only (build/ install/ log/, all ignored).
-                         The moil_interfaces package itself lives on branch
-                         v2.0_2026_main-cpp-ros -- copy it in, see A8
+Server/v2.1.0/           the rig server: one process, eight ROS nodes, plus common/,
+                         the calibration engine. Built by its own build_server.bat,
+                         NOT by this app's CMakeLists
+ros/moil_interfaces/     the ROS 2 contract -- 37 srv, 6 action, 4 msg. SOURCE, and
+                         tracked. build/ install/ log/ beside it are colcon output
+                         and ignored
+doc/                     auto_center_design.md + the Docusaurus documentation site
 tools/                   run_windows_ros.ps1 -- the Windows launcher
 assets/                  images compiled into the binary
-docs/                    long-form notes (D6)
+docs/                    long-form notes (D6) -- note the plural; not doc/
 ```
 
 Build directories are gitignored and per-machine — different architectures and Qt installs cannot share one.
@@ -650,7 +659,9 @@ Build directories are gitignored and per-machine — different architectures and
 | `docs/RUNNING.md` | the full build and run reference for both machines |
 | `docs/MINIPC_ROS_CONNECT.md` | how the miniPC reaches the rig over ROS 2 |
 | `docs/BACKEND_INTEGRATION.md` | ROS 2 from zero, and the network findings the other two build on |
-| old repo `cpp/README.md` | the original Lyrical + pixi write-up Part A is based on |
+| `Server/README.md`, `Server/v2.1.0/README.md` | the rig server: build, run, and the eight nodes |
+| `doc/moilcalib_documentation/` | the Docusaurus site (run it locally; the Pages copy is stale) |
+| `cpp/README.md` on `v2.0_2026_main-cpp-ros` | the original Lyrical + pixi write-up Part A is based on |
 
 The rest of `docs/` is local-only and does not ship -- `.gitignore` keeps only these three.
 
