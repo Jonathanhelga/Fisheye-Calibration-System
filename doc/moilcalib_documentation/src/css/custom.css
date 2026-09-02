@@ -1,0 +1,122 @@
+/**
+ * Any CSS included here will be global. The classic template
+ * bundles Infima by default. Infima is a CSS framework designed to
+ * work well for content-centric websites.
+ */
+
+/* You can override the default Infima variables here. */
+:root {
+  --ifm-color-primary: #2e8555;
+  --ifm-color-primary-dark: #29784c;
+  --ifm-color-primary-darker: #277148;
+  --ifm-color-primary-darkest: #205d3b;
+  --ifm-color-primary-light: #33925d;
+  --ifm-color-primary-lighter: #359962;
+  --ifm-color-primary-lightest: #3cad6e;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+}
+
+/* For readability concerns, you should choose a lighter palette in dark mode. */
+[data-theme='dark'] {
+  --ifm-color-primary: #25c2a0;
+  --ifm-color-primary-dark: #21af90;
+  --ifm-color-primary-darker: #1fa588;
+  --ifm-color-primary-darkest: #1a8870;
+  --ifm-color-primary-light: #29d5b0;
+  --ifm-color-primary-lighter: #32d8b4;
+  --ifm-color-primary-lightest: #4fddbf;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}
+
+/* ================================
+   Custom Documentation Note Boxes
+================================ */
+
+.custom-note {
+  border-left: 6px solid #25c2a0;
+  background: #ecfdf5;
+  padding: 16px 20px;
+  margin: 20px 0;
+  border-radius: 10px;
+  color: #064e3b;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.custom-note-title {
+  font-weight: 700;
+  font-size: 16px;
+  color: #047857;
+  margin-bottom: 8px;
+}
+
+.custom-note p {
+  margin: 0 0 8px 0;
+}
+
+.custom-note ul {
+  margin: 8px 0 0 0;
+  padding-left: 22px;
+}
+
+.custom-note li {
+  margin-bottom: 4px;
+}
+
+/* Warning style */
+.custom-warning {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+  color: #78350f;
+}
+
+.custom-warning .custom-note-title {
+  color: #b45309;
+}
+
+/* Danger style */
+.custom-danger {
+  border-left-color: #ef4444;
+  background: #fef2f2;
+  color: #7f1d1d;
+}
+
+.custom-danger .custom-note-title {
+  color: #dc2626;
+}
+
+/* Dark mode */
+[data-theme='dark'] .custom-note {
+  background: #10231d;
+  color: #d1fae5;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme='dark'] .custom-note-title {
+  color: #5eead4;
+}
+
+[data-theme='dark'] .custom-warning {
+  background: #2a1f0a;
+  color: #fde68a;
+}
+
+[data-theme='dark'] .custom-warning .custom-note-title {
+  color: #fbbf24;
+}
+
+[data-theme='dark'] .custom-danger {
+  background: #2a1111;
+  color: #fecaca;
+}
+
+[data-theme='dark'] .custom-danger .custom-note-title {
+  color: #f87171;
+}
+
+/* Captioned figures live in src/components/Figure. Everything here is for
+   plain inline markdown images that are not wrapped in a <Figure>. */
+.markdown img:not(figure img) {
+  max-width: 100%;
+  height: auto;
+}

@@ -1,0 +1,42 @@
+.figure {
+  margin: 1.5rem 0;
+  text-align: center;
+  /* Offset the sticky navbar so #fig-N deep links do not land under it. */
+  scroll-margin-top: calc(var(--ifm-navbar-height) + 1rem);
+}
+
+.figure img {
+  display: block;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 800px;
+  height: auto;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* The markdown image arrives wrapped in a paragraph. Strip its spacing so the
+   caption sits tight under the image. */
+.figure > p {
+  margin: 0;
+}
+
+.caption {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--ifm-color-emphasis-700);
+}
+
+.number {
+  color: inherit;
+  text-decoration: none;
+}
+
+.number:hover {
+  color: var(--ifm-link-color);
+  text-decoration: underline;
+}
+
+[data-theme='dark'] .caption {
+  color: var(--ifm-color-emphasis-600);
+}

@@ -1,0 +1,54 @@
+{
+  "tutorialSidebar": [
+    "intro",
+    {
+      "type": "category",
+      "label": "Installation",
+      "collapsed": true,
+      "items": [
+        "installation/client-installation-guide",
+        "installation/server"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "System Overview",
+      "collapsed": false,
+      "items": [
+        "system-overview/main-window",
+        {
+          "type": "category",
+          "label": "Main Cali Result",
+          "collapsed": false,
+          "items": [
+            "system-overview/main-cali-result/index",
+            "system-overview/main-cali-result/main-window-overview",
+            "system-overview/main-cali-result/result-table-view",
+            "system-overview/main-cali-result/parameter-view",
+            "system-overview/main-cali-result/overlap-and-aggregation-view"
+          ]
+        },
+        "system-overview/3d-verification",
+        "system-overview/monitor-viewer",
+        "system-overview/pct-pattern-generator"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Calibration Workflow",
+      "collapsed": true,
+      "items": [
+        "calibration/camera-calibration",
+        "calibration/reload-calibration-data"
+      ]
+    },
+    {
+      "type": "category",
+      "label": "Database",
+      "collapsed": true,
+      "items": [
+        "database/database-overview"
+      ]
+    }
+  ]
+}

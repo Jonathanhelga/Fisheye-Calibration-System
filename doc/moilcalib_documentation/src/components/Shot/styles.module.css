@@ -1,0 +1,80 @@
+.shot {
+  margin: 1.5rem 0;
+  text-align: center;
+  scroll-margin-top: calc(var(--ifm-navbar-height) + 1rem);
+}
+
+/* Reserves roughly the height the real screenshot will occupy, so the page
+   already reads at its final length while the captures are outstanding. */
+.box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  box-sizing: border-box;
+
+  border: 2px dashed var(--ifm-color-emphasis-400);
+  border-radius: 6px;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--ifm-color-emphasis-100),
+    var(--ifm-color-emphasis-100) 12px,
+    var(--ifm-color-emphasis-200) 12px,
+    var(--ifm-color-emphasis-200) 24px
+  );
+}
+
+.badge {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--ifm-color-emphasis-700);
+  background: var(--ifm-background-color);
+  border: 1px solid var(--ifm-color-emphasis-400);
+  border-radius: 999px;
+  padding: 0.2rem 0.8rem;
+}
+
+.file {
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ifm-color-emphasis-800);
+  background: var(--ifm-background-color);
+  border-radius: 4px;
+  padding: 0.25rem 0.6rem;
+  word-break: break-all;
+}
+
+.what {
+  max-width: 60ch;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--ifm-color-emphasis-700);
+}
+
+.caption {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--ifm-color-emphasis-700);
+}
+
+.number {
+  color: inherit;
+  text-decoration: none;
+}
+
+.number:hover {
+  color: var(--ifm-link-color);
+  text-decoration: underline;
+}
+
+[data-theme='dark'] .caption {
+  color: var(--ifm-color-emphasis-600);
+}

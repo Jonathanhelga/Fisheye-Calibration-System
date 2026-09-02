@@ -1,0 +1,128 @@
+{
+  "tutorialSidebar": [
+    { "type": "doc", "id": "intro", "label": "Introduction" },
+    {
+      "type": "category",
+      "label": "Installation",
+      "collapsed": true,
+      "items": [
+        { "type": "doc", "id": "installation/server", "label": "Server Installation" },
+        {
+          "type": "category",
+          "label": "Client Installation Guide",
+          "collapsed": false,
+          "link": {
+            "type": "doc",
+            "id": "installation/client-installation-guide"
+          },
+          "items": [
+            { "type": "doc", "id": "installation/client-linux", "label": "Linux" },
+            { "type": "doc", "id": "installation/client-macos", "label": "macOS" }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "doc",
+      "id": "system-overview/main-window",
+      "label": "Main Window Reference"
+    },
+    {
+      "type": "category",
+      "label": "Calibration Workflow",
+      "collapsed": false,
+      "items": [
+        {
+          "type": "category",
+          "label": "1. Pattern Setup",
+          "collapsed": false,
+          "items": [
+            {
+              "type": "doc",
+              "id": "calibration/pct-pattern-generator",
+              "label": "PCT Pattern Generator"
+            },
+            {
+              "type": "doc",
+              "id": "calibration/monitor-viewer",
+              "label": "Monitor Viewer"
+            }
+          ]
+        },
+        {
+          "type": "doc",
+          "id": "calibration/camera-calibration",
+          "label": "2. Camera Calibration"
+        },
+        {
+          "type": "category",
+          "label": "3. Calibration Result",
+          "collapsed": false,
+          "link": {
+            "type": "doc",
+            "id": "calibration/cali-result/index"
+          },
+          "items": [
+            {
+              "type": "doc",
+              "id": "calibration/cali-result/main-window-overview",
+              "label": "Main Window Overview"
+            },
+            {
+              "type": "doc",
+              "id": "calibration/cali-result/result-table-view",
+              "label": "Result Table View"
+            },
+            {
+              "type": "doc",
+              "id": "calibration/cali-result/parameter-view",
+              "label": "Parameter View"
+            },
+            {
+              "type": "doc",
+              "id": "calibration/cali-result/overlap-and-aggregation-view",
+              "label": "Overlap & Aggregation View"
+            },
+            {
+              "type": "doc",
+              "id": "calibration/cali-result/entrance-pupil-analysis",
+              "label": "Entrance-Pupil Analysis"
+            }
+          ]
+        },
+        {
+          "type": "doc",
+          "id": "calibration/reload-calibration-data",
+          "label": "4. Reload Calibration Data"
+        },
+        {
+          "type": "doc",
+          "id": "verification/setup-center",
+          "label": "5. Setup Center"
+        },
+        {
+          "type": "doc",
+          "id": "verification/3d-verification",
+          "label": "6. 3D Verification"
+        }
+      ]
+    },
+    {
+      "type": "doc",
+      "id": "database/database-overview",
+      "label": "Database Overview"
+    },
+    {
+      "type": "category",
+      "label": "Development",
+      "collapsed": true,
+      "items": [
+        {
+          "type": "doc",
+          "id": "development/codebase-overview",
+          "label": "Codebase Overview"
+        }
+      ]
+    }
+  ]
+}
