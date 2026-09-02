@@ -1,0 +1,18 @@
+# Fetch a stored capture, to look at it.
+string session_id
+string slot
+
+# Shrink before sending. 0 for the original -- which for this camera is 3040x3040,
+# so pass a real number unless the operator asked to see it full size.
+int32 max_side
+---
+bool success
+
+sensor_msgs/CompressedImage image
+
+# The ORIGINAL size, which is not the size of the image above when max_side
+# shrank it. The zoom viewer needs to know what it is looking at a piece of.
+int32 width
+int32 height
+
+string message

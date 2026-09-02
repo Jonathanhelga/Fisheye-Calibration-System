@@ -1,0 +1,55 @@
+# Render the calibration patterns ONCE and keep them on the server.
+#
+# The client sends two pattern DESCRIPTIONS and nothing else -- no images, no
+# colours applied, no polarity worked out. The server renders four PNGs and
+# stores them next to the sessions:
+#
+#   concentric_positive   -> TOP        concentric_negative   -> TOP
+#   stripeline_positive   -> N/W/S/E    stripeline_negative   -> N/W/S/E
+#
+# Why this exists, given ShowPatternSpec already renders on demand:
+#
+#   * a Pos/Neg shot then costs a lookup and a blit instead of a render. Five
+#     panels re-rendered per shot, ten shots a round, five rounds is 250 renders
+#     per run; this makes it four, at the moment the operator says the pattern is
+#     final.
+#   * the pattern that was on the glass is a FILE afterwards. When a round's
+#     numbers look wrong, "what exactly was being shown" stops being a question
+#     nobody can answer.
+#
+# The polarity swap is done HERE, not on the client. It is the rule that odd
+# layers take the positive colour and even layers the negative one -- arithmetic
+# over the operator's design, and therefore the server's job. A client that
+# applied it would be a second implementation of it.
+
+# The pattern the operator authored, as the JSON envelope ShowPatternSpec
+# documents. Send the layers with whatever colours are in them; they are
+# replaced by the pair below.
+#
+# Empty skips that pattern and leaves any previously prepared copy alone, so the
+# two can be updated independently.
+string spec_concentric
+string spec_stripeline
+
+# The two colours, as [r, g, b], 0..255. positive_rgb goes on the odd layers of
+# the POSITIVE pattern and the even layers of the NEGATIVE one; negative_rgb
+# does the opposite. That inversion is the whole point of shooting twice.
+int32[] positive_rgb
+int32[] negative_rgb
+---
+bool success
+
+# What was written, in the order concentric_positive, concentric_negative,
+# stripeline_positive, stripeline_negative. Fewer entries when a spec was empty.
+string[] prepared
+
+# The pixel grid each one was rendered at -- the TARGET PANEL's own resolution,
+# not a size the client guessed. Same order as `prepared`.
+int32[] widths
+int32[] heights
+
+# Where they went on the server, so an operator looking at a suspect round can
+# find the exact picture that was on the glass.
+string directory
+
+string message

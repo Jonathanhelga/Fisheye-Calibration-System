@@ -1,0 +1,24 @@
+# Take a frame and store it in the open session under `slot`.
+#
+# The client sends no pixels. It cannot: the camera is on the server, which is
+# the property the rig-owned session was built for in the first place.
+string session_id
+
+# "positive" | "negative" | "single" | "chessboard" -- the names in
+# CaliSession, which is what resolves a slot to a file. A name outside that set
+# is stored and then read by nothing: nodes_8dir and histogram_8dir ask for
+# "positive" and "negative" by those spellings.
+string slot
+
+# Seconds to wait for a frame that arrives AFTER this call. 0 = server default.
+float64 timeout
+---
+bool success
+string session_id
+uint64 version
+
+# The size stored, so the client can say what it got without fetching it.
+int32 width
+int32 height
+
+string message

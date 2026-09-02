@@ -1,0 +1,40 @@
+# Home one or more axes and WAIT until they are actually there.
+#
+# AxisCommand "home" sends ORG and returns. That is the right shape for a button
+# that means "start homing", and the wrong one for the All Home flow, which has
+# to know when homing finished before it may do anything else.
+#
+# The waiting is the substance here: the axis is home when its origin sensor has
+# read triggered and the moving lamp has read clear for `idle_needed` consecutive
+# polls. A single triggered reading is not enough -- the lamp flickers as the
+# stage settles onto the switch.
+#
+# Note the known limitation, from the rig log: a short move can finish before the
+# first 100 ms poll, so the moving lamp may never be SEEN true. This waits for
+# idle, not for movement, precisely so that case does not hang.
+
+# Any of "x", "y", "z", "yaw", "pitch". Homed in the order given.
+string[] axes
+
+# Consecutive idle polls required before an axis counts as home. Historically 3.
+int32 idle_needed
+
+# Per-axis timeout in seconds. 0 = the server's configured default.
+float64 timeout
+
+# Record each axis' software zero on arrival. This is the ONLY moment it is safe
+# to do automatically -- the axis is standing on its origin sensor by definition.
+bool capture_zero
+---
+bool success
+
+string[] homed
+string[] timed_out
+bool cancelled
+string message
+---
+string axis
+int32 sensor_org     # 1 triggered, 0 clear, -1 unreadable
+int32 sensor_move
+float64 elapsed
+string stage

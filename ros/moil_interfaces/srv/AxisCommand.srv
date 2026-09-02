@@ -1,0 +1,9 @@
+# Perintah axis tanpa jarak/kecepatan. Menggantikan home() dan stop().
+#
+# command: "home" | "stop"
+# axis   : "x" | "y" | "z" | "yaw" | "pitch"
+string command
+string axis
+---
+bool success
+string message

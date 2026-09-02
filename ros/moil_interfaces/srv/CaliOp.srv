@@ -1,0 +1,36 @@
+# One step of the calibration pipeline, run on the server, over a table sent
+# whole.
+#
+# op is one of ComputeOps::cali:
+#
+#   compute_all                        calculate_result
+#   calculate_result_single_round      calculate_result_with_base_distance
+#   aggregation_by_distance            aggregation_all_rounds_by_distance
+#   auto_detect_noise_bands            remove_nodes_in_band
+#   update_table_from_capture
+#
+# The three SEARCHES (find_min_aggr_single_round, find_min_aggregation_in_window,
+# find_distance_for_target_aggregation) are not here. They run for tens of
+# seconds and the operator must be able to cancel them, so they are the CaliJob
+# action instead. Sending one of them to this service is rejected by name rather
+# than blocking the caller for a minute with no way out.
+string op
+
+# All 11 round tables plus the form's scalar fields, as CaliTableData JSON. The
+# whole table travels because the pipeline writes derived columns back into it --
+# the request and the reply are the same document, before and after.
+string table_json
+
+string params_json
+---
+bool success
+
+# The mutated table. The client replaces its display with this; it does not merge,
+# and it does not recompute anything from it.
+string table_json
+
+# The op's scalar answers -- best distance, removed count, detected bands. "{}"
+# for the ops whose only output is the table.
+string result_json
+
+string message

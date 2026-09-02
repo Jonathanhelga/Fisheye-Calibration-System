@@ -1,0 +1,9 @@
+# Atur kecerahan satu monitor, atau semua. Menggantikan set_brightness() dan
+# set_brightness_all().
+#
+# direction: "top" | "n" | "s" | "e" | "w", atau "all".
+string direction
+float64 brightness
+---
+bool success
+string message

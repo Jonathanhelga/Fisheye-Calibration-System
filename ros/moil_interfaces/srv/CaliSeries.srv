@@ -1,0 +1,54 @@
+# The numbers behind the graphs.
+#
+# THIS SERVICE IS THE v2.1.0 CHANGE. In v2.0 these getters were deliberately kept
+# out of the service surface, with the reasoning written into ComputeOps.h: they
+# only read columns the pipeline has already written, so the client could derive
+# them from the table it just received without a round trip per redraw.
+#
+# That reasoning is sound and it is no longer the rule we are following. "The
+# client computes nothing" is not a performance claim, it is a boundary -- and a
+# boundary with an arithmetic exception in it is not one. A regression fit and a
+# polynomial are calculations wherever they run, so they run here.
+#
+# The cost is NOT one call per redraw, and that distinction is the design here:
+# the series are computed on the server and CACHED on the client, keyed to the
+# table version they were computed from. A redraw, a cursor move, a resize or a
+# tab change reads the cache. The wire is touched only when the table actually
+# changes -- which is the same moment the old local computation would have had to
+# re-run anyway.
+#
+# So the client holds the numbers and never derives them. What it caches is an
+# answer, not a method: there is no code in the client that could produce these
+# values, only code that remembers the ones it was given.
+#
+# The series are small -- a few hundred points -- unlike the tables that produce
+# them, which is what makes holding them cheap.
+#
+# kind:
+#   ict_zfl              per round: (x=ict, y=zfl), with the round's plot colour
+#   ict_zfl_points       one round, ignoring its enabled flag (the popup graphs)
+#   ih_alpha             per round: (x=alpha_degrees, y=ict)
+#   ih_alpha_regression  degree-N fit over ALL rounds, as a sorted curve
+#   alpha_polynomial     the 6 coefficient slots for the parameter box
+#   global_ict_alpha     every enabled round's (ict, alpha_degrees), pooled
+#   max_ict_all_rounds   ih_max_px -- the largest ict anywhere
+#   has_any_raw_ict      is there anything worth computing yet
+string kind
+
+string table_json
+
+# {"round": 3, "degree": 4, "enabled": [true, ...]} -- only the keys `kind` uses.
+# `enabled` carries the per-round checkboxes, because which rounds count is an
+# operator decision the server has no other way to know.
+string params_json
+---
+bool success
+
+# JSON shaped by `kind`:
+#   the per-round kinds  -> [{"round":1,"color":"#rrggbb","pts":[[x,y],...]}, ...]
+#   the curve kinds      -> {"pts":[[x,y],...]}
+#   the scalar kinds     -> {"value": 12.34} or {"value": true}
+#   alpha_polynomial     -> {"coeffs":[c0,c1,c2,c3,c4,c5]}
+string series_json
+
+string message

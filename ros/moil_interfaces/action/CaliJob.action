@@ -1,0 +1,35 @@
+# The three distance searches. Minutes of arithmetic, with a working Cancel.
+#
+#   find_min_aggr_single_round          ternary search over one round
+#   find_min_aggregation_in_window      coarse sweep + refine, all rounds
+#   find_distance_for_target_aggregation  282 probes, each recomputing 11 rounds
+#
+# The last one is why this is an action and not a service. Every probe recomputes
+# all eleven rounds; driving that loop from the client would be 282 round trips
+# carrying ~4 MB of table each way. As one job it is one call, and the operator
+# can still stop it -- cancelling unwinds the search wherever it is and leaves the
+# table at the last probe, which is exactly what the old progress dialog's Cancel
+# did.
+string op
+string table_json
+string params_json
+---
+bool success
+
+# The table as the last probe left it, even on cancel.
+string table_json
+
+# {"best_distance": 312.5, "best_aggr": 0.084,
+#  "samples": [[distance, aggregation], ...]}
+# `samples` is what the search plot draws.
+string result_json
+
+# True when the operator cancelled. success is still true: a cancelled search
+# produced a partial answer, it did not fail.
+bool cancelled
+
+string message
+---
+int32 done
+int32 total       # 0 when the op cannot report a total -- show it indeterminate
+string stage

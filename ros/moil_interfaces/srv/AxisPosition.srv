@@ -1,0 +1,35 @@
+# Where one axis is, as a number the client can display WITHOUT arithmetic.
+#
+# Under v2.0 the client read a raw counter and turned it into a coordinate
+# itself: subtract the software zero recorded at HOME, multiply by
+# units_per_count. That is a calculation, and calculations are the server's job
+# now -- so the conversion happens here, next to the zero it depends on, and the
+# client prints `coordinate` as it arrives.
+#
+# The raw counter is still reported. Not for the client to compute with, but
+# because a coordinate that looks wrong and a counter that looks wrong are
+# different faults, and the diagnostics need to tell them apart.
+#
+# axis: "x" | "y" | "z" | "yaw" | "pitch"
+string axis
+---
+bool success
+
+# The controller's own counter, verbatim, unshifted and unscaled. Empty when the
+# read failed -- which is NOT the same as 0.
+string raw
+
+# mm (x/y/z) or degrees (yaw/pitch), measured from the software zero. Already
+# formatted to 3 decimals, because the format is a presentation decision that
+# was being made in the client's posToDisplay() and is now made once, here.
+string coordinate
+
+# False when no zero has ever been recorded for this axis. The client shows the
+# coordinate as provisional rather than pretending it is referenced to anything.
+bool has_zero
+
+# Unix seconds when that zero was taken, 0 when has_zero is false. The client's
+# coordinate tooltip says how old the reference is.
+int64 zero_at
+
+string message

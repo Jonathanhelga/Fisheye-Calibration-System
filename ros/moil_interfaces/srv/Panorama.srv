@@ -1,0 +1,40 @@
+# The panoramic unwrap of a fisheye, for checking the centre.
+#
+# Center Setup shows it because a mis-placed optical centre is obvious in a
+# panorama -- the horizon bends -- and hard to see in the fisheye itself. The
+# unwrap is a dense per-pixel remap built from the lens model, so it happens on
+# the server and the client receives an image.
+
+# "capture" for the camera's current frame, or a source loaded through
+# Measure3dSource ("left" / "right").
+string source_id
+
+string params_json
+string camera_type
+float64 resolution_ratio
+
+# Override the optical centre, so the panorama follows the operator's spin boxes.
+bool has_center
+int32 icx
+int32 icy
+
+# Half the field of view, in degrees. 0 means "the file's fov / 2", which is what
+# the window uses.
+float64 alpha_max
+
+# The window draws the panorama at twice its natural width, because the unwrap is
+# tall and thin and the horizon is what the operator is inspecting. Done here so
+# the returned image is the one that gets shown, rather than the client stretching
+# and softening it a second time.
+float64 x_stretch
+
+int32 max_side
+---
+bool success
+sensor_msgs/CompressedImage image
+
+# The size actually rendered, before max_side.
+int32 width
+int32 height
+
+string message

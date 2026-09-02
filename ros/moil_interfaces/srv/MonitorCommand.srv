@@ -1,0 +1,7 @@
+# Perintah monitor tanpa argumen. Menggantikan show_display_number().
+#
+# command: "show_display_number"
+string command
+---
+bool success
+string message

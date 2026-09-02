@@ -1,0 +1,37 @@
+# Prove the server's arithmetic still gives the recorded answers.
+#
+# The supervisor runs this on a timer and publishes the outcome in SystemStatus;
+# check_server.bat calls it once and prints the report. It exists because every
+# other health check in a ROS system tests the transport: a compute node that has
+# been rebuilt against a changed formula answers instantly, successfully, and
+# wrongly, and nothing about the graph looks any different.
+#
+# The fixture and its expected numbers are compiled into the compute node --
+# recorded from a build that was trusted. A deviation is not proof of a bug; it
+# is proof that a number moved, which is the thing worth being told about.
+
+# "" or "all" runs every suite. Otherwise: "cali" | "detect" | "pattern"
+# | "measure3d".
+string suite
+---
+bool success
+
+# Every checked value was inside tolerance.
+bool passed
+
+# Per suite, parallel arrays.
+string[] suites
+bool[] suite_passed
+
+# Largest relative deviation seen in that suite. Non-zero with passed still true
+# means it is inside tolerance and drifting -- worth seeing before it crosses.
+float64[] max_deviation
+
+# Human-readable, one line per checked value that moved. Empty when nothing did.
+string[] notes
+
+# How long the whole run took. A self-test that starts passing much more slowly
+# is also telling you something.
+float64 duration
+
+string message

@@ -1,0 +1,29 @@
+# One frame, grabbed AFTER this call was made.
+#
+# The compressed topic exists for the live preview and is deliberately
+# BEST_EFFORT: dropping a preview frame costs nothing. A capture is the opposite
+# -- it is the measurement -- so it goes through a service, and the node answers
+# with a frame that arrived after the request, never a buffered one.
+#
+# That rule is the whole point. cap.read() on this 3040x3040 stream blocks for
+# ~50 ms and the device holds frames from before the pattern on the glass
+# changed; answering with one of those silently re-measures the previous pattern,
+# which looks exactly like a successful capture.
+
+# Seconds to wait for a fresh frame. 0 means the server's configured default.
+float64 timeout
+
+# When set, the server ALSO writes the frame to <sessions>/<slot>.png and the
+# capture becomes part of the open session. Empty for a preview-only grab.
+string session_slot
+---
+bool success
+
+# JPEG or PNG bytes, per the server's camera configuration.
+sensor_msgs/CompressedImage image
+
+# Pixel size of the frame as captured, before any encoding.
+int32 width
+int32 height
+
+string message

@@ -1,0 +1,15 @@
+# Change cells and form fields, as ONE undo step.
+#
+# One call is one step. A paste of forty cells is one call, or the operator needs
+# forty Ctrl+Z to take it back -- which is the behaviour this shape exists to
+# prevent, and the reason the client must batch rather than send per cell.
+string session_id
+
+# {"cells":[{"round":1,"row":5,"col":3,"text":"12.34"}, ...],
+#  "fields":{"lineedit_distance":"250"}}
+string edits
+---
+bool success
+string session_id
+uint64 version
+string message

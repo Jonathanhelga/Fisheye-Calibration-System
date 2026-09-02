@@ -1,0 +1,13 @@
+# Tampilkan pola kalibrasi di satu monitor, atau di semua monitor sekaligus.
+# Menggantikan show_pattern() dan show_pattern_all().
+#
+# direction: "top" | "n" | "s" | "e" | "w", atau "all" untuk semua monitor.
+string direction
+
+# Gambar pola. CompressedImage dipakai supaya isinya persis byte PNG/JPEG yang
+# dulu diunggah lewat HTTP multipart -- monitor_module.show_pattern() memang
+# menerima bytes, bukan array piksel. Isi `format` dengan "png" atau "jpeg".
+sensor_msgs/CompressedImage image
+---
+bool success
+string message

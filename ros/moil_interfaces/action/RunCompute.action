@@ -1,0 +1,25 @@
+# Run a compute op against the OPEN SESSION's own table and captures.
+#
+# The difference from CaliOp/CaliJob is where the data is. Those take a table in
+# the request, because the Cali Result window's tables are the operator's working
+# copy. This one touches nothing the client holds: the op's images are resolved
+# from the session's capture slots, and the results are written back into the
+# session, which then publishes SessionEvent so every connected client updates.
+string session_id
+string op
+string params
+---
+bool success
+string session_id
+uint64 version
+
+# The op's scalar answers. The table is not returned -- fetch it with
+# SessionState, which the SessionEvent has already told the client to do.
+string result
+
+bool cancelled
+string message
+---
+int32 done
+int32 total
+string stage

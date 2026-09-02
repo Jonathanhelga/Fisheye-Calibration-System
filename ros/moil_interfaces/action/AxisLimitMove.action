@@ -1,0 +1,38 @@
+# Drive one axis to one end and leave it standing on the switch.
+#
+# A control loop, not a command: move a chunk, read that end's sensor, stop the
+# moment it reads triggered. It is an action because of what it is protecting.
+# There are LCD panels mounted around this rig and an axis driven past its limit
+# destroys them. The controller's firmware limit stop is the real protection; this
+# loop is the software backstop, and a backstop that depends on a network link
+# staying up is not one -- so the loop runs on the server, beside the serial port.
+#
+# Z additionally cannot be crossed in a single command: travel is ~530 mm and the
+# protocol caps a linear move at 487.5 mm, so the drive issues repeated legs.
+# Do not "simplify" that back into one move.
+
+# "x" | "y" | "z" | "yaw" | "pitch"
+string axis
+
+# true  -> the high side (right / up / forward)
+# false -> the low side  (left / down / back)
+bool high_side
+
+# "low" | "mid" | "high"
+string speed
+---
+bool success
+
+# True when the run ended on the sensor rather than on the travel limit or a
+# timeout. False here with success true means it stopped for a reason that was
+# not the switch, which the operator needs to see.
+bool reached_sensor
+
+string coordinate
+bool cancelled
+string message
+---
+# Sensor tri-state as the loop sees it: 1 triggered, 0 clear, -1 unreadable.
+int32 sensor
+string coordinate
+string stage

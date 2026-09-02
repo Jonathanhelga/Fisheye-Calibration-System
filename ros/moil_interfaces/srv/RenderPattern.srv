@@ -1,0 +1,23 @@
+# Draw a pattern from its JSON description and hand back the pixels.
+#
+# For the Pattern Generator's preview pane and for saving a pattern to a file.
+# Putting one on the glass does not come through here -- that is
+# ShowPatternSpec, which renders at the target panel's own resolution and never
+# ships an image at all.
+string pattern_json
+
+# 0 x 0 means "the size in the JSON".
+int32 width
+int32 height
+
+# Shrink the RETURNED image (the render is at full size regardless). 0 for none.
+int32 max_side
+---
+bool success
+sensor_msgs/CompressedImage image
+
+# The size actually rendered, before max_side.
+int32 width
+int32 height
+
+string message

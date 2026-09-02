@@ -1,0 +1,33 @@
+# What the rig is, and whether it opened. One call, at connect time.
+#
+# Replaces the three "server URL" line-edits the v2.0 window still carried from
+# the HTTP era. There are no URLs to configure any more: the client points at one
+# server, and the server names the ports and devices it actually has. The fields
+# below are what the status line and the "capture failed" messages need in order
+# to name the thing that failed.
+---
+bool success
+
+# Serial ports actually in use, e.g. "yuanman: arduino=COM3 crux=COM4".
+string axis_url
+bool axis_open
+string axis_error
+
+# The camera actually opened, e.g. "id=0 mf 3040x3040".
+string camera_url
+bool camera_open
+
+# "7 screens, 5 mapped" -- the short form for the status line.
+string monitor_url
+int32 screen_count
+
+# Which axis system the server is configured for: "yuanman" | "yinda".
+string axis_system
+
+# Signed mm (or degrees) per counter step, indexed x, y, z, yaw, pitch. The
+# client does NOT convert with these -- AxisPosition already returns the
+# coordinate. They are reported so the diagnostics can show the configuration
+# that produced a suspicious number.
+float64[5] units_per_count
+
+string message

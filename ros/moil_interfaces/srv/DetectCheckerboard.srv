@@ -1,0 +1,54 @@
+# Find the checkerboard in one (camera, direction) anypoint view.
+#
+# This is the measurement the 3D result is built out of: the corner grid, and the
+# alpha/beta each corner maps back to on the fisheye. Both the detection and the
+# back-projection are computed here.
+
+# "left" | "right"
+string camera
+
+# "center" | "north" | "south" | "west" | "east"
+string direction
+
+# The anypoint view to look at, same fields as Anypoint.srv.
+float64 alpha
+float64 beta
+float64 theta
+float64 zoom
+int32 mode
+
+# Inner corner counts, e.g. 6 x 5.
+int32 pattern_cols
+int32 pattern_rows
+
+# Reorder the detected corner list to match the other camera's ordering. The
+# combo box on each direction. "default" for none.
+#
+# It matters because triangulation pairs corner N of the left board with corner N
+# of the right one. If the two cameras enumerate the same board in different
+# orders -- which they do whenever one view is mirrored or rotated relative to the
+# other -- every pair is wrong, and the 3D result is a plausible-looking cloud of
+# nonsense rather than an obvious failure.
+string reorder
+
+# "standard" | "enhanced". Enhanced runs CLAHE, bilateral, boost, normalize and
+# unsharp before the detector: it finds boards that standard misses on a dim or
+# low-contrast panel, and costs time on every attempt. The radio buttons per
+# camera choose it.
+string preprocess
+---
+bool success
+
+# Detected: corner pixel coordinates, and the alpha/beta each maps to. As JSON so
+# the shape stays the engine's (Measure3d::DetectionResult) and not this file's.
+string detection_json
+
+# The anypoint view with the detected corners drawn on it -- for the dialog's
+# per-direction thumbnail. Already scaled for display.
+sensor_msgs/CompressedImage overlay
+
+# False when the board was simply not found. That is a normal outcome the
+# operator resolves by re-aiming, not an error: success is still true.
+bool found
+
+string message

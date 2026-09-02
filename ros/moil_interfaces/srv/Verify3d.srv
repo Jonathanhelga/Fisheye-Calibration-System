@@ -1,0 +1,50 @@
+# The 3D verification itself: triangulate every direction both cameras detected,
+# fit the planes, and report how far off the result is.
+#
+# This is what the dialog's "Start Calculation" runs. Every part of it -- the
+# triangulation, the plane fit, the reprojection -- is computed here. The client
+# receives numbers to print and images to show.
+#
+# No images are uploaded: the sources and their detections are already on the
+# server, put there by Measure3dSource and DetectCheckerboard. What the request
+# carries is the part that is not a measurement -- the numbers the operator typed.
+
+# Where the two fisheyes are, in millimetres. These come from the dialog's spin
+# boxes because nothing measures them: the baseline between the cameras is the
+# one quantity the entire triangulation scales with, so it is an input, and a
+# wrong entry here produces a 3D result that is internally consistent and the
+# wrong size.
+float64[3] cam_left
+float64[3] cam_right
+
+# Inner corner counts per direction, parallel arrays. Used for the grid edges in
+# the plane fit; a direction absent here is still triangulated, just not drawn
+# with its grid.
+string[] directions
+int32[] pattern_cols
+int32[] pattern_rows
+---
+bool success
+
+# Triangulated points as JSON: [{"dir":"north","pts":[[x,y,z], ...]}, ...] in
+# millimetres, plus the two camera centres:
+#   {"cam_left":[x,y,z], "cam_right":[x,y,z], "directions":[ ... ]}
+#
+# The client's GL view draws these. Drawing them is not computing them -- the
+# view rotates a point cloud it was handed, and derives no measurement from it.
+string points_json
+
+# The four read-out rows the dialog fills in, per direction:
+#   {"angle":{"north":12.3, ...}, "mean_dist":{...},
+#    "plane_dist":{...}, "depth":{...}}
+string metrics_json
+
+# Reprojection drawn back onto each fisheye, one per camera, for the result tabs.
+sensor_msgs/CompressedImage[] overlays
+string[] overlay_labels
+
+# Directions that were skipped because only one camera saw them. Named, because
+# a quietly missing direction moves the plane fit without ever looking wrong.
+string[] skipped
+
+string message

@@ -1,0 +1,50 @@
+# Give the server one of the 3D dialog's two fisheye images, and its camera
+# parameters.
+#
+# The 3D workflow is image-driven rather than live: the operator picks files. The
+# files are on the CLIENT machine, so the bytes travel once, here, and everything
+# afterwards -- anypoint remaps, checkerboard detection, triangulation -- refers
+# to the source by id and moves no pixels back and forth.
+#
+# Sending an empty image with a non-empty params_json replaces just the camera
+# parameters, which is what the "open parameter" button does. That invalidates
+# every detection made under the old parameters, and the reply says how many were
+# dropped, because silently keeping alpha/beta computed from different optics is
+# the failure this dialog is most able to hide.
+
+# "left" | "right" for the 3D dialog. Any other non-empty name is a private slot
+# for another window -- Center Setup uses "center_setup" -- so that reloading its
+# source cannot disturb the two the 3D dialog is holding detections against.
+string position
+
+# Camera name inside params_json, when the file holds several. Empty for the first.
+string camera_type
+
+# Working resolution ratio. 1.0 is the file's own calibration resolution. Center
+# Setup drops it so that opening a 3040x3040 fisheye, and every centre nudge after
+# it, stay responsive -- every coordinate it then shows is in this grid.
+float64 resolution_ratio
+
+# Empty to keep the image already loaded for this position.
+sensor_msgs/CompressedImage image
+
+# Empty to keep the parameters already loaded.
+string params_json
+
+# What the operator picked, for the path label. Not opened by the server.
+string image_name
+string params_name
+---
+bool success
+
+# Refer to this source in Anypoint / DetectCheckerboard / Verify3d.
+string source_id
+
+# The fisheye image's real size.
+int32 width
+int32 height
+
+# Detections thrown away because the parameters changed. The client re-runs them.
+int32 invalidated
+
+string message

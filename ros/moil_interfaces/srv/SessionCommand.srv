@@ -1,0 +1,32 @@
+# The session lifecycle, in one service.
+#
+# command: "list" | "create" | "open" | "close" | "rename" | "save" | "remove"
+#          | "undo" | "redo"
+#
+# Sessions live on the SERVER, in directories under its sessions root -- which is
+# the arrangement the store was built for and lost when v2.0 merged the two
+# processes into one. Work outlives the client, captures are never uploaded
+# because the camera is already here, and a second client sees the first one's
+# work.
+#
+# "remove" is irreversible and the server does not ask. The client must already
+# have asked the operator.
+string command
+
+# Which session. Empty means the one currently open.
+string session_id
+
+# create/rename: the name. Everything else: empty.
+string payload
+---
+bool success
+
+string session_id
+uint64 version
+
+# "list": [{"id":"...","name":"...","created_at":0,"version":0,
+#           "captures":["pos","neg"]}, ...], newest first.
+# Everything else: "{}".
+string result
+
+string message

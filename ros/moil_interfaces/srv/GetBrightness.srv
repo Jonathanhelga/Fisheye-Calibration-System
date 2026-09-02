@@ -1,0 +1,11 @@
+# Baca kecerahan satu monitor. Menggantikan get_brightness().
+#
+# direction: "top" | "n" | "s" | "e" | "w"
+string direction
+---
+bool success
+
+# Nilai kecerahan. Lewat HTTP ini datang sebagai teks di dalam "message";
+# di sini dipisahkan jadi angka supaya client tidak perlu mem-parsing string.
+float64 brightness
+string message

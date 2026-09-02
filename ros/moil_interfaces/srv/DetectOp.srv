@@ -1,0 +1,30 @@
+# Image analysis, addressed by name. Nothing here runs on the client.
+#
+# op is one of ComputeOps::detect:
+#
+#   nodes_8dir          pos + neg -> per-direction node lists
+#   histogram_8dir      curves + nodes for the plot panel
+#   fisheye_edge        image -> centre + radius
+#   roi                 image + seed -> refined point
+#   ring_center         image + ring count -> centre
+#   pattern_ring_radii  pattern PNG -> ring radii
+#
+# The number of images each op wants is fixed and documented by the op; the node
+# rejects a wrong count before decoding anything, because decoding a 3040x3040
+# frame to discover the request was malformed is 40 ms wasted per mistake.
+string op
+
+# In the order the op documents -- positive then negative for the two-image ops.
+sensor_msgs/CompressedImage[] images
+
+# Op parameters as JSON. Every op takes noise_cleaning here: it is a process-wide
+# flag inside MoilCali, so a node serving several clients must set it per request
+# rather than inheriting whatever the last caller left behind.
+string params_json
+---
+bool success
+
+# The op's answer as JSON. Empty when success is false.
+string result_json
+
+string message

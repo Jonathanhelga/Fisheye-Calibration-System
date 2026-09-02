@@ -1,0 +1,8 @@
+# Tutup pola pada satu monitor, atau semua. Menggantikan close_pattern() dan
+# close_pattern_all().
+#
+# direction: "top" | "n" | "s" | "e" | "w", atau "all".
+string direction
+---
+bool success
+string message

@@ -1,0 +1,31 @@
+# Read or write an .xlsx, as bytes.
+#
+# The file dialog stays on the client -- picking a path is the operator's, and
+# the operator is sitting at the client. Everything between the path and the
+# bytes is parsing, and parsing is computing, so it happens here: the client
+# either hands over the bytes it read from disk, or writes down the bytes it is
+# given.
+#
+# mode: "read" | "write"
+string mode
+
+# read: the file's bytes.  write: empty.
+uint8[] data
+
+# Sheet to read. Empty means "Sheet", falling back to the first sheet -- which is
+# what the cali-result loader does, and the fallback matters: files saved by
+# older versions of this app do not all name their sheet.
+string sheet
+
+# write: the grid as JSON, [["a1","b1"],["a2","b2"], ...]. read: empty.
+string grid_json
+---
+bool success
+
+# read: the parsed grid as JSON.  write: empty.
+string grid_json
+
+# write: the .xlsx bytes for the client to save.  read: empty.
+uint8[] data
+
+string message

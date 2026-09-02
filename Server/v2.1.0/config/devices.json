@@ -1,0 +1,107 @@
+﻿{
+    "_comment": [
+        "The hardware wired to this machine. Replaces moil_camera.yaml,",
+        "moil_axis.yaml and moil_monitor.yaml, which were three files because",
+        "there were three ROS nodes; there is one process now, so there is one",
+        "file. Every key is optional -- a missing key uses the default in",
+        "src/models/device/device_config.h, which is the value the rig was",
+        "running with. Delete this file entirely and the app still starts.",
+        "",
+        "The app WRITES this file when the display mapping is applied, so",
+        "comments and key order are not preserved once that happens."
+    ],
+
+    "axis": {
+        "_comment": [
+            "system: 'yuanman' (Arduino Mega for X/Y/Z + KOHZU CRUX for",
+            "yaw/pitch, two ports) or 'yinda' (five ports, one per axis).",
+            "",
+            "SETTLED on this machine, 2026-08-10, by reading Windows itself",
+            "(Win32_SerialPort) rather than either source:",
+            "    COM3 = 'Arduino Mega 2560'      VID_2341&PID_0042",
+            "    COM4 = 'CRUX USB Serial Port'   VID_267D&PID_1121",
+            "So moil_axis.yaml's comment was the correct one and",
+            "axis_module_yuanman.py's COM4/COM5 defaults were not -- those are",
+            "what the FastAPI server and then the ROS node instantiated, and they",
+            "were wrong here, which is why the app reported 'COM5 is not found'.",
+            "These numbers are per-machine: re-check Device Manager on any other",
+            "rig instead of copying this file.",
+            "",
+            "enable_write_position: sends WRP to zero the position counter after",
+            "a home. OFF by default because it has never in fact been sent: the",
+            "ROS client made it a no-op, and before that the Python driver's",
+            "range guards were inverted so it always refused. Turning it on is a",
+            "change to how the hardware behaves, not a restoration."
+        ],
+        "system": "yuanman",
+
+        "arduino_port": "COM3",
+        "arduino_baud": 115200,
+        "crux_port": "COM4",
+        "crux_baud": 9600,
+
+        "yaw_port": "COM1",
+        "pitch_port": "COM2",
+        "x_port": "COM3",
+        "y_port": "COM4",
+        "z_port": "COM5",
+        "yinda_baud": 9600,
+
+        "crux_reply_ms": 100,
+        "arduino_reply_ms": 10,
+
+        "enable_write_position": false
+    },
+
+    "camera": {
+        "_comment": [
+            "backend: 'mf' | 'msmf' | 'dshow' | 'any'. Ignored off Windows.",
+            "",
+            "'mf' does not go through OpenCV at all -- it is the Media Foundation",
+            "path in camera_mf.cpp, the same API the Windows Camera app uses, and",
+            "it picks the camera's MJPG mode (0.25 MB a frame) over YUY2 (18.5 MB).",
+            "'msmf' is OpenCV's own Media Foundation wrapper, which measured 21.3",
+            "fps at 3040x3040 against dshow's 1.1 (dshow pins the stream to",
+            "uncompressed YUY2). Do not change any of this without re-measuring.",
+            "",
+            "capture_format: 'jpeg' reproduces the images the detectors were",
+            "tuned against -- the camera node published JPEG q=80 and everything",
+            "downstream saw those. 'png' is lossless and now possible (there is",
+            "no transport to pay for), but it changes what the detectors see and",
+            "costs about a second per 3040x3040 frame to encode."
+        ],
+        "_measured_on_this_rig_2026_08_10": [
+            "msmf CANNOT OPEN this camera at all through OpenCV 4.6.0 -- every id,",
+            "and OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS=0 does not help. Raw",
+            "Media Foundation opens the same device and pulls 3040x3040 frames in",
+            "MJPG, NV12 and YUY2, so the camera is fine and the limit is OpenCV's",
+            "msmf backend.",
+            "dshow opens it and reaches 3040x3040, but measured 1.17 fps here --",
+            "matching the 1.1 this file already warned about. Asking dshow for MJPG",
+            "does NOT help: the fourcc comes back YUY2 either way, so it really is",
+            "pinned to 18.5 MB per uncompressed frame.",
+            "So this is 1.17 fps against not working at all, not against 21.3."
+        ],
+        "camera_id": 0,
+        "backend": "mf",
+        "image_width": 3040,
+        "image_height": 3040,
+        "capture_format": "jpeg",
+        "jpeg_quality": 80
+    },
+
+    "monitor": {
+        "_comment": [
+            "Direction -> display number. Written by Monitor Viewer > Setup",
+            "Monitor Direction; there is no need to fill it in by hand. Empty",
+            "means unmapped, and patterns are refused with that as the reason.",
+            "Accepts '1' or 'DISPLAY1'."
+        ],
+        "top": "",
+        "n": "",
+        "w": "",
+        "s": "",
+        "e": ""
+    }
+}
+

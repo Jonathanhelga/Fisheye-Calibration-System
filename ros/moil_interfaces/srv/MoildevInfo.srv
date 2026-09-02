@@ -1,0 +1,58 @@
+# What a camera parameter file says, and the ring radii drawn from it.
+#
+# Center Setup overlays the fisheye with a crosshair at the optical centre and a
+# ring at every N degrees of alpha, so an operator can see whether the centre is
+# right. In v2.0 the window held a Moildev instance and called getRhoFromAlpha()
+# per ring.
+#
+# That is a lens model evaluation -- the polynomial that maps an incident angle to
+# a radius on the sensor -- so it happens here, and the client receives radii in
+# pixels and draws circles. The distinction is not pedantic: getRhoFromAlpha is
+# the calibration itself, and a second implementation of it on the client is
+# precisely the two-copies-of-a-formula problem this architecture exists to avoid.
+
+# The camera parameter JSON the operator picked.
+string params_json
+
+# Camera name inside that JSON, when it holds several. Empty for the first.
+string camera_type
+
+# Working resolution ratio. 1.0 is the file's own calibration resolution; the
+# window drops it for a faster preview on large sensors, and every value below
+# scales with it -- which is the reason it is an input rather than something the
+# client applies afterwards.
+float64 resolution_ratio
+
+# Override the optical centre before computing the radii. This is what the two
+# spin boxes do: the operator drags the centre and the rings must move with it.
+# Send has_center false to use the file's own icx/icy.
+bool has_center
+int32 icx
+int32 icy
+
+# Alpha values, in degrees, to return radii for. Empty means "every 10 degrees up
+# to fov/2", which is what the overlay draws by default.
+float64[] alphas
+---
+bool success
+
+# The file's own calibration resolution, before resolution_ratio.
+int32 native_width
+int32 native_height
+
+# The resolution everything below is expressed in.
+int32 width
+int32 height
+
+float64 camera_fov
+
+# The optical centre in force -- the file's, or the override.
+int32 icx
+int32 icy
+
+# Radius in pixels for each requested alpha, same order. A negative entry means
+# that alpha falls outside the lens model and the client should not draw a ring
+# for it, rather than drawing one at a made-up radius.
+float64[] rho
+
+string message

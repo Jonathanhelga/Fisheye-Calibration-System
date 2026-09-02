@@ -1,0 +1,25 @@
+# Read ONE sensor, on demand. Replaces the 20 is_sensor_*() calls.
+#
+# This is the faithful mapping of the HTTP behaviour: over HTTP the GUI read a
+# sensor only when it needed that sensor, so the serial port saw traffic only on
+# demand. AxisSensors.msg (the periodic topic) is the nicer interface, but it
+# polls all 20 sensors on a timer, which puts continuous traffic on the very
+# serial ports the motion commands share. On this rig that is exactly the
+# interleaving that axis_module_yuanman warns about, so the topic is opt-in and
+# this service is the default path.
+#
+# name is the is_sensor_* method name without the prefix:
+#   x_left     x_org     x_right     x_move
+#   y_down     y_org     y_up        y_move
+#   z_back     z_org     z_forward   z_move
+#   yaw_left   yaw_org   yaw_right   yaw_move
+#   pitch_down pitch_org pitch_up    pitch_move
+string name
+---
+bool success
+
+# The value the module returned. A serial error makes the module return None,
+# which HTTP delivered as null and the client treated as falsy; here that
+# becomes False and success is set to false so the caller can tell them apart.
+bool value
+string message

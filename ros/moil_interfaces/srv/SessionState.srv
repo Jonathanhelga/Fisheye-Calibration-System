@@ -1,0 +1,19 @@
+# Fetch the session's table, if it has moved.
+#
+# since_version is the version the client last received. When the session is
+# still at that version the reply carries `changed = false` and no state at all
+# -- the tables are large and re-sending an unchanged one on every poll is most
+# of the traffic this interface would otherwise generate.
+string session_id
+uint64 since_version
+---
+bool success
+
+bool changed
+
+# CaliTableData JSON: the 11 round tables and the scalar fields. Empty when
+# changed is false.
+string state_json
+
+uint64 version
+string message

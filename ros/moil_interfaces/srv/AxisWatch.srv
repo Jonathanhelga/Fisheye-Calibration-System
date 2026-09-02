@@ -1,0 +1,37 @@
+# Ask the server to stream AxisState for these axes, and stop streaming the rest.
+#
+# The list is ABSOLUTE, not additive: it is the complete set of axes to watch.
+# Sending an empty list stops all polling, which is the resting state -- a rig
+# nobody is looking at should have no traffic on its serial ports at all.
+#
+# Why this is opt-in rather than always on:
+#
+# A full sweep of one axis is five blocking serial round trips (four sensors and
+# a position), and the reply timeouts are 100 ms on the Arduino and 300 ms on the
+# CRUX. Watching all five axes continuously is 25 round trips per sweep, on the
+# same two ports every motion command has to get through. The v2.0 client watched
+# ONE axis, only while it was moving, for exactly that reason -- and this keeps
+# that shape while moving the cost to the server, where it is paid once for
+# however many clients are looking.
+#
+# The watch is server-wide, not per client. Two clients watching X do not double
+# the polling; they get the same stream. What that means in practice: a client
+# should ask for what IT needs and not assume it is the only one, because another
+# client may already have asked for more.
+string[] axes
+
+# Polls per second per axis. 0 uses the server's configured default.
+#
+# Be realistic about the ceiling: at five round trips an axis, anything above a
+# few Hz per axis is asking the serial link for more than it has, and the
+# practical effect is that motion commands start queueing behind sensor reads.
+float64 hz
+---
+bool success
+
+# The axes actually being watched now, which is what was asked for unless a name
+# was not recognised.
+string[] watching
+
+float64 hz
+string message

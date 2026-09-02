@@ -1,0 +1,32 @@
+# Render what show_pattern_spec WOULD put on a panel, without touching the glass.
+#
+# Two callers need this and neither wants the screen to change:
+#
+#   * the Monitor Viewer's preview, which shows the operator what is about to be
+#     displayed. In v2.0 the client rendered that preview itself -- with its own
+#     copy of the renderer, at a size it guessed. Both of those are gone: the
+#     server renders, at the panel's real pixel grid, with the same code that
+#     drives the glass.
+#
+#   * --check on the server, which verifies the mapping and the renderer on a
+#     machine whose screens are somebody's desktop.
+#
+# direction: "top" | "n" | "w" | "s" | "e"
+string direction
+string spec_json
+
+# Shrink the returned PNG so a preview does not ship 1920x1920 of pixels for a
+# 400 px label. 0 means full size. The pattern is rendered at the panel's native
+# resolution either way -- this only scales the copy being sent.
+int32 max_side
+---
+bool success
+
+sensor_msgs/CompressedImage image
+
+# The size it was RENDERED at, which is the panel's native size, not the size of
+# the image above when max_side shrank it.
+int32 width
+int32 height
+
+string message

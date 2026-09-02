@@ -1,0 +1,9 @@
+# Tanyakan arah kalibrasi yang dipetakan ke satu nomor display.
+# Menggantikan get_display_direction().
+string display_number
+---
+bool success
+
+# "top" | "n" | "s" | "e" | "w", atau kosong kalau display itu belum dipetakan.
+string direction
+string message

@@ -1,0 +1,12 @@
+# Petakan nomor display fisik ke arah kalibrasi. Menggantikan
+# set_display_direction().
+#
+# Tiap field berisi nomor display (sebagai teks, seperti API lama).
+string display_top
+string display_n
+string display_w
+string display_s
+string display_e
+---
+bool success
+string message

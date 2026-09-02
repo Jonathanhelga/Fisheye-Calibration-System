@@ -1,0 +1,48 @@
+# Tampilkan pola dengan mengirim SPESIFIKASINYA, bukan gambarnya.
+#
+# Node yang merender, memakai resolusi ASLI monitor tujuan. Itu alasan utama
+# service ini ada: client tidak tahu panel mana yang akan menampilkan, dan
+# tebakan resolusi yang meleset hanya membuat gambar teregang -- diam-diam
+# mengubah ukuran fisik pola di kaca, yang merusak kalibrasi tanpa terlihat
+# seperti error.
+#
+# Kirim "width": 0, "height": 0 supaya node yang menentukan. Isi keduanya hanya
+# kalau memang sengaja ingin memaksa ukuran tertentu.
+#
+# Ukurannya juga jauh lebih kecil: ~1 KB spec dibanding ~80 KB PNG per layar.
+
+# "top" | "n" | "w" | "s" | "e", atau "all".
+#
+# Untuk "all", node merender ULANG per monitor. Wajib begitu di rig ini: layar
+# atas 1920x1920 (EV2730Q) sedangkan keempat sisinya 2160x3840 -- panel 4K
+# EV2785 yang dipasang portrait -- jadi satu gambar tidak mungkin benar untuk
+# semuanya. (Angka sisi tertulis 1440x2560 sampai 2026-08-24; itu salah.
+# Diperiksa langsung ke rig lewat /monitor/describe_screens.)
+string direction
+
+# Spesifikasi pola sebagai teks JSON:
+#
+#   {
+#     "type": "concentric",          // concentric | stripeline | chessboard
+#     "width": 0, "height": 0,       // 0 = pakai resolusi asli monitor
+#     "crossline": false,
+#     "layers": [
+#       {"shape": "circle", "radius": 40, "rgb": [0,0,0], "cx": 0, "cy": 0}
+#     ]
+#   }
+#
+# stripeline memakai "interval" per layer, bukan "radius".
+# chessboard memakai "square_mm", "pixel_size_mm", "fg_rgb", "bg_rgb"
+# -- konversi mm ke piksel dilakukan di sini, terhadap panel yang menampilkan.
+string spec_json
+---
+bool success
+
+# Ukuran yang BENAR-BENAR dirender, per monitor. Untuk "all" berisi satu entri
+# per arah, urut sesuai directions di bawah. Dipakai client untuk memastikan
+# node memakai resolusi yang diharapkan.
+int32[] widths
+int32[] heights
+string[] directions
+
+string message

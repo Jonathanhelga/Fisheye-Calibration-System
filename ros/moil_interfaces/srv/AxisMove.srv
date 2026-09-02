@@ -1,0 +1,20 @@
+# Gerakkan satu sumbu. Menggantikan x_left/x_right/y_up/y_down/z_forward/
+# z_back/yaw_left/yaw_right/pitch_up/pitch_down di AxisHTTPClient.
+#
+# direction memakai nama yang sama persis dengan endpoint HTTP lama, supaya
+# pemetaannya jelas dan mudah diperiksa:
+#   x_left  x_right  y_up  y_down  z_forward  z_back
+#   yaw_left  yaw_right  pitch_up  pitch_down
+string direction
+
+# Jarak dalam satuan yang dipakai rig (mm untuk X/Y/Z, derajat untuk yaw/pitch).
+float64 distance
+
+# Nama kecepatan seperti pada GUI, mis. "slow" / "normal" / "fast".
+string speed
+---
+bool success
+
+# Teks yang dulu dikembalikan HTTP sebagai data["message"], diteruskan apa adanya
+# supaya GUI bisa menampilkannya tanpa perubahan.
+string message

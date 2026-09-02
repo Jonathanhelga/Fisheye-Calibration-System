@@ -1,0 +1,108 @@
+# The closed-loop calibration run, start to finish, on the server.
+#
+# In v2.0 this was a chain of timers in the client's main window: shoot positive
+# five times, shoot negative five times, clean, update the table, save, move Z
+# back 20 mm, repeat for five sub-folders -- with a chessboard step first that
+# pushes X out 20 mm and back. Every link of that chain is a rig command or a
+# calculation, and both now live here.
+#
+# It also stops being fragile in a way that mattered: with the loop in the client,
+# closing the window mid-run left the stage wherever the last move put it. The
+# loop is now on the same machine as the stage, and a client that disappears does
+# not abandon a moving axis -- the run continues, and reconnecting picks the
+# feedback back up.
+
+# Where the results go, RELATIVE TO THE SERVER's sessions root. Not a client
+# path: the client's C: drive is not this machine's.
+string run_name
+
+# Sub-folder names, one per round. The historical set is 1, 3, 5, 7, 9.
+string[] rounds
+
+# Shots per pattern polarity, per round. Historically 5.
+int32 shots_per_polarity
+
+# Seconds between shots. Historically 10 -- long enough for the panel to settle.
+float64 shot_interval
+
+# Millimetres to move Z back between rounds. Historically 20.
+float64 z_step_mm
+
+# Run the chessboard step first: capture at the origin, then 20 mm right, then
+# 20 mm left. It has to happen before the pattern rounds, because every pattern
+# shot covers all five screens.
+bool chessboard_step
+float64 chessboard_offset_mm
+
+# Camera name, used for the chessboard sub-folder.
+string camera_name
+
+# The patterns to put on the glass, as ShowPatternSpec JSON. The server renders
+# them at each panel's own resolution; it does not invent them, because what is
+# on the glass is the operator's calibration design and it is authored in the
+# Pattern Generator.
+#
+# Four specs, because a round is four different pictures:
+string spec_top_positive     # concentric, positive colours  -> TOP
+string spec_side_positive    # stripeline, positive colours  -> N/W/S/E
+string spec_top_negative
+string spec_side_negative
+
+# Chessboard, for the step that runs before the rounds. Empty disables that step
+# regardless of `chessboard_step`.
+string spec_chessboard_top
+string spec_chessboard_side
+
+# The 75 pattern values (25 concentric radii + 50 stripeline intervals) that fill
+# the round table's PCT column. They describe the pattern above, so they travel
+# with it -- a table computed against different radii than the glass was showing
+# is wrong in a way no later step can detect.
+string[] pct_values
+
+# The scalar form inputs the pipeline reads (pixel sizes, gaps, distances), as
+# the same JSON object CaliTableData carries under "fields".
+string fields_json
+---
+bool success
+
+# Where it wrote, on the server.
+string run_path
+
+# The completed table -- all rounds, as CaliTableData JSON, exactly what
+# /compute/cali returns.
+#
+# Without this the run is invisible to the operator. The results are written on
+# the rig, and XlsxIo deliberately moves BYTES rather than reading server paths,
+# so a client that only got `run_path` back would have no way to show what the
+# rig computed -- and the step that fills the camera Parameter panel
+# (ControllerCaliResult::finishAutoCalibration) reads the client's round tables,
+# which in the old client-driven run were populated as a side effect of Update
+# Table. It costs nothing to send: the run already holds every round in one
+# CaliTableData, because each round is added to the same object and computeAll
+# runs over all of them.
+string table_json
+
+# Rounds actually completed. Fewer than requested after a cancel.
+string[] completed
+
+bool cancelled
+
+# On abort mid-chessboard-step, the run undoes the X excursion -- that offset was
+# temporary. The per-round Z moves are real progress and are left where they are.
+# This says where the stage was left, because the next thing the operator does
+# depends on it.
+string final_pose
+
+string message
+---
+# Which round, and where inside it. `stage` is the text the button shows:
+# "[3] Pos 2/5", "[3] moving Z", "chessboard 1/3".
+int32 round_index
+int32 round_total
+int32 done
+int32 total
+string stage
+
+# The shot just taken, small, so the operator can watch the run rather than
+# trust it. Empty on the non-capture steps.
+sensor_msgs/CompressedImage preview

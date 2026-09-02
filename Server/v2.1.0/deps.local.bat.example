@@ -1,0 +1,62 @@
+@echo off
+REM ===========================================================================
+REM deps.local.bat -- your machine, and only yours.
+REM
+REM   copy deps.local.bat.example deps.local.bat
+REM
+REM and then delete every line you do not actually need. An empty file is the
+REM normal case: scripts\moil_env.bat searches for all of this and, on a standard
+REM Windows dev box, finds it. Run
+REM
+REM   scripts\moil_env.bat --check
+REM
+REM FIRST. Override only what it failed to find or found wrongly.
+REM
+REM deps.local.bat is read before any searching, so anything set here wins and is
+REM never second-guessed. Do not commit it -- that is the whole point of it being
+REM a separate file. Nothing else in this tree may name an absolute path.
+REM ===========================================================================
+
+REM ---- Qt 6, the PREFIX (the msvc*_64 folder), not its lib\cmake\Qt6 ---------
+REM set "QT_DIR=C:\Qt\6.5.3\msvc2019_64"
+
+REM ---- OpenCV: the lib folder under build\x64\vc15, and NOT build\ -----------
+REM build\OpenCVConfig.cmake maps MSVC_VERSION to a vc14/vc15 subfolder, and
+REM 4.6.0 shipped before MSVC 19.44 existed -- it leaves OpenCV_RUNTIME empty and
+REM reports "no binaries compatible with your configuration" with the package
+REM sitting right there. vc15 is the VS2017+ ABI; VS2019 and VS2022 share it.
+REM OPENCV_BIN is derived from this, so do not set it separately.
+REM set "OPENCV_DIR=C:\dev\deps\opencv460\opencv\build\x64\vc15\lib"
+
+REM ---- Eigen: almost certainly leave this alone -----------------------------
+REM Eigen normally comes from the ROS distro's own environment, which colcon puts
+REM on CMAKE_PREFIX_PATH. Set this only if the build fails at
+REM find_package(Eigen3). It must be an install PREFIX -- the folder holding
+REM share\eigen3\cmake\Eigen3Config.cmake -- not an include directory.
+REM set "EIGEN_DIR=C:\dev\deps\eigen3"
+
+REM ---- the ROS 2 distro ------------------------------------------------------
+REM A pixi environment: point at its pixi.toml. local_setup.bat must sit beside
+REM it; ROS_LOCAL_SETUP is derived from this.
+REM set "PIXI_MANIFEST=C:\dev\lyrical\pixi.toml"
+REM
+REM Not pixi? Leave PIXI_MANIFEST unset, set only the setup script. If ros2 and
+REM colcon are already on PATH, set neither -- the launchers detect that and skip
+REM the re-exec entirely.
+REM set "ROS_LOCAL_SETUP=C:\opt\ros\jazzy\local_setup.bat"
+
+REM ---- MSVC ------------------------------------------------------------------
+REM Found through vswhere, so this is needed only for a copied toolchain whose
+REM installer was never run on this machine.
+REM set "VCVARS=C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
+
+REM ---- where colcon builds ---------------------------------------------------
+REM Deliberately OUTSIDE the workspace and deliberately short. Windows caps a
+REM path at 260 characters and rosidl nests about 120 characters deep on its own,
+REM so a workspace under Desktop overflows and the compiler reports "Cannot open
+REM source file" for a header that exists.
+REM
+REM build\, install\ and log\ are derived from this. Change it if C:\ is full, or
+REM if you want two checkouts to keep genuinely separate build trees; keep it
+REM short and keep it off a network drive.
+REM set "MOIL_WS_BASE=D:\moil_ws"

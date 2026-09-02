@@ -1,0 +1,22 @@
+# Put an already-prepared polarity on the glass.
+#
+# No rendering, no JSON, no images on the wire: the server loads the two PNGs
+# PreparePatterns wrote and blits them -- concentric to TOP, stripeline to the
+# four side panels. This is what a Pos/Neg shot calls.
+#
+# It fails rather than falling back to rendering. A shot taken against a pattern
+# that was quietly regenerated from a spec the operator has since edited is a
+# measurement of the wrong thing, and it would look exactly like a good one. If
+# nothing is prepared, the answer is "prepare first".
+
+# "positive" | "negative"
+string polarity
+---
+bool success
+
+# Directions that actually received their pattern. Short of five means some
+# panel is unmapped or refused -- the caller should say so rather than assume
+# the glass is showing what it asked for.
+string[] shown
+
+string message

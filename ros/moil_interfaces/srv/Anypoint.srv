@@ -1,0 +1,53 @@
+# One anypoint view out of a fisheye image, rendered by the Moildev SDK port.
+#
+# Used by Center Setup and by the 3D dialog. Both of them used to hold a Moildev
+# instance in the client and build the dense per-pixel remap themselves -- which
+# is a 3040x3040 coordinate transform, i.e. exactly the kind of work that is not
+# supposed to happen on a remote any more.
+#
+# The remap tables are cached on the server per (source, camera, direction,
+# angles, zoom, mode). Re-asking for the same view is a lookup and an encode;
+# only a change of angle rebuilds anything.
+
+# Which loaded source to draw from -- see Measure3dSource.srv. Use "capture" for
+# the frame the camera last returned, which is what Center Setup wants.
+string source_id
+
+# Camera parameter JSON (the *_params.json the operator picks). May be empty when
+# source_id already carries its parameters.
+string params_json
+
+# alpha, beta, theta in degrees, then the zoom factor.
+float64 alpha
+float64 beta
+float64 theta
+float64 zoom
+
+# 1 or 2 -- the Moildev anypoint mode. Mode 2 is the dense per-pixel transform.
+int32 mode
+
+# Camera name inside params_json, when it holds several. Empty for the first.
+string camera_type
+
+# Working resolution ratio. 1.0 is the file's own calibration resolution; Center
+# Setup drops it for a faster preview on large sensors.
+float64 resolution_ratio
+
+# Override the optical centre, so the view follows Center Setup's spin boxes.
+# has_center false uses the file's own icx/icy.
+bool has_center
+int32 icx
+int32 icy
+
+# Output size. 0 x 0 keeps the source's size.
+int32 width
+int32 height
+
+# Shrink the returned copy only. 0 for none.
+int32 max_side
+---
+bool success
+sensor_msgs/CompressedImage image
+int32 width
+int32 height
+string message

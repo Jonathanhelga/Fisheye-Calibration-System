@@ -1,0 +1,60 @@
+# Find a view of the checkerboard, by sweeping until one detects.
+#
+# Per (camera, direction): sweep zoom with small pitch/yaw nudges on a
+# low-resolution anypoint until the board is found, then re-run the detection at
+# full resolution and report the winning angles for the dialog's spin boxes.
+#
+# It is a search, so it is an action -- tens of low-res remaps, each a full
+# per-pixel transform, and the operator gets to stop it.
+string camera
+string direction
+
+# The board's inner-corner counts, as the operator typed them. 0 x 0 means "no
+# hint": the search then tries square boards from 4x4 to 9x9.
+#
+# A typed size is a HINT, not a constraint. The search also tries its transpose
+# and its count-1 -- the second because typing SQUARES instead of inner corners is
+# the commonest mistake here, and it produces a board that never detects with no
+# indication why.
+int32 pattern_cols
+int32 pattern_rows
+
+# Where to search from: the direction's current angles. The preset for a direction
+# is a starting point, not the answer -- an off-centre optical axis or an
+# off-centre board puts the real one degrees away, which is what stage A pans for.
+float64 base_pitch
+float64 base_yaw
+float64 base_zoom
+---
+bool success
+
+# The view that worked. The client writes these into the spin boxes; it does not
+# derive them.
+float64 alpha
+float64 beta
+float64 theta
+float64 zoom
+
+bool found
+bool cancelled
+
+# The board size the search actually detected, which is NOT always the one that
+# was asked for -- it may be the transpose, or count-1 when the operator typed
+# squares. The client writes these back into the direction's size field, because
+# a later manual Detect at the winning angles with the WRONG size finds nothing
+# and looks like the auto-frame lied.
+int32 pattern_cols
+int32 pattern_rows
+
+# The full-resolution detection at the winning angles, same shape as
+# DetectCheckerboard's -- so a successful auto-frame leaves the direction
+# detected, not merely aimed.
+string detection_json
+sensor_msgs/CompressedImage overlay
+
+string message
+---
+int32 done
+int32 total
+float64 zoom       # what it is trying right now, so the sweep is visible
+string stage

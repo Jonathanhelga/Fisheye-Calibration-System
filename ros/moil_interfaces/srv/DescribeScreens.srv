@@ -1,0 +1,20 @@
+# Which panels the server can see, and what each is mapped to.
+#
+# The first question when a pattern does not appear is which screens the SERVER
+# thinks it has -- not which ones the operator's client machine has. Those are
+# different machines now, and that is precisely the confusion this service
+# exists to end.
+---
+bool success
+
+# One entry per attached screen, parallel arrays.
+string[] names       # "DISPLAY1"
+int32[] widths
+int32[] heights
+string[] directions  # "top" | "n" | "w" | "s" | "e", or "-" when unmapped
+
+# True when all five calibration directions are mapped. False means the
+# directions are UNSET and any show_pattern is going to land somewhere arbitrary.
+bool mapping_complete
+
+string message

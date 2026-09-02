@@ -1,0 +1,35 @@
+# Record (or clear) the software zero of one axis.
+#
+# The rig's counter is never zeroed in hardware -- see AxisOrigin in the server's
+# common code, and DeviceConfig::enableWritePosition for why writing it is off.
+# So HOME means 0 only because the counter standing at the origin sensor is
+# remembered, here, and subtracted from every later reading.
+#
+# Call this ONLY when the axis really is on its origin sensor. An unchecked
+# capture writes a zero that is wrong for every measurement afterwards, and
+# nothing about the number looks wrong when it happens.
+#
+# axis: "x" | "y" | "z" | "yaw" | "pitch"
+string axis
+
+# "capture"        -- read the counter now and make that the zero (software)
+# "clear"          -- forget this axis' zero; coordinates go back to provisional
+# "write_hardware" -- send WRP to the controller, setting its own counter
+#
+# "write_hardware" is the one that touches the rig, and it is gated: the server
+# sends nothing unless DeviceConfig::enableWritePosition is set, which it is not
+# by default. No rig in this system's history has actually received a WRP -- the
+# old ROS client made it a no-op and the Python's range guards were inverted so it
+# always refused. Turning it on changes how the hardware behaves; it does not
+# restore anything. The call is kept so the homing flow reads the same, and so
+# that enabling the flag is a config decision rather than a code change.
+string action
+
+# "write_hardware" only: the counter value to write.
+float64 position
+---
+bool success
+
+# The coordinate after the change: "0.000" for a successful capture.
+string coordinate
+string message
