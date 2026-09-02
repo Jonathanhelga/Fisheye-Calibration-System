@@ -37,6 +37,7 @@ constexpr int kMaxDomainId = 232;
 constexpr int kStopTimeoutMs = 8000;
 constexpr int kLimitCheckTimeoutMs = 4000;
 constexpr int kMoveTimeoutMs = 120000;
+constexpr int kSettleTimeoutMs = 4000;
 
 constexpr int kHomeIdleNeeded = 3;
 constexpr double kHomeAxisTimeoutS = 120.0;
@@ -371,6 +372,9 @@ void AxisController::applyLimitCheck(const QString &axis, bool ok, bool triggere
     const PendingJog request = *it;
     pendingJog_.erase(it);
 
+    qWarning("AXISDBG limitCheck %s ok=%d triggered=%d tokenMatch=%d", qPrintable(axis), int(ok),
+             int(triggered), int(commandToken_.value(axis) == request.token));
+
     if (commandToken_.value(axis) != request.token) return;
     ++commandToken_[axis];
 
@@ -410,6 +414,7 @@ void AxisController::applyLimitCheck(const QString &axis, bool ok, bool triggere
     state->setCommandPending(true, tr("Moving %1 %2").arg(label, side));
     armTimeout(axis, kMoveTimeoutMs, tr("move"));
     setWatchFocus(axis);
+    qWarning("AXISDBG moveSent %s %s", qPrintable(axis), qPrintable(direction));
 }
 
 void AxisController::applyMoveOutcome(const QString &axis, bool ok, const QString &message,
@@ -417,14 +422,34 @@ void AxisController::applyMoveOutcome(const QString &axis, bool ok, const QStrin
     if (generation != d_->generation.load()) return;
 
     ++commandToken_[axis];
+    qWarning("AXISDBG moveOutcome %s ok=%d msg='%s'", qPrintable(axis), int(ok),
+             qPrintable(message));
     if (cancelledMoves_.remove(axis)) return;
 
     if (AxisState *state = axisOrNull(axis)) {
-        if (ok) state->markRigReplied();
-        else state->setCommandPending(false, QString());
+        if (ok) {
+            state->markRigReplied();
+            armSettle(axis);
+        } else {
+            state->setCommandPending(false, QString());
+        }
     }
 
     if (!ok) emit commandFailed(axis, message);
+}
+
+void AxisController::armSettle(const QString &axis) {
+    const quint64 token = ++commandToken_[axis];
+    const quint64 generation = d_->generation.load();
+    QTimer::singleShot(kSettleTimeoutMs, this, [this, axis, token, generation] {
+        if (generation != d_->generation.load()) return;
+        if (commandToken_.value(axis) != token) return;
+
+        ++commandToken_[axis];
+        cancelledMoves_.remove(axis);
+        qWarning("AXISDBG settleExpired %s", qPrintable(axis));
+        if (AxisState *state = axisOrNull(axis)) state->setCommandPending(false, QString());
+    });
 }
 
 void AxisController::applyStopOutcome(const QString &axis, bool ok, const QString &message,
@@ -439,6 +464,9 @@ void AxisController::applyStopOutcome(const QString &axis, bool ok, const QStrin
 
 void AxisController::setWatchFocus(const QString &axis) {
     std::lock_guard<std::mutex> lock(d_->focusMutex);
+    if (d_->watchFocus != axis)
+        qWarning("AXISDBG setWatchFocus '%s' -> '%s'", qPrintable(d_->watchFocus),
+                 qPrintable(axis));
     d_->watchFocus = axis;
 }
 
@@ -1107,8 +1135,10 @@ void AxisController::connectTo(int domainId, const QString &axisNamespace, bool 
 
                 if (source == WatchTopic) {
                     if (focus != appliedFocus) {
-                        callWatch(focus, true);
-                        appliedFocus = focus;
+                        const bool watchOk = callWatch(focus, true);
+                        qWarning("AXISDBG callWatch focus='%s' ok=%d",
+                                 qPrintable(focus), int(watchOk));
+                        if (watchOk) appliedFocus = focus;
                     }
                     std::this_thread::sleep_for(std::chrono::milliseconds(kSpinSliceMs));
                     continue;
@@ -1457,6 +1487,7 @@ void AxisController::recomputeActivity() {
         const QString label = axisLabel(state->name());
         text = state->awaitingRig() ? tr("Sent to %1, waiting for the rig").arg(label)
              : state->moving()      ? tr("Moving %1").arg(label)
+             : state->settling()    ? tr("Confirming %1 stopped").arg(label)
                                     : tr("%1 is stopping").arg(label);
         break;
     }

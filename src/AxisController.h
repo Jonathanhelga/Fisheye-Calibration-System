@@ -172,6 +172,7 @@ private:
     void cancelLimitMove();
     void requestSweep(const QStringList &axes);
     quint64 armTimeout(const QString &axis, int ms, const QString &what);
+    void armSettle(const QString &axis);
     void setWatchFocus(const QString &axis);
     bool hasSession() const { return connected() || connectionState_ == Stalled; }
     bool guardCommand(const QString &axis, bool needsMove);
