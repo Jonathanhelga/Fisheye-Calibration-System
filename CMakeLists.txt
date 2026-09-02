@@ -161,6 +161,7 @@ qt_add_qml_module(moil_fisheye_cali
         src/RosServerProbe.cpp src/RosServerProbe.h
         src/AxisState.cpp src/AxisState.h
         src/AxisController.cpp src/AxisController.h
+        src/CameraController.cpp src/CameraController.h
 )
 
 
