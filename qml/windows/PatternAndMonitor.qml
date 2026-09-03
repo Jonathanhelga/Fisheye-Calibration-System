@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Layouts
 import FisheyeCaliJojo
 
@@ -23,24 +24,35 @@ Window {
     height: root.naturalHeight
 
     property int concentricMode: 0
-    property int striplineMode: 1
+    property int stripelineMode: 1
     property int chessboardMode: 2
     property alias mode: patternSelector.currentIndex
 
     property alias concentric: concentricPanel
-    property alias stripline:  striplinePanel
+    property alias stripeline:  stripelinePanel
     property alias chessboard: chessboardPanel
 
     readonly property real patternPanelWidth: Math.max(concentricPanel.minimumWidth,
-                                                       striplinePanel.minimumWidth,
+                                                       stripelinePanel.minimumWidth,
                                                        chessboardPanel.minimumWidth)
     readonly property real patternPanelHeight: Math.max(concentricPanel.minimumHeight,
-                                                        striplinePanel.minimumHeight,
+                                                        stripelinePanel.minimumHeight,
                                                         chessboardPanel.minimumHeight)
 
     signal fourSideBrowseRequested()
     signal showNumbersRequested()
     signal applyMappingRequested(int top, int north, int west, int south, int east)
+
+    function importPattern(target) {
+        importDialog.target = target
+        importDialog.open()
+    }
+
+    function exportPattern(target) {
+        exportDialog.target = target
+        exportDialog.selectedFile = target.patternType + ".json"
+        exportDialog.open()
+    }
 
     function turnOffFourSides() {
         monitorViewer.turnOffFourSides()
@@ -110,7 +122,7 @@ Window {
                         id: patternSelector
                         Layout.fillWidth: true
                         stretch: true
-                        model: [qsTr("Concentric"), qsTr("Stripline"), qsTr("Chessboard")]
+                        model: [qsTr("Concentric"), qsTr("Stripeline"), qsTr("Chessboard")]
                         currentIndex: root.concentricMode
                     }
                     ConcentricPanel {
@@ -119,23 +131,25 @@ Window {
                         Layout.fillHeight: true
                         visible: root.mode === root.concentricMode
 
-                        onImportRequested: console.log("[Pattern And Monitor] Concentric: Import JSON requested")
-                        onExportRequested: console.log("[Pattern And Monitor] Concentric: Export JSON requested")
+                        onImportRequested: root.importPattern(concentricPanel)
+                        onExportRequested: root.exportPattern(concentricPanel)
                         onSaveImageRequested: console.log("[Pattern And Monitor] Concentric: Save Image requested")
                         onUpdateRequested: (direction) => console.log(
-                            "[Pattern And Monitor] Concentric: Update requested, direction=" + direction)
+                            "[Pattern And Monitor] Concentric: Update requested, direction=" + direction
+                            + " spec=" + JSON.stringify(concentricPanel.specJson()))
                     }
-                    StriplinePanel {
-                        id: striplinePanel
+                    StripelinePanel {
+                        id: stripelinePanel
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        visible: root.mode === root.striplineMode
+                        visible: root.mode === root.stripelineMode
 
-                        onImportRequested: console.log("[Pattern And Monitor] Stripline: Import JSON requested")
-                        onExportRequested: console.log("[Pattern And Monitor] Stripline: Export JSON requested")
-                        onSaveImageRequested: console.log("[Pattern And Monitor] Stripline: Save Image requested")
+                        onImportRequested: root.importPattern(stripelinePanel)
+                        onExportRequested: root.exportPattern(stripelinePanel)
+                        onSaveImageRequested: console.log("[Pattern And Monitor] Stripeline: Save Image requested")
                         onUpdateRequested: (direction) => console.log(
-                            "[Pattern And Monitor] Stripline: Update requested, direction=" + direction)
+                            "[Pattern And Monitor] Stripeline: Update requested, direction=" + direction
+                            + " spec=" + JSON.stringify(stripelinePanel.specJson()))
                     }
                     ChessboardPanel {
                         id: chessboardPanel
@@ -263,6 +277,80 @@ Window {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    StatusToast {
+        id: toast
+
+        anchors.centerIn: parent
+        z: 100
+    }
+
+    FileDialog {
+        id: importDialog
+
+        property var target: null
+
+        title: qsTr("Import %1 JSON").arg(importDialog.target ? importDialog.target.patternType : "")
+        fileMode: FileDialog.OpenFile
+        nameFilters: [qsTr("JSON files (*.json)"), qsTr("All files (*)")]
+
+        Component.onCompleted: importDialog.currentFolder = PatternIo.defaultDirectory
+
+        onAccepted: {
+            const source = importDialog.selectedFile
+            const name = decodeURIComponent(String(source).split("/").pop())
+
+            const text = PatternIo.readText(source)
+            if (text.length === 0) {
+                toast.show(qsTr("Import failed: %1").arg(PatternIo.lastError), true)
+                return
+            }
+
+            let doc = null
+            try {
+                doc = JSON.parse(text)
+            } catch (error) {
+                toast.show(qsTr("Import failed: %1 is not valid JSON").arg(name), true)
+                return
+            }
+
+            if (!importDialog.target.loadConfig(doc)) {
+                toast.show(qsTr("Import failed: %1 is not a %2 pattern file")
+                           .arg(name).arg(importDialog.target.patternType), true)
+                return
+            }
+
+            console.log("[Pattern And Monitor] loaded " + source)
+            toast.show(qsTr("Imported %1").arg(name), false)
+        }
+    }
+
+    FileDialog {
+        id: exportDialog
+
+        property var target: null
+
+        title: qsTr("Export %1 JSON").arg(exportDialog.target ? exportDialog.target.patternType : "")
+        fileMode: FileDialog.SaveFile
+        defaultSuffix: "json"
+        nameFilters: [qsTr("JSON files (*.json)"), qsTr("All files (*)")]
+
+        Component.onCompleted: exportDialog.currentFolder = PatternIo.defaultDirectory
+
+        onAccepted: {
+            const destination = exportDialog.selectedFile
+            const name = decodeURIComponent(String(destination).split("/").pop())
+            const text = JSON.stringify(exportDialog.target.configJson(), null, 2)
+
+            if (PatternIo.writeText(destination, text)) {
+                console.log("[Pattern And Monitor] wrote " + destination)
+                toast.show(qsTr("Exported to %1").arg(name), false)
+            } else {
+                console.log("[Pattern And Monitor] export failed, " + PatternIo.lastError)
+                toast.show(qsTr("Export failed: %1").arg(PatternIo.lastError), true)
             }
         }
     }

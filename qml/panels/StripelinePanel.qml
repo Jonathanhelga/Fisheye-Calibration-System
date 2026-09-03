@@ -4,13 +4,15 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import FisheyeCaliJojo
+import "PatternConfig.js" as PatternConfig
 
-// Stripline pattern: parallel stripes. Usually shown on the side screens
+// Stripeline pattern: parallel stripes. Usually shown on the side screens
 // (N/W/S/E). Each row's Height is a step, the pixel thickness of that stripe
 // from the previous one, not an absolute position.
 Rectangle {
     id: panel
 
+    readonly property string patternType: "stripeline"
     readonly property int layerCount: 50
     readonly property alias layers: layerModel
 
@@ -30,14 +32,71 @@ Rectangle {
     signal saveImageRequested()
     signal updateRequested(string direction)
 
+    function layerColorAt(index, positive) {
+        return String((index % 2 === 0) === positive ? panel.positiveColor : panel.negativeColor)
+    }
+
     function applyPositivePattern() {
         for (let i = 0; i < layerModel.count; i++)
-            layerModel.setProperty(i, "color", i % 2 === 0 ? panel.positiveColor : panel.negativeColor)
+            layerModel.setProperty(i, "color", panel.layerColorAt(i, true))
     }
 
     function applyNegativePattern() {
         for (let i = 0; i < layerModel.count; i++)
-            layerModel.setProperty(i, "color", i % 2 === 0 ? panel.negativeColor : panel.positiveColor)
+            layerModel.setProperty(i, "color", panel.layerColorAt(i, false))
+    }
+
+    function specJson() {
+        const doc = PatternConfig.specEnvelope(panel)
+        const layers = []
+
+        for (let i = 0; i < layerModel.count; i++) {
+            const row = layerModel.get(i)
+            const interval = Math.round(row.interval)
+            if (interval <= 0) continue
+
+            layers.push({
+                "interval": interval,
+                "rgb": PatternConfig.rgbArray(row.color)
+            })
+        }
+
+        doc.layers = layers
+        return doc
+    }
+
+    function configJson() {
+        const doc = PatternConfig.configEnvelope(panel)
+
+        for (let i = 0; i < layerModel.count; i++) {
+            const row = layerModel.get(i)
+            doc[String(i + 1)] = {
+                "interval": Math.round(row.interval),
+                "color": PatternConfig.rgbArray(row.color)
+            }
+        }
+
+        return doc
+    }
+
+    function loadConfig(doc) {
+        if (!doc || String(doc.type) !== panel.patternType)
+            return false
+
+        PatternConfig.applyConfigEnvelope(doc, panel)
+        const derived = doc.pos_neg_color === true
+
+        for (let i = 0; i < layerModel.count; i++) {
+            const layer = doc[String(i + 1)]
+            if (!layer) continue
+
+            layerModel.setProperty(i, "interval", PatternConfig.toInt(layer.interval, 0))
+            layerModel.setProperty(i, "color",
+                                   derived ? panel.layerColorAt(i, true)
+                                           : PatternConfig.toColor(layer.color, "#ffffff"))
+        }
+
+        return true
     }
 
     ListModel {
@@ -45,7 +104,7 @@ Rectangle {
 
         Component.onCompleted: {
             for (let i = 0; i < panel.layerCount; i++)
-                layerModel.append({ interval: 20, color: "black" })
+                layerModel.append({ interval: 20, color: panel.layerColorAt(i, true) })
         }
     }
 
@@ -72,7 +131,7 @@ Rectangle {
             spacing: Theme.spaceXs
 
             Label {
-                text: qsTr("Stripline")
+                text: qsTr("Stripeline")
                 font.bold: true
                 font.pixelSize: Theme.fontTitle
                 color: Theme.accent
@@ -305,7 +364,7 @@ Rectangle {
                             color: cell.color
 
                             onIntervalEdited: (value) => layerModel.setProperty(cell.index, "interval", value)
-                            onColorEdited:    (value) => layerModel.setProperty(cell.index, "color", value)
+                            onColorEdited:    (value) => layerModel.setProperty(cell.index, "color", String(value))
                         }
                     }
                 }

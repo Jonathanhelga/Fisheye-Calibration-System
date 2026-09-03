@@ -5,10 +5,10 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import FisheyeCaliJojo
 
-// One row of the stripline table: a stripe's height and color. The value is
+// One row of the stripeline table: a stripe's height and color. The value is
 // labeled "Height" in the UI, but named "interval" internally to match the
 // reference app, since Item already has a builtin "height" property.
-// Column widths are passed in from StriplinePanel so the header and
+// Column widths are passed in from StripelinePanel so the header and
 // every row always share the same values.
 RowLayout {
     id: row

@@ -4,10 +4,12 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import FisheyeCaliJojo
+import "PatternConfig.js" as PatternConfig
 
 Rectangle {
     id: panel
 
+    readonly property string patternType: "concentric"
     readonly property int layerCount: 25
     readonly property alias layers: layerModel
 
@@ -27,14 +29,81 @@ Rectangle {
     signal saveImageRequested()
     signal updateRequested(string direction)
 
+    function layerColorAt(index, positive) {
+        return String((index % 2 === 0) === positive ? panel.positiveColor : panel.negativeColor)
+    }
+
     function applyPositivePattern() {
         for (let i = 0; i < layerModel.count; i++)
-            layerModel.setProperty(i, "color", i % 2 === 0 ? panel.positiveColor : panel.negativeColor)
+            layerModel.setProperty(i, "color", panel.layerColorAt(i, true))
     }
 
     function applyNegativePattern() {
         for (let i = 0; i < layerModel.count; i++)
-            layerModel.setProperty(i, "color", i % 2 === 0 ? panel.negativeColor : panel.positiveColor)
+            layerModel.setProperty(i, "color", panel.layerColorAt(i, false))
+    }
+
+    function specJson() {
+        const doc = PatternConfig.specEnvelope(panel)
+        const layers = []
+
+        for (let i = 0; i < layerModel.count; i++) {
+            const row = layerModel.get(i)
+            const radius = Math.round(row.radius)
+            if (radius <= 0) continue
+
+            layers.push({
+                "shape": String(row.shape).toLowerCase(),
+                "radius": radius,
+                "cx": Math.round(row.cx),
+                "cy": Math.round(row.cy),
+                "rgb": PatternConfig.rgbArray(row.color)
+            })
+        }
+
+        doc.layers = layers
+        return doc
+    }
+
+    function configJson() {
+        const doc = PatternConfig.configEnvelope(panel)
+
+        for (let i = 0; i < layerModel.count; i++) {
+            const row = layerModel.get(i)
+            doc[String(i + 1)] = {
+                "shape": String(row.shape).toLowerCase(),
+                "radius": Math.round(row.radius),
+                "cx": Math.round(row.cx),
+                "cy": Math.round(row.cy),
+                "color": PatternConfig.rgbArray(row.color)
+            }
+        }
+
+        return doc
+    }
+
+    function loadConfig(doc) {
+        if (!doc || String(doc.type) !== panel.patternType)
+            return false
+
+        PatternConfig.applyConfigEnvelope(doc, panel)
+        const derived = doc.pos_neg_color === true
+
+        for (let i = 0; i < layerModel.count; i++) {
+            const layer = doc[String(i + 1)]
+            if (!layer) continue
+
+            layerModel.setProperty(i, "shape",
+                                   String(layer.shape).toLowerCase() === "square" ? "Square" : "Circle")
+            layerModel.setProperty(i, "radius", PatternConfig.toInt(layer.radius, 0))
+            layerModel.setProperty(i, "cx", PatternConfig.toInt(layer.cx, 0))
+            layerModel.setProperty(i, "cy", PatternConfig.toInt(layer.cy, 0))
+            layerModel.setProperty(i, "color",
+                                   derived ? panel.layerColorAt(i, true)
+                                           : PatternConfig.toColor(layer.color, "#000000"))
+        }
+
+        return true
     }
 
     ListModel {
@@ -42,7 +111,8 @@ Rectangle {
 
         Component.onCompleted: {
             for (let i = 0; i < panel.layerCount; i++)
-                layerModel.append({ shape: "Circle", radius: 20, color: "black", cx: 0, cy: 0 })
+                layerModel.append({ shape: "Circle", radius: 20,
+                                    color: panel.layerColorAt(i, true), cx: 0, cy: 0 })
         }
     }
 
@@ -316,7 +386,7 @@ Rectangle {
 
                             onShapeEdited:  (value) => layerModel.setProperty(cell.index, "shape", value)
                             onRadiusEdited: (value) => layerModel.setProperty(cell.index, "radius", value)
-                            onColorEdited:  (value) => layerModel.setProperty(cell.index, "color", value)
+                            onColorEdited:  (value) => layerModel.setProperty(cell.index, "color", String(value))
                             onCxEdited:     (value) => layerModel.setProperty(cell.index, "cx", value)
                             onCyEdited:     (value) => layerModel.setProperty(cell.index, "cy", value)
                         }

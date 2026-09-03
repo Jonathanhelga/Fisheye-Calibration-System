@@ -117,8 +117,9 @@ qt_add_qml_module(moil_fisheye_cali
         qml/panels/CenteringPanel.qml
         qml/panels/LiveCameraPanel.qml
         qml/panels/ServerConfigPanel.qml
+        qml/panels/PatternConfig.js
         qml/panels/ConcentricPanel.qml
-        qml/panels/StriplinePanel.qml
+        qml/panels/StripelinePanel.qml
         qml/panels/ChessboardPanel.qml
         qml/panels/DpadMonitorViewer.qml
         qml/panels/MonitorSlotPanel.qml
@@ -151,6 +152,7 @@ qt_add_qml_module(moil_fisheye_cali
         qml/controls/AxisStateReadout.qml
         qml/controls/SectionFrame.qml
         qml/controls/PanelPlaceholder.qml
+        qml/controls/StatusToast.qml
 
     RESOURCES
         assets/sample_shot.png
@@ -163,6 +165,7 @@ qt_add_qml_module(moil_fisheye_cali
         src/AxisState.cpp src/AxisState.h
         src/AxisController.cpp src/AxisController.h
         src/CameraController.cpp src/CameraController.h
+        src/PatternIo.cpp src/PatternIo.h
 )
 
 
