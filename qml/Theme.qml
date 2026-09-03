@@ -58,6 +58,8 @@ QtObject {
     readonly property real ratioPatternColumn: minPatternColumn / (minPatternColumn + minMonitorColumn)
     readonly property real ratioMonitorColumn: 1 - ratioPatternColumn
 
+    readonly property real minCanvasScale: 0.6
+
 
     readonly property int animFast: 120
     readonly property int animSlow: 450

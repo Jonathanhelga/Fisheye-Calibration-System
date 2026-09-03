@@ -11,13 +11,16 @@ Window {
     readonly property real availableWidth:  Math.min(Screen.width,  Screen.desktopAvailableWidth)
     readonly property real availableHeight: Math.min(Screen.height, Screen.desktopAvailableHeight)
 
-    minimumWidth:  Math.min(fit.contentWidth,  root.availableWidth)
-    minimumHeight: Math.min(fit.contentHeight, root.availableHeight)
+    readonly property real naturalWidth:  Math.min(fit.contentWidth,  root.availableWidth)
+    readonly property real naturalHeight: Math.min(fit.contentHeight, root.availableHeight)
+
+    minimumWidth:  Math.round(root.naturalWidth  * Theme.minCanvasScale)
+    minimumHeight: Math.round(root.naturalHeight * Theme.minCanvasScale)
     maximumWidth:  root.availableWidth
     maximumHeight: root.availableHeight
 
-    width:  root.minimumWidth
-    height: root.minimumHeight
+    width:  root.naturalWidth
+    height: root.naturalHeight
 
     property int concentricMode: 0
     property int striplineMode: 1
