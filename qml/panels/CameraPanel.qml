@@ -220,14 +220,14 @@ Rectangle {
             AxisReadout {
                 Layout.fillWidth: true;
                 label: qsTr("Resolution")
-                fieldWidth: Theme.charUnit * 10
+                fieldWidth: Theme.charUnit * 15
                 value: preview.loaded ? preview.sourceWidth + "x" + preview.sourceHeight: "?"
             }
 
             AxisReadout {
                 Layout.fillWidth: true;
                 label: qsTr("Zoom")
-                fieldWidth: Theme.charUnit * 10
+                fieldWidth: Theme.charUnit * 15
                 value: preview.loaded ? Math.round(preview.zoom * 100) + "%" : "?"
             }
         }
