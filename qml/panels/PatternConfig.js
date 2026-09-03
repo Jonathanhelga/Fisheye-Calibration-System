@@ -18,7 +18,7 @@ function toColor(value, fallback) {
 
 function configEnvelope(panel) {
     return {
-        "type": panel.patternType,
+        "pattern type": panel.patternType,
         "width": panel.resolutionW,
         "height": panel.resolutionH,
         "crossline": panel.crossLine,
@@ -26,6 +26,10 @@ function configEnvelope(panel) {
         "positive color": rgbArray(panel.positiveColor),
         "negative color": rgbArray(panel.negativeColor)
     }
+}
+
+function isConfigFor(doc, panel) {
+    return !!doc && String(doc["pattern type"]) === panel.patternType
 }
 
 function applyConfigEnvelope(doc, panel) {

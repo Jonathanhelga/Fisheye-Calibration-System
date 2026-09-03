@@ -83,7 +83,7 @@ Rectangle {
     }
 
     function loadConfig(doc) {
-        if (!doc || String(doc.type) !== panel.patternType)
+        if (!PatternConfig.isConfigFor(doc, panel))
             return false
 
         PatternConfig.applyConfigEnvelope(doc, panel)
