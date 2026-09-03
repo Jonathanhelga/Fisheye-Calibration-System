@@ -12,6 +12,7 @@ using FisheyeApplication = QGuiApplication;
 #include "SubAppWindows.h"
 #include "HttpServerProbe.h"
 #include "CameraController.h"
+#include "PatternController.h"
 
 
 int main(int argc, char *argv[]) {
@@ -30,6 +31,8 @@ int main(int argc, char *argv[]) {
 
     engine.addImageProvider(QStringLiteral("moilcamera"),
                             CameraController::createImageProvider());
+    engine.addImageProvider(QStringLiteral("moilpattern"),
+                            PatternController::createImageProvider());
 
     engine.loadFromModule("FisheyeCaliJojo", "Main");
 

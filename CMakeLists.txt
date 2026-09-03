@@ -165,6 +165,7 @@ qt_add_qml_module(moil_fisheye_cali
         src/AxisState.cpp src/AxisState.h
         src/AxisController.cpp src/AxisController.h
         src/CameraController.cpp src/CameraController.h
+        src/PatternController.cpp src/PatternController.h
         src/PatternIo.cpp src/PatternIo.h
 )
 

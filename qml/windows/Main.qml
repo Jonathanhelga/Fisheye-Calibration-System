@@ -59,6 +59,7 @@ ApplicationWindow {
                             RosServerProbe.probeAll(domainId, axisNamespace, monitorNamespace, cameraTopic)
                             AxisController.connectTo(domainId, axisNamespace, true)
                             CameraController.connectTo(domainId)
+                            PatternController.connectTo(domainId)
                         }
                     }
                     AxisControlPanel { Layout.fillWidth: true; Layout.fillHeight: true }
