@@ -91,7 +91,10 @@ Rectangle {
 
         for (let i = 0; i < layerModel.count; i++) {
             const layer = doc[String(i + 1)]
-            if (!layer) continue
+            if (!layer) {
+                layerModel.setProperty(i, "radius", 0)
+                continue
+            }
 
             layerModel.setProperty(i, "shape",
                                    String(layer.shape).toLowerCase() === "square" ? "Square" : "Circle")

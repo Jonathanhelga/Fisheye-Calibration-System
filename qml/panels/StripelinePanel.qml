@@ -88,7 +88,10 @@ Rectangle {
 
         for (let i = 0; i < layerModel.count; i++) {
             const layer = doc[String(i + 1)]
-            if (!layer) continue
+            if (!layer) {
+                layerModel.setProperty(i, "interval", 0)
+                continue
+            }
 
             layerModel.setProperty(i, "interval", PatternConfig.toInt(layer.interval, 0))
             layerModel.setProperty(i, "color",
