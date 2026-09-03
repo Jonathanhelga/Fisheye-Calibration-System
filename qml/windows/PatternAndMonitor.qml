@@ -7,25 +7,33 @@ Window {
     id: root
 
     title: qsTr("PCT Control Panel")
-    width:  Theme.designWidth
-    height: Theme.designHeight
 
-    Component.onCompleted: {
-        width  = Math.min(Theme.designWidth,  Screen.desktopAvailableWidth)
-        height = Math.min(Theme.designHeight, Screen.desktopAvailableHeight)
-    }
+    readonly property real availableWidth:  Math.min(Screen.width,  Screen.desktopAvailableWidth)
+    readonly property real availableHeight: Math.min(Screen.height, Screen.desktopAvailableHeight)
+
+    minimumWidth:  Math.min(fit.contentWidth,  root.availableWidth)
+    minimumHeight: Math.min(fit.contentHeight, root.availableHeight)
+    maximumWidth:  root.availableWidth
+    maximumHeight: root.availableHeight
+
+    width:  root.minimumWidth
+    height: root.minimumHeight
 
     property int concentricMode: 0
     property int striplineMode: 1
     property int chessboardMode: 2
     property alias mode: patternSelector.currentIndex
 
-    readonly property real ratioPatternGenerator: 0.3
-    readonly property real ratioMonitorViewer: 0.7
-
     property alias concentric: concentricPanel
     property alias stripline:  striplinePanel
     property alias chessboard: chessboardPanel
+
+    readonly property real patternPanelWidth: Math.max(concentricPanel.minimumWidth,
+                                                       striplinePanel.minimumWidth,
+                                                       chessboardPanel.minimumWidth)
+    readonly property real patternPanelHeight: Math.max(concentricPanel.minimumHeight,
+                                                        striplinePanel.minimumHeight,
+                                                        chessboardPanel.minimumHeight)
 
     signal fourSideBrowseRequested()
     signal showNumbersRequested()
@@ -43,103 +51,124 @@ Window {
         id: fit
         anchors.fill: parent
 
-        contentWidth:  2 * Theme.spaceMd + Math.max(header.Layout.minimumWidth,
-                                                    patternGenerator.Layout.minimumWidth)
-        contentHeight: 3 * Theme.spaceMd + header.implicitHeight + patternGenerator.Layout.minimumHeight
+        contentWidth:  content.Layout.minimumWidth  + 2 * Theme.spaceMd
+        contentHeight: content.Layout.minimumHeight + 2 * Theme.spaceMd
 
-        RowLayout{
-            id: header
+        ColumnLayout {
+            id: content
 
-            anchors.top: parent.top
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.margins: Theme.spaceMd
-            spacing: Theme.rowSpacing
-
-            Label {
-                text: "PCT Control Panel"
-                font.bold: true
-                color: Theme.accent
-            }
-            Label {
-                Layout.fillWidth: true
-                text: qsTr("Build, colour, and push calibration patterns to the TOP / N / W / S / E screens, and control monitor image and brightness.")
-                color: Theme.textCaption
-                font.pixelSize: Theme.captionFontSize
-                elide: Text.ElideRight
-            }
-        }
-
-        RowLayout{
-            id: patternGenerator
-
-            anchors.top: header.bottom
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
+            anchors.fill: parent
             anchors.margins: Theme.spaceMd
             spacing: Theme.spaceMd
 
-            readonly property real free: Math.max(0, fit.canvasWidth - 2 * Theme.spaceMd)
+            RowLayout {
+                id: header
 
-            ColumnLayout{
                 Layout.fillWidth: true
-                Layout.fillHeight: true
-                Layout.preferredWidth: patternGenerator.free * root.ratioPatternGenerator
+                Layout.minimumHeight: header.implicitHeight
+                spacing: Theme.rowSpacing
 
-                SegmentedControl {
-                    id: patternSelector
-                    Layout.fillWidth: true
-                    stretch: true
-                    model: [qsTr("Concentric"), qsTr("Stripline"), qsTr("Chessboard")]
-                    currentIndex: root.concentricMode
+                Label {
+                    text: qsTr("PCT Control Panel")
+                    font.bold: true
+                    color: Theme.accent
                 }
-                ConcentricPanel {
-                    id: concentricPanel
+                Label {
                     Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    Layout.alignment: Qt.AlignTop
-                    visible: root.mode === root.concentricMode
-
-                    onImportRequested: console.log("[Pattern And Monitor] Concentric: Import JSON requested")
-                    onExportRequested: console.log("[Pattern And Monitor] Concentric: Export JSON requested")
-                    onSaveImageRequested: console.log("[Pattern And Monitor] Concentric: Save Image requested")
-                    onUpdateRequested: (direction) => console.log(
-                        "[Pattern And Monitor] Concentric: Update requested, direction=" + direction)
-                }
-                StriplinePanel {
-                    id: striplinePanel
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    Layout.alignment: Qt.AlignTop
-                    visible: root.mode === root.striplineMode
-
-                    onImportRequested: console.log("[Pattern And Monitor] Stripline: Import JSON requested")
-                    onExportRequested: console.log("[Pattern And Monitor] Stripline: Export JSON requested")
-                    onSaveImageRequested: console.log("[Pattern And Monitor] Stripline: Save Image requested")
-                    onUpdateRequested: (direction) => console.log(
-                        "[Pattern And Monitor] Stripline: Update requested, direction=" + direction)
-                }
-                ChessboardPanel {
-                    id: chessboardPanel
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    Layout.alignment: Qt.AlignTop
-                    visible: root.mode === root.chessboardMode
-
-                    onGenerateRequested: console.log("[Pattern And Monitor] Chessboard: Generate requested")
-                    onSaveImageRequested: console.log("[Pattern And Monitor] Chessboard: Save Image requested")
-                    onUpdateRequested: (direction) => console.log(
-                        "[Pattern And Monitor] Chessboard: Update requested, direction=" + direction)
+                    text: qsTr("Build, colour, and push calibration patterns to the TOP / N / W / S / E screens, and control monitor image and brightness.")
+                    color: Theme.textCaption
+                    font.pixelSize: Theme.captionFontSize
+                    elide: Text.ElideRight
                 }
             }
-            ColumnLayout{
+
+            RowLayout {
+                id: workRow
+
+                Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.preferredWidth: patternGenerator.free * root.ratioMonitorViewer
-                RowLayout{
+                spacing: Theme.spaceMd
+
+                readonly property real free: Math.max(0, fit.canvasWidth - 3 * Theme.spaceMd)
+
+                ColumnLayout {
+                    id: patternColumn
+
                     Layout.fillWidth: true
-                    Item {Layout.fillWidth: true}
-                    RowLayout{
+                    Layout.fillHeight: true
+                    Layout.preferredWidth: workRow.free * Theme.ratioPatternColumn
+                    Layout.minimumWidth: Math.max(Theme.minPatternColumn, root.patternPanelWidth)
+                    Layout.minimumHeight: patternSelector.implicitHeight
+                                          + Theme.spaceMd
+                                          + root.patternPanelHeight
+                    spacing: Theme.spaceMd
+
+                    SegmentedControl {
+                        id: patternSelector
+                        Layout.fillWidth: true
+                        stretch: true
+                        model: [qsTr("Concentric"), qsTr("Stripline"), qsTr("Chessboard")]
+                        currentIndex: root.concentricMode
+                    }
+                    ConcentricPanel {
+                        id: concentricPanel
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        visible: root.mode === root.concentricMode
+
+                        onImportRequested: console.log("[Pattern And Monitor] Concentric: Import JSON requested")
+                        onExportRequested: console.log("[Pattern And Monitor] Concentric: Export JSON requested")
+                        onSaveImageRequested: console.log("[Pattern And Monitor] Concentric: Save Image requested")
+                        onUpdateRequested: (direction) => console.log(
+                            "[Pattern And Monitor] Concentric: Update requested, direction=" + direction)
+                    }
+                    StriplinePanel {
+                        id: striplinePanel
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        visible: root.mode === root.striplineMode
+
+                        onImportRequested: console.log("[Pattern And Monitor] Stripline: Import JSON requested")
+                        onExportRequested: console.log("[Pattern And Monitor] Stripline: Export JSON requested")
+                        onSaveImageRequested: console.log("[Pattern And Monitor] Stripline: Save Image requested")
+                        onUpdateRequested: (direction) => console.log(
+                            "[Pattern And Monitor] Stripline: Update requested, direction=" + direction)
+                    }
+                    ChessboardPanel {
+                        id: chessboardPanel
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        visible: root.mode === root.chessboardMode
+
+                        onGenerateRequested: console.log("[Pattern And Monitor] Chessboard: Generate requested")
+                        onSaveImageRequested: console.log("[Pattern And Monitor] Chessboard: Save Image requested")
+                        onUpdateRequested: (direction) => console.log(
+                            "[Pattern And Monitor] Chessboard: Update requested, direction=" + direction)
+                    }
+                }
+
+                ColumnLayout {
+                    id: monitorColumn
+
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    Layout.preferredWidth: workRow.free * Theme.ratioMonitorColumn
+                    Layout.minimumWidth: Math.max(Theme.minMonitorColumn,
+                                                  monitorToolRow.implicitWidth,
+                                                  monitorFrame.Layout.minimumWidth)
+                    Layout.minimumHeight: monitorToolRow.implicitHeight
+                                          + Theme.spaceMd
+                                          + monitorFrame.Layout.minimumHeight
+                    spacing: Theme.spaceMd
+
+                    RowLayout {
+                        id: monitorToolRow
+
+                        Layout.fillWidth: true
+                        spacing: Theme.rowSpacing
+
+                        Item { Layout.fillWidth: true }
+
                         ActionButton {
                             text: qsTr("Setup Monitor Direction")
                             onClicked: directionDialog.open()
@@ -158,62 +187,77 @@ Window {
                             ToolTip.delay: Theme.animSlow
                             ToolTip.text: qsTr("Turns off North, West, South, and East together. TOP is left as is.")
                         }
+
                         ActionButton {
                             text: qsTr("Reconnect")
+
                             ToolTip.visible: hovered
                             ToolTip.delay: Theme.animSlow
                             ToolTip.text: qsTr("Reconnect")
                         }
+
+                        Item { Layout.fillWidth: true }
                     }
-                    Item {Layout.fillWidth: true}
-                }
-                SectionFrame {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
 
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: Theme.labelSpacing
+                    SectionFrame {
+                        id: monitorFrame
 
-                        Label {
-                            text: qsTr("Apply image to N/W/S/E:")
-                            color: Theme.textCaption
-                            font.pixelSize: Theme.captionFontSize
-                        }
-
-                        TextField {
-                            id: fourSidePathField
-                            Layout.fillWidth: true
-                            color: Theme.textPrimary
-                            font.pixelSize: Theme.captionFontSize
-                            selectByMouse: true
-
-                            background: Rectangle {
-                                implicitHeight: Theme.controlHeight
-                                color: Theme.fieldBackground
-                                border.color: fourSidePathField.activeFocus ? Theme.accent : Theme.panelBorder
-                                radius: Theme.radius
-                            }
-                        }
-
-                        ActionButton {
-                            text: qsTr("Browse...")
-                            onClicked: {
-                                console.log("[Monitor Viewer] 4-Side: Browse requested")
-                                root.fourSideBrowseRequested()
-                            }
-                        }
-
-                        ActionButton {
-                            text: qsTr("Apply to 4 Sides")
-                            tone: "accent"
-                            onClicked: root.applyImageToFourSides()
-                        }
-                    }
-                    DpadMonitorViewer{
-                        id: monitorViewer
                         Layout.fillWidth: true
                         Layout.fillHeight: true
+                        Layout.minimumWidth: monitorViewer.Layout.minimumWidth
+                                             + monitorFrame.leftPadding + monitorFrame.rightPadding
+                        Layout.minimumHeight: pathRow.implicitHeight
+                                              + monitorFrame.spacing
+                                              + monitorViewer.Layout.minimumHeight
+                                              + monitorFrame.topPadding + monitorFrame.bottomPadding
+
+                        RowLayout {
+                            id: pathRow
+
+                            Layout.fillWidth: true
+                            spacing: Theme.labelSpacing
+
+                            Label {
+                                text: qsTr("Apply image to N/W/S/E:")
+                                color: Theme.textCaption
+                                font.pixelSize: Theme.captionFontSize
+                            }
+
+                            TextField {
+                                id: fourSidePathField
+                                Layout.fillWidth: true
+                                color: Theme.textPrimary
+                                font.pixelSize: Theme.captionFontSize
+                                selectByMouse: true
+
+                                background: Rectangle {
+                                    implicitHeight: Theme.controlHeight
+                                    color: Theme.fieldBackground
+                                    border.color: fourSidePathField.activeFocus ? Theme.accent : Theme.panelBorder
+                                    radius: Theme.radius
+                                }
+                            }
+
+                            ActionButton {
+                                text: qsTr("Browse...")
+                                onClicked: {
+                                    console.log("[Monitor Viewer] 4-Side: Browse requested")
+                                    root.fourSideBrowseRequested()
+                                }
+                            }
+
+                            ActionButton {
+                                text: qsTr("Apply to 4 Sides")
+                                tone: "accent"
+                                onClicked: root.applyImageToFourSides()
+                            }
+                        }
+
+                        DpadMonitorViewer {
+                            id: monitorViewer
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                        }
                     }
                 }
             }

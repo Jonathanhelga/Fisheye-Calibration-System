@@ -30,7 +30,10 @@ Rectangle {
     signal saveImageRequested()
     signal updateRequested(string direction)
 
-    implicitWidth: content.implicitWidth + 2 * Theme.panelMargin
+    readonly property real minimumWidth:  content.Layout.minimumWidth  + 2 * Theme.panelMargin
+    readonly property real minimumHeight: content.Layout.minimumHeight + 2 * Theme.panelMargin
+
+    implicitWidth:  content.implicitWidth  + 2 * Theme.panelMargin
     implicitHeight: content.implicitHeight + 2 * Theme.panelMargin
 
     color: Theme.panelBackground
@@ -121,8 +124,7 @@ Rectangle {
 
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.minimumHeight: Theme.unit * 25
-                Layout.maximumHeight: Theme.unit * 30
+                Layout.minimumHeight: Theme.minPatternPreviewHeight
 
                 source: panel.previewSource
                 emptyText: qsTr("No preview yet")

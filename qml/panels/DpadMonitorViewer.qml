@@ -16,8 +16,8 @@ GridLayout {
     property alias southSlot: southSlot
     property alias eastSlot:  eastSlot
 
-    readonly property real slotMinimumWidth:  Theme.unit * 9
-    readonly property real slotMinimumHeight: Theme.unit * 9
+    readonly property real slotMinimumWidth:  Math.max(Theme.minMonitorSlotWidth,  topSlot.minimumWidth)
+    readonly property real slotMinimumHeight: Math.max(Theme.minMonitorSlotHeight, topSlot.minimumHeight)
 
     function turnOffFourSides() {
         northSlot.turnOff()
@@ -40,8 +40,8 @@ GridLayout {
         label: qsTr("N")
         Layout.fillWidth: true
         Layout.fillHeight: true
-        Layout.minimumWidth: slotMinimumWidth
-        Layout.minimumHeight: slotMinimumHeight
+        Layout.minimumWidth: root.slotMinimumWidth
+        Layout.minimumHeight: root.slotMinimumHeight
 
         onBrowseRequested: console.log("[Pattern And Monitor] N: Browse requested")
         onUpdateRequested: (brightness) => console.log("[Pattern And Monitor] N: Update requested, brightness=" + brightness)
@@ -55,8 +55,8 @@ GridLayout {
         label: qsTr("W")
         Layout.fillWidth: true
         Layout.fillHeight: true
-        Layout.minimumWidth: slotMinimumWidth
-        Layout.minimumHeight: slotMinimumHeight
+        Layout.minimumWidth: root.slotMinimumWidth
+        Layout.minimumHeight: root.slotMinimumHeight
 
         onBrowseRequested: console.log("[Pattern And Monitor] W: Browse requested")
         onUpdateRequested: (brightness) => console.log("[Pattern And Monitor] W: Update requested, brightness=" + brightness)
@@ -68,8 +68,8 @@ GridLayout {
         label: qsTr("TOP")
         Layout.fillWidth: true
         Layout.fillHeight: true
-        Layout.minimumWidth: slotMinimumWidth
-        Layout.minimumHeight: slotMinimumHeight
+        Layout.minimumWidth: root.slotMinimumWidth
+        Layout.minimumHeight: root.slotMinimumHeight
 
         onBrowseRequested: console.log("[Pattern And Monitor] TOP: Browse requested")
         onUpdateRequested: (brightness) => console.log("[Pattern And Monitor] TOP: Update requested, brightness=" + brightness)
@@ -81,8 +81,8 @@ GridLayout {
         label: qsTr("E")
         Layout.fillWidth: true
         Layout.fillHeight: true
-        Layout.minimumWidth: slotMinimumWidth
-        Layout.minimumHeight: slotMinimumHeight
+        Layout.minimumWidth: root.slotMinimumWidth
+        Layout.minimumHeight: root.slotMinimumHeight
 
         onBrowseRequested: console.log("[Pattern And Monitor] E: Browse requested")
         onUpdateRequested: (brightness) => console.log("[Pattern And Monitor] E: Update requested, brightness=" + brightness)
@@ -96,8 +96,8 @@ GridLayout {
         label: qsTr("S")
         Layout.fillWidth: true
         Layout.fillHeight: true
-        Layout.minimumWidth: slotMinimumWidth
-        Layout.minimumHeight: slotMinimumHeight
+        Layout.minimumWidth: root.slotMinimumWidth
+        Layout.minimumHeight: root.slotMinimumHeight
 
         onBrowseRequested: console.log("[Pattern And Monitor] S: Browse requested")
         onUpdateRequested: (brightness) => console.log("[Pattern And Monitor] S: Update requested, brightness=" + brightness)

@@ -43,6 +43,21 @@ QtObject {
     readonly property real ratioWorkRow:   0.50
     readonly property real ratioHistogram: 0.25
 
+    readonly property int minPatternColumn: Math.round(unit * 35)
+
+    readonly property int minPatternPreviewHeight: Math.round(unit * 12)
+    readonly property int maxPatternPreviewHeight: Math.round(unit * 20)
+    readonly property int minPatternTableHeight:   Math.round(unit * 10)
+
+    readonly property int minMonitorPreviewWidth:  Math.round(unit * 9)
+    readonly property int minMonitorPreviewHeight: Math.round(unit * 7)
+    readonly property int minMonitorSlotWidth:     Math.round(unit * 21)
+    readonly property int minMonitorSlotHeight:    Math.round(unit * 15)
+    readonly property int minMonitorColumn: 3 * minMonitorSlotWidth + 2 * dpadSpacing + 2 * fieldPadding
+
+    readonly property real ratioPatternColumn: minPatternColumn / (minPatternColumn + minMonitorColumn)
+    readonly property real ratioMonitorColumn: 1 - ratioPatternColumn
+
 
     readonly property int animFast: 120
     readonly property int animSlow: 450

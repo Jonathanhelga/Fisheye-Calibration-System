@@ -46,7 +46,10 @@ Rectangle {
         }
     }
 
-    implicitWidth: content.implicitWidth + 2 * Theme.panelMargin
+    readonly property real minimumWidth:  content.Layout.minimumWidth  + 2 * Theme.panelMargin
+    readonly property real minimumHeight: content.Layout.minimumHeight + 2 * Theme.panelMargin
+
+    implicitWidth:  content.implicitWidth  + 2 * Theme.panelMargin
     implicitHeight: content.implicitHeight + 2 * Theme.panelMargin
 
     color: Theme.panelBackground
@@ -136,8 +139,8 @@ Rectangle {
 
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.minimumHeight: Theme.unit * 25
-                Layout.maximumHeight: Theme.unit * 30
+                Layout.minimumHeight: Theme.minPatternPreviewHeight
+                Layout.maximumHeight: Theme.maxPatternPreviewHeight
                 source: panel.previewSource
                 emptyText: qsTr("No preview yet")
                 hint: qsTr("%1 x %2").arg(panel.resolutionW).arg(panel.resolutionH)
@@ -240,7 +243,7 @@ Rectangle {
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.minimumHeight: 0
+                Layout.minimumHeight: Theme.minPatternTableHeight
                 spacing: 0
 
                 RowLayout {
