@@ -1,9 +1,12 @@
 #include "PatternController.h"
 
 #include <QCoreApplication>
+#include <QDir>
+#include <QFileInfo>
 #include <QImage>
 #include <QMutex>
 #include <QQuickImageProvider>
+#include <QSaveFile>
 #include <QTimer>
 
 #include <atomic>
@@ -30,17 +33,18 @@ constexpr int kSpinSliceMs = 100;
 constexpr int kRenderTimeoutMs = 15000;
 
 QMutex previewMutex;
-QImage previewImage;
-QByteArray previewBytes;
+QHash<QString, QImage> previewImages;
+QHash<QString, QByteArray> previewBytes;
 
 class PreviewProvider : public QQuickImageProvider {
 public:
     PreviewProvider() : QQuickImageProvider(QQuickImageProvider::Image) {}
 
-    QImage requestImage(const QString &, QSize *size, const QSize &) override {
+    QImage requestImage(const QString &id, QSize *size, const QSize &) override {
         QMutexLocker locker(&previewMutex);
-        if (size) *size = previewImage.size();
-        return previewImage;
+        const QImage image = previewImages.value(id.section(QLatin1Char('/'), 0, 0));
+        if (size) *size = image.size();
+        return image;
     }
 };
 
@@ -86,10 +90,6 @@ PatternController::~PatternController() { stopWorker(); }
 
 QQmlImageProviderBase *PatternController::createImageProvider() { return new PreviewProvider; }
 
-QString PatternController::previewUrl() const {
-    return revision_ > 0 ? QStringLiteral("image://moilpattern/%1").arg(revision_) : QString();
-}
-
 void PatternController::stopWorker() {
     ++d_->generation;
     if (d_->worker.joinable()) d_->worker.join();
@@ -101,10 +101,17 @@ void PatternController::setStatus(ProbeStatus::Status status) {
     emit statusChanged();
 }
 
-void PatternController::setBusy(bool busy) {
+void PatternController::updateBusy() {
+    const bool busy = !pending_.isEmpty();
     if (busy_ == busy) return;
     busy_ = busy;
     emit busyChanged();
+}
+
+void PatternController::finishRender(const QString &patternType) {
+    pending_.remove(patternType);
+    ++renderTokens_[patternType];
+    updateBusy();
 }
 
 void PatternController::setLastError(const QString &message) {
@@ -118,17 +125,22 @@ void PatternController::applyLink(int status, const QString &message, quint64 ge
 
     setStatus(static_cast<ProbeStatus::Status>(status));
     setLastError(message);
-    if (status_ != ProbeStatus::Ok) setBusy(false);
+    if (status_ != ProbeStatus::Ok) {
+        pending_.clear();
+        updateBusy();
+    }
 }
 
-void PatternController::applyPreview(bool ok, int width, int height, const QString &message,
+void PatternController::applyPreview(const QString &patternType, bool ok, const QString &message,
                                      quint64 token, quint64 generation) {
-    if (generation != d_->generation.load() || token != renderToken_) return;
+    if (generation != d_->generation.load() || token != renderTokens_.value(patternType)) return;
 
-    setBusy(false);
+    finishRender(patternType);
+
     if (ok) {
-        ++revision_;
-        previewLabel_ = tr("%1x%2").arg(width).arg(height);
+        previewUrls_[patternType] = QStringLiteral("image://moilpattern/%1/%2")
+                                        .arg(patternType)
+                                        .arg(++revisions_[patternType]);
         setLastError(QString());
         emit previewChanged();
     } else {
@@ -140,9 +152,10 @@ void PatternController::connectTo(int domainId) {
     stopWorker();
 
     setStatus(ProbeStatus::Checking);
-    setBusy(false);
     setLastError(QString());
-    ++renderToken_;
+    for (const QString &patternType : pending_) ++renderTokens_[patternType];
+    pending_.clear();
+    updateBusy();
 
     const quint64 generation = d_->generation.load();
 
@@ -221,7 +234,41 @@ void PatternController::connectTo(int domainId) {
 #endif
 }
 
-void PatternController::renderPreview(const QString &specJson, int width, int height) {
+bool PatternController::savePreview(const QString &patternType, const QUrl &fileUrl) {
+    if (!fileUrl.isLocalFile()) {
+        setLastError(tr("%1 is not a local file").arg(fileUrl.toString()));
+        return false;
+    }
+
+    QByteArray bytes;
+    {
+        QMutexLocker locker(&previewMutex);
+        bytes = previewBytes.value(patternType);
+    }
+    if (bytes.isEmpty()) {
+        setLastError(tr("there is no rendered %1 preview to save").arg(patternType));
+        return false;
+    }
+
+    const QString path = fileUrl.toLocalFile();
+    const QDir dir = QFileInfo(path).absoluteDir();
+    if (!dir.exists() && !QDir().mkpath(dir.absolutePath())) {
+        setLastError(tr("could not create %1").arg(dir.absolutePath()));
+        return false;
+    }
+
+    QSaveFile file(path);
+    if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit()) {
+        setLastError(file.errorString());
+        return false;
+    }
+
+    setLastError(QString());
+    return true;
+}
+
+void PatternController::renderPreview(const QString &patternType, const QString &specJson,
+                                      int width, int height) {
     if (status_ != ProbeStatus::Ok) {
         setLastError(tr("not connected to %1, press ROS Update first")
                          .arg(QString::fromLatin1(kRenderService)));
@@ -229,6 +276,7 @@ void PatternController::renderPreview(const QString &specJson, int width, int he
     }
 
 #ifndef FISHEYE_ROS_ENABLED
+    Q_UNUSED(patternType)
     Q_UNUSED(specJson)
     Q_UNUSED(width)
     Q_UNUSED(height)
@@ -244,11 +292,12 @@ void PatternController::renderPreview(const QString &specJson, int width, int he
         return;
     }
 
-    setBusy(true);
     setLastError(QString());
 
     const quint64 generation = d_->generation.load();
-    const quint64 token = ++renderToken_;
+    const quint64 token = ++renderTokens_[patternType];
+    pending_.insert(patternType);
+    updateBusy();
 
     auto request = std::make_shared<moil_interfaces::srv::RenderPattern::Request>();
     request->pattern_json = specJson.toStdString();
@@ -258,8 +307,8 @@ void PatternController::renderPreview(const QString &specJson, int width, int he
 
     client->async_send_request(
         request,
-        [this, generation,
-         token](rclcpp::Client<moil_interfaces::srv::RenderPattern>::SharedFuture future) {
+        [this, generation, token,
+         patternType](rclcpp::Client<moil_interfaces::srv::RenderPattern>::SharedFuture future) {
             const auto response = future.get();
 
             QByteArray bytes;
@@ -282,20 +331,19 @@ void PatternController::renderPreview(const QString &specJson, int width, int he
 
             if (ok) {
                 QMutexLocker locker(&previewMutex);
-                previewImage = image;
-                previewBytes = bytes;
+                previewImages[patternType] = image;
+                previewBytes[patternType] = bytes;
             }
 
-            QMetaObject::invokeMethod(this, "applyPreview", Qt::QueuedConnection, Q_ARG(bool, ok),
-                                      Q_ARG(int, ok ? image.width() : 0),
-                                      Q_ARG(int, ok ? image.height() : 0), Q_ARG(QString, message),
-                                      Q_ARG(quint64, token), Q_ARG(quint64, generation));
+            QMetaObject::invokeMethod(this, "applyPreview", Qt::QueuedConnection,
+                                      Q_ARG(QString, patternType), Q_ARG(bool, ok),
+                                      Q_ARG(QString, message), Q_ARG(quint64, token),
+                                      Q_ARG(quint64, generation));
         });
 
-    QTimer::singleShot(kRenderTimeoutMs, this, [this, generation, token] {
-        if (generation != d_->generation.load() || token != renderToken_ || !busy_) return;
-        ++renderToken_;
-        setBusy(false);
+    QTimer::singleShot(kRenderTimeoutMs, this, [this, generation, token, patternType] {
+        if (generation != d_->generation.load() || token != renderTokens_.value(patternType)) return;
+        finishRender(patternType);
         setLastError(tr("no reply from %1 within %2 s")
                          .arg(QString::fromLatin1(kRenderService))
                          .arg(kRenderTimeoutMs / 1000));

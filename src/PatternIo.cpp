@@ -8,14 +8,22 @@
 
 PatternIo::PatternIo(QObject *parent) : QObject(parent) {}
 
-QUrl PatternIo::defaultDirectory() const {
+QUrl PatternIo::workspaceSubdirectory(const QString &name) {
     QString base = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
     if (base.isEmpty()) base = QDir::homePath();
 
-    const QString path = base + QStringLiteral("/MoilFisheyeCali/pattern_json");
+    const QString path = base + QStringLiteral("/MoilFisheyeCali/") + name;
     QDir().mkpath(path);
 
     return QUrl::fromLocalFile(path);
+}
+
+QUrl PatternIo::defaultDirectory() const {
+    return workspaceSubdirectory(QStringLiteral("pattern_json"));
+}
+
+QUrl PatternIo::defaultImageDirectory() const {
+    return workspaceSubdirectory(QStringLiteral("pattern_image"));
 }
 
 bool PatternIo::setError(const QString &message) {

@@ -104,7 +104,7 @@ Rectangle {
 
         Component.onCompleted: {
             for (let i = 0; i < panel.layerCount; i++)
-                layerModel.append({ interval: 20, color: panel.layerColorAt(i, true) })
+                layerModel.append({ interval: 77, color: panel.layerColorAt(i, true) })
         }
     }
 

@@ -54,6 +54,19 @@ Window {
         exportDialog.open()
     }
 
+    function renderPreview(target) {
+        PatternController.renderPreview(target.patternType,
+                                        JSON.stringify(target.specJson()),
+                                        target.resolutionW,
+                                        target.resolutionH)
+    }
+
+    function saveImage(target) {
+        saveImageDialog.target = target
+        saveImageDialog.selectedFile = target.patternType + ".png"
+        saveImageDialog.open()
+    }
+
     function turnOffFourSides() {
         monitorViewer.turnOffFourSides()
     }
@@ -131,17 +144,12 @@ Window {
                         Layout.fillHeight: true
                         visible: root.mode === root.concentricMode
 
-                        previewSource: PatternController.previewUrl
+                        previewSource: PatternController.previewUrls[concentricPanel.patternType] || ""
 
                         onImportRequested: root.importPattern(concentricPanel)
                         onExportRequested: root.exportPattern(concentricPanel)
-                        onSaveImageRequested: console.log("[Pattern And Monitor] Concentric: Save Image requested")
-                        onUpdateRequested: (direction) => {
-                            console.log("[Pattern And Monitor] Concentric: Update requested, direction=" + direction)
-                            PatternController.renderPreview(JSON.stringify(concentricPanel.specJson()),
-                                                            concentricPanel.resolutionW,
-                                                            concentricPanel.resolutionH)
-                        }
+                        onSaveImageRequested: root.saveImage(concentricPanel)
+                        onUpdateRequested: root.renderPreview(concentricPanel)
                     }
                     StripelinePanel {
                         id: stripelinePanel
@@ -149,12 +157,12 @@ Window {
                         Layout.fillHeight: true
                         visible: root.mode === root.stripelineMode
 
+                        previewSource: PatternController.previewUrls[stripelinePanel.patternType] || ""
+
                         onImportRequested: root.importPattern(stripelinePanel)
                         onExportRequested: root.exportPattern(stripelinePanel)
-                        onSaveImageRequested: console.log("[Pattern And Monitor] Stripeline: Save Image requested")
-                        onUpdateRequested: (direction) => console.log(
-                            "[Pattern And Monitor] Stripeline: Update requested, direction=" + direction
-                            + " spec=" + JSON.stringify(stripelinePanel.specJson()))
+                        onSaveImageRequested: root.saveImage(stripelinePanel)
+                        onUpdateRequested: root.renderPreview(stripelinePanel)
                     }
                     ChessboardPanel {
                         id: chessboardPanel
@@ -356,6 +364,32 @@ Window {
             } else {
                 console.log("[Pattern And Monitor] export failed, " + PatternIo.lastError)
                 toast.show(qsTr("Export failed: %1").arg(PatternIo.lastError), true)
+            }
+        }
+    }
+
+    FileDialog {
+        id: saveImageDialog
+
+        property var target: null
+
+        title: qsTr("Save %1 image").arg(saveImageDialog.target ? saveImageDialog.target.patternType : "")
+        fileMode: FileDialog.SaveFile
+        defaultSuffix: "png"
+        nameFilters: [qsTr("PNG images (*.png)"), qsTr("All files (*)")]
+
+        Component.onCompleted: saveImageDialog.currentFolder = PatternIo.defaultImageDirectory
+
+        onAccepted: {
+            const destination = saveImageDialog.selectedFile
+            const name = decodeURIComponent(String(destination).split("/").pop())
+
+            if (PatternController.savePreview(saveImageDialog.target.patternType, destination)) {
+                console.log("[Pattern And Monitor] wrote " + destination)
+                toast.show(qsTr("Saved image to %1").arg(name), false)
+            } else {
+                console.log("[Pattern And Monitor] save image failed, " + PatternController.lastError)
+                toast.show(qsTr("Save Image failed: %1").arg(PatternController.lastError), true)
             }
         }
     }

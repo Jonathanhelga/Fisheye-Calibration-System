@@ -11,12 +11,14 @@ class PatternIo : public QObject {
     QML_SINGLETON
 
     Q_PROPERTY(QUrl defaultDirectory READ defaultDirectory CONSTANT)
+    Q_PROPERTY(QUrl defaultImageDirectory READ defaultImageDirectory CONSTANT)
     Q_PROPERTY(QString lastError READ lastError NOTIFY changed)
 
 public:
     explicit PatternIo(QObject *parent = nullptr);
 
     QUrl defaultDirectory() const;
+    QUrl defaultImageDirectory() const;
     QString lastError() const { return lastError_; }
 
     Q_INVOKABLE bool writeText(const QUrl &fileUrl, const QString &text);
@@ -26,6 +28,7 @@ signals:
     void changed();
 
 private:
+    static QUrl workspaceSubdirectory(const QString &name);
     bool setError(const QString &message);
 
     QString lastError_;
