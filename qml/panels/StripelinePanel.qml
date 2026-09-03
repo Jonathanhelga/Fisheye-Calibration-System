@@ -144,7 +144,7 @@ Rectangle {
             }
             SegmentedControl {
                 id: directionCombo
-                model: ["TOP", "North", "West", "South", "East"]
+                model: PatternConfig.directionLabels()
                 currentIndex: 2
             }
 
@@ -285,7 +285,7 @@ Rectangle {
                     Layout.fillWidth: Math.round(Theme.charUnit * 20)
                     tone: "accent"
                     text: qsTr("Update")
-                    onClicked: panel.updateRequested(directionCombo.model[directionCombo.currentIndex])
+                    onClicked: panel.updateRequested(PatternConfig.wireDirection(directionCombo.currentIndex))
                 }
                 Item { Layout.fillWidth: true }
             }

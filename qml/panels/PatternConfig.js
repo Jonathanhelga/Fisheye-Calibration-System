@@ -36,6 +36,23 @@ function applyConfigEnvelope(doc, panel) {
     panel.negativeColor = toColor(doc["negative color"], String(panel.negativeColor))
 }
 
+var directions = [
+    { label: "TOP",   wire: "top" },
+    { label: "North", wire: "n" },
+    { label: "West",  wire: "w" },
+    { label: "South", wire: "s" },
+    { label: "East",  wire: "e" }
+]
+
+function directionLabels() {
+    return directions.map(function (d) { return d.label })
+}
+
+function wireDirection(index) {
+    const i = toInt(index, -1)
+    return i >= 0 && i < directions.length ? directions[i].wire : "top"
+}
+
 function specEnvelope(panel) {
     return {
         "type": panel.patternType,

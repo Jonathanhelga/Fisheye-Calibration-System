@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import FisheyeCaliJojo
+import "PatternConfig.js" as PatternConfig
 
 // Chessboard pattern: a checkerboard tiled outward from the screen center.
 // An extra pattern, separate from the 75 PCT values, so it has no layer
@@ -66,7 +67,7 @@ Rectangle {
             }
             SegmentedControl {
                 id: directionCombo
-                model: ["TOP", "North", "West", "South", "East"]
+                model: PatternConfig.directionLabels()
             }
 
             Item { Layout.fillWidth: true }
@@ -214,7 +215,7 @@ Rectangle {
                     Layout.fillWidth: Math.round(Theme.charUnit * 20)
                     tone: "accent"
                     text: qsTr("Update")
-                    onClicked: panel.updateRequested(directionCombo.model[directionCombo.currentIndex])
+                    onClicked: panel.updateRequested(PatternConfig.wireDirection(directionCombo.currentIndex))
                 }
             }
 
