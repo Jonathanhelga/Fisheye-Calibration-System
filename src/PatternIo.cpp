@@ -4,11 +4,18 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QSaveFile>
+#include <QStandardPaths>
 
 PatternIo::PatternIo(QObject *parent) : QObject(parent) {}
 
 QUrl PatternIo::defaultDirectory() const {
-    return QUrl::fromLocalFile(QDir::currentPath() + QStringLiteral("/pattern_json"));
+    QString base = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+    if (base.isEmpty()) base = QDir::homePath();
+
+    const QString path = base + QStringLiteral("/MoilFisheyeCali/pattern_json");
+    QDir().mkpath(path);
+
+    return QUrl::fromLocalFile(path);
 }
 
 bool PatternIo::setError(const QString &message) {
