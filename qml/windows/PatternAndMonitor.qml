@@ -170,6 +170,8 @@ Window {
                         Layout.fillHeight: true
                         visible: root.mode === root.chessboardMode
 
+                        onImportRequested: root.importPattern(chessboardPanel)
+                        onExportRequested: root.exportPattern(chessboardPanel)
                         onGenerateRequested: console.log("[Pattern And Monitor] Chessboard: Generate requested")
                         onSaveImageRequested: console.log("[Pattern And Monitor] Chessboard: Save Image requested")
                         onUpdateRequested: (direction) => console.log(

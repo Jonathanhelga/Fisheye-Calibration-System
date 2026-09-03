@@ -5,6 +5,11 @@ function toInt(value, fallback) {
     return Number.isFinite(n) ? n : fallback
 }
 
+function toNumber(value, fallback) {
+    const n = Number(value)
+    return Number.isFinite(n) ? n : fallback
+}
+
 function rgbArray(value) {
     const c = Qt.color(String(value))
     return [Math.round(c.r * 255), Math.round(c.g * 255), Math.round(c.b * 255)]

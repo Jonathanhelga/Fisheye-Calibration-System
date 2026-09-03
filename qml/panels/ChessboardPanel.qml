@@ -12,24 +12,78 @@ import "PatternConfig.js" as PatternConfig
 Rectangle {
     id: panel
 
-    readonly property var pixelSizeOptions: [0.2478, 0.155, 0.293]
+    readonly property string patternType: "chessboard"
+
+    property var pixelSizeOptions: [0.2478, 0.155, 0.293]
 
     property int resolutionH: 1080
     property int resolutionW: 1920
     property real squareMm: 45
-    property color squareColor: "black"
-    property color backgroundColor: "#b4b4b4"
+    property bool crossLine: false
+    property color positiveColor: "black"
+    property color negativeColor: "#b4b4b4"
 
     property alias direction: directionCombo.currentIndex
 
     property url previewSource: ""
 
-    readonly property real pixelSizeMm: pixelSizeOptions[pixelSizeCombo.currentIndex]
+    readonly property real pixelSizeMm: panel.pixelSizeOptions[Math.max(0, pixelSizeCombo.currentIndex)]
     readonly property int squarePx: Math.round(squareMm / pixelSizeMm)
 
+    signal importRequested()
+    signal exportRequested()
     signal generateRequested()
     signal saveImageRequested()
     signal updateRequested(string direction)
+
+    function selectPixelSize(value) {
+        const options = panel.pixelSizeOptions.slice()
+        let index = options.findIndex((v) => Math.abs(v - value) < 1e-9)
+
+        if (index < 0) {
+            options.push(value)
+            panel.pixelSizeOptions = options
+            index = options.length - 1
+        }
+
+        pixelSizeCombo.currentIndex = index
+    }
+
+    function specJson() {
+        const doc = PatternConfig.specEnvelope(panel)
+
+        doc.square_mm = panel.squareMm
+        doc.pixel_size_mm = panel.pixelSizeMm
+        doc.fg_rgb = PatternConfig.rgbArray(panel.positiveColor)
+        doc.bg_rgb = PatternConfig.rgbArray(panel.negativeColor)
+
+        return doc
+    }
+
+    function configJson() {
+        const doc = PatternConfig.configEnvelope(panel)
+
+        doc["pixel size"] = panel.pixelSizeMm
+        doc["grid width mm"] = panel.squareMm
+        doc["grid height mm"] = panel.squareMm
+
+        return doc
+    }
+
+    function loadConfig(doc) {
+        if (!PatternConfig.isConfigFor(doc, panel))
+            return false
+
+        PatternConfig.applyConfigEnvelope(doc, panel)
+
+        panel.squareMm = PatternConfig.toNumber(doc["grid width mm"], panel.squareMm)
+
+        const pixelSize = PatternConfig.toNumber(doc["pixel size"], 0)
+        if (pixelSize > 0)
+            panel.selectPixelSize(pixelSize)
+
+        return true
+    }
 
     readonly property real minimumWidth:  content.Layout.minimumWidth  + 2 * Theme.panelMargin
     readonly property real minimumHeight: content.Layout.minimumHeight + 2 * Theme.panelMargin
@@ -169,8 +223,8 @@ Rectangle {
                     PatternColorButton {
                         Layout.preferredWidth: Math.round(Theme.controlHeight * 2)
                         Layout.preferredHeight: Math.round(Theme.controlHeight * 1)
-                        value: panel.squareColor
-                        onPicked: (value) => panel.squareColor = value
+                        value: panel.positiveColor
+                        onPicked: (value) => panel.positiveColor = value
                     }
                     Label {
                         text: qsTr("Square color")
@@ -184,8 +238,8 @@ Rectangle {
                     PatternColorButton {
                         Layout.preferredWidth: Math.round(Theme.controlHeight * 2)
                         Layout.preferredHeight: Math.round(Theme.controlHeight * 1)
-                        value: panel.backgroundColor
-                        onPicked: (value) => panel.backgroundColor = value
+                        value: panel.negativeColor
+                        onPicked: (value) => panel.negativeColor = value
                     }
                     Label {
                         text: qsTr("Background")
