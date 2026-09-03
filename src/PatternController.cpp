@@ -115,6 +115,7 @@ void PatternController::finishRender(const QString &patternType) {
 }
 
 void PatternController::setLastError(const QString &message) {
+    if (!message.isEmpty()) emit errorRaised(message);
     if (lastError_ == message) return;
     lastError_ = message;
     emit lastErrorChanged();

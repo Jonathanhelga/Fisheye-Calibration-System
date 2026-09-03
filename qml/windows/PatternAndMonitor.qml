@@ -170,10 +170,12 @@ Window {
                         Layout.fillHeight: true
                         visible: root.mode === root.chessboardMode
 
+                        previewSource: PatternController.previewUrls[chessboardPanel.patternType] || ""
+
                         onImportRequested: root.importPattern(chessboardPanel)
                         onExportRequested: root.exportPattern(chessboardPanel)
-                        onGenerateRequested: console.log("[Pattern And Monitor] Chessboard: Generate requested")
-                        onSaveImageRequested: console.log("[Pattern And Monitor] Chessboard: Save Image requested")
+                        onGenerateRequested: root.renderPreview(chessboardPanel)
+                        onSaveImageRequested: root.saveImage(chessboardPanel)
                         onUpdateRequested: (direction) => console.log(
                             "[Pattern And Monitor] Chessboard: Update requested, direction=" + direction)
                     }
@@ -399,9 +401,8 @@ Window {
     Connections {
         target: PatternController
 
-        function onLastErrorChanged() {
-            if (PatternController.lastError !== "")
-                toast.show(PatternController.lastError, true)
+        function onErrorRaised(message) {
+            toast.show(message, true)
         }
     }
 

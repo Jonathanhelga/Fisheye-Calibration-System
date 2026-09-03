@@ -44,6 +44,7 @@ signals:
     void statusChanged();
     void busyChanged();
     void lastErrorChanged();
+    void errorRaised(const QString &message);
     void previewChanged();
 
 private:
