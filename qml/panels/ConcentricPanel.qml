@@ -111,7 +111,7 @@ Rectangle {
 
         Component.onCompleted: {
             for (let i = 0; i < panel.layerCount; i++)
-                layerModel.append({ shape: "Circle", radius: 20,
+                layerModel.append({ shape: "Circle", radius: 60,
                                     color: panel.layerColorAt(i, true), cx: 0, cy: 0 })
         }
     }
