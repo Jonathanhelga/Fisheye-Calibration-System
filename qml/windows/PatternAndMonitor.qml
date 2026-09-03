@@ -131,12 +131,17 @@ Window {
                         Layout.fillHeight: true
                         visible: root.mode === root.concentricMode
 
+                        previewSource: PatternController.previewUrl
+
                         onImportRequested: root.importPattern(concentricPanel)
                         onExportRequested: root.exportPattern(concentricPanel)
                         onSaveImageRequested: console.log("[Pattern And Monitor] Concentric: Save Image requested")
-                        onUpdateRequested: (direction) => console.log(
-                            "[Pattern And Monitor] Concentric: Update requested, direction=" + direction
-                            + " spec=" + JSON.stringify(concentricPanel.specJson()))
+                        onUpdateRequested: (direction) => {
+                            console.log("[Pattern And Monitor] Concentric: Update requested, direction=" + direction)
+                            PatternController.renderPreview(JSON.stringify(concentricPanel.specJson()),
+                                                            concentricPanel.resolutionW,
+                                                            concentricPanel.resolutionH)
+                        }
                     }
                     StripelinePanel {
                         id: stripelinePanel
@@ -352,6 +357,15 @@ Window {
                 console.log("[Pattern And Monitor] export failed, " + PatternIo.lastError)
                 toast.show(qsTr("Export failed: %1").arg(PatternIo.lastError), true)
             }
+        }
+    }
+
+    Connections {
+        target: PatternController
+
+        function onLastErrorChanged() {
+            if (PatternController.lastError !== "")
+                toast.show(PatternController.lastError, true)
         }
     }
 

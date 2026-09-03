@@ -222,7 +222,11 @@ void PatternController::connectTo(int domainId) {
 }
 
 void PatternController::renderPreview(const QString &specJson, int width, int height) {
-    if (status_ != ProbeStatus::Ok) return;
+    if (status_ != ProbeStatus::Ok) {
+        setLastError(tr("not connected to %1, press ROS Update first")
+                         .arg(QString::fromLatin1(kRenderService)));
+        return;
+    }
 
 #ifndef FISHEYE_ROS_ENABLED
     Q_UNUSED(specJson)
@@ -235,7 +239,10 @@ void PatternController::renderPreview(const QString &specJson, int width, int he
         std::lock_guard<std::mutex> lock(d_->clientMutex);
         client = d_->renderClient;
     }
-    if (!client) return;
+    if (!client) {
+        setLastError(tr("the pattern link is up but the client is gone"));
+        return;
+    }
 
     setBusy(true);
     setLastError(QString());
