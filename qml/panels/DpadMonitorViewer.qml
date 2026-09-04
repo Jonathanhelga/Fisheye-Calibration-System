@@ -38,6 +38,7 @@ GridLayout {
     MonitorSlotPanel {
         id: northSlot
         label: qsTr("N")
+        direction: "n"
         Layout.fillWidth: true
         Layout.fillHeight: true
         Layout.minimumWidth: root.slotMinimumWidth
@@ -53,6 +54,7 @@ GridLayout {
     MonitorSlotPanel {
         id: westSlot
         label: qsTr("W")
+        direction: "w"
         Layout.fillWidth: true
         Layout.fillHeight: true
         Layout.minimumWidth: root.slotMinimumWidth
@@ -66,6 +68,7 @@ GridLayout {
     MonitorSlotPanel {
         id: topSlot
         label: qsTr("TOP")
+        direction: "top"
         Layout.fillWidth: true
         Layout.fillHeight: true
         Layout.minimumWidth: root.slotMinimumWidth
@@ -79,6 +82,7 @@ GridLayout {
     MonitorSlotPanel {
         id: eastSlot
         label: qsTr("E")
+        direction: "e"
         Layout.fillWidth: true
         Layout.fillHeight: true
         Layout.minimumWidth: root.slotMinimumWidth
@@ -94,6 +98,7 @@ GridLayout {
     MonitorSlotPanel {
         id: southSlot
         label: qsTr("S")
+        direction: "s"
         Layout.fillWidth: true
         Layout.fillHeight: true
         Layout.minimumWidth: root.slotMinimumWidth

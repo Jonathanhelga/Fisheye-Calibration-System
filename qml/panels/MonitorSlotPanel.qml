@@ -12,9 +12,15 @@ Rectangle {
     id: root
 
     property string label: ""
+    property string direction: ""
     property string imagePath: ""
     property real brightness: 5
     property bool on: false
+
+    readonly property string livePreview:
+        root.direction ? (PatternController.previewUrls[root.direction] || "") : ""
+
+    onLivePreviewChanged: if (root.livePreview) root.on = true
 
     signal browseRequested()
     signal updateRequested(real brightness)
@@ -59,8 +65,8 @@ Rectangle {
             StatusDot {
                 Layout.alignment: Qt.AlignVCenter
                 status: !root.on ? ProbeStatus.Failed
-                      : root.imagePath ? ProbeStatus.Ok
-                                       : ProbeStatus.Unknown
+                      : (root.livePreview || root.imagePath) ? ProbeStatus.Ok
+                                                             : ProbeStatus.Unknown
             }
         }
 
@@ -72,7 +78,9 @@ Rectangle {
             Layout.minimumWidth:  Theme.minMonitorPreviewWidth
             Layout.minimumHeight: Theme.minMonitorPreviewHeight
 
-            source: root.imagePath ? "file://" + root.imagePath : ""
+            source: root.livePreview ? root.livePreview
+                  : root.imagePath ? "file://" + root.imagePath
+                                   : ""
             emptyText: root.on ? qsTr("No image") : qsTr("Off")
             pickEnabled: false
             opacity: root.on ? 1 : 0.35
