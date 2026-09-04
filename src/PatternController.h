@@ -40,6 +40,7 @@ public:
                                    int height);
     Q_INVOKABLE bool savePreview(const QString &patternType, const QUrl &fileUrl);
     Q_INVOKABLE void showOnMonitor(const QString &direction, const QString &specJson);
+    Q_INVOKABLE void refreshDirection(const QString &direction);
 
 signals:
     void statusChanged();
@@ -68,6 +69,7 @@ private:
     QVariantMap previewUrls_;
     QHash<QString, int> revisions_;
     QHash<QString, quint64> renderTokens_;
+    QHash<QString, QString> lastSpecs_;
     QSet<QString> pending_;
     int domainId_ = 0;
     quint64 showToken_ = 0;

@@ -19,6 +19,7 @@
 
 #include <rclcpp/rclcpp.hpp>
 
+#include "moil_interfaces/srv/render_for_direction.hpp"
 #include "moil_interfaces/srv/render_pattern.hpp"
 #include "moil_interfaces/srv/show_pattern_spec.hpp"
 #endif
@@ -29,6 +30,9 @@ constexpr char kRenderService[] = "/compute/render_pattern";
 constexpr char kRenderType[] = "moil_interfaces/srv/RenderPattern";
 
 constexpr char kShowService[] = "/monitor/show_pattern_spec";
+constexpr char kDirectionService[] = "/monitor/render_for_direction";
+
+constexpr int kSlotPreviewMaxSide = 640;
 
 constexpr int kServiceWaitMs = 5000;
 constexpr int kWaitSliceMs = 200;
@@ -84,6 +88,7 @@ struct PatternController::Impl {
 #ifdef FISHEYE_ROS_ENABLED
     rclcpp::Client<moil_interfaces::srv::RenderPattern>::SharedPtr renderClient;
     rclcpp::Client<moil_interfaces::srv::ShowPatternSpec>::SharedPtr showClient;
+    rclcpp::Client<moil_interfaces::srv::RenderForDirection>::SharedPtr directionClient;
 #endif
 };
 
@@ -137,8 +142,7 @@ void PatternController::applyLink(int status, const QString &message, quint64 ge
     }
 }
 
-void PatternController::applyPreview(const QString &patternType, bool ok, const QString &message,
-                                     quint64 token, quint64 generation) {
+void PatternController::applyPreview(const QString &patternType, bool ok, const QString &message, quint64 token, quint64 generation) {
     if (generation != d_->generation.load() || token != renderTokens_.value(patternType)) return;
 
     finishRender(patternType);
@@ -158,9 +162,12 @@ void PatternController::applyShow(const QString &direction, bool ok, const QStri
                                   int width, int height, quint64 token, quint64 generation) {
     if (generation != d_->generation.load() || token != showToken_) return;
 
+    ++showToken_;
+
     if (ok) {
         setLastError(QString());
         emit patternShown(direction, width, height);
+        refreshDirection(direction);
     } else {
         setLastError(message.isEmpty() ? tr("the rig refused to show the pattern") : message);
     }
@@ -221,6 +228,8 @@ void PatternController::connectTo(int domainId) {
 
             auto client = node->create_client<moil_interfaces::srv::RenderPattern>(kRenderService);
             auto show = node->create_client<moil_interfaces::srv::ShowPatternSpec>(kShowService);
+            auto perDirection =
+                node->create_client<moil_interfaces::srv::RenderForDirection>(kDirectionService);
 
             const auto deadline =
                 std::chrono::steady_clock::now() + std::chrono::milliseconds(kServiceWaitMs);
@@ -239,6 +248,7 @@ void PatternController::connectTo(int domainId) {
                     std::lock_guard<std::mutex> lock(d_->clientMutex);
                     d_->renderClient = client;
                     d_->showClient = show;
+                    d_->directionClient = perDirection;
                 }
                 post(ProbeStatus::Ok, QString());
 
@@ -247,6 +257,7 @@ void PatternController::connectTo(int domainId) {
                 std::lock_guard<std::mutex> lock(d_->clientMutex);
                 d_->renderClient.reset();
                 d_->showClient.reset();
+                d_->directionClient.reset();
             }
         } catch (const std::exception &error) {
             post(ProbeStatus::Failed, QString::fromUtf8(error.what()));
@@ -406,6 +417,8 @@ void PatternController::showOnMonitor(const QString &direction, const QString &s
     const quint64 generation = d_->generation.load();
     const quint64 token = ++showToken_;
 
+    lastSpecs_[direction] = specJson;
+
     auto request = std::make_shared<moil_interfaces::srv::ShowPatternSpec::Request>();
     request->direction = direction.toStdString();
     request->spec_json = specJson.toStdString();
@@ -440,6 +453,74 @@ void PatternController::showOnMonitor(const QString &direction, const QString &s
         setLastError(tr("no reply from %1 within %2 s")
                          .arg(QString::fromLatin1(kShowService))
                          .arg(kShowTimeoutMs / 1000));
+    });
+#endif
+}
+
+void PatternController::refreshDirection(const QString &direction) {
+    const QString spec = lastSpecs_.value(direction);
+    if (spec.isEmpty() || status_ != ProbeStatus::Ok) return;
+
+#ifndef FISHEYE_ROS_ENABLED
+    return;
+#else
+    rclcpp::Client<moil_interfaces::srv::RenderForDirection>::SharedPtr client;
+    {
+        std::lock_guard<std::mutex> lock(d_->clientMutex);
+        client = d_->directionClient;
+    }
+    if (!client || !client->service_is_ready()) return;
+
+    const quint64 generation = d_->generation.load();
+    const quint64 token = ++renderTokens_[direction];
+    pending_.insert(direction);
+    updateBusy();
+
+    auto request = std::make_shared<moil_interfaces::srv::RenderForDirection::Request>();
+    request->direction = direction.toStdString();
+    request->spec_json = spec.toStdString();
+    request->max_side = kSlotPreviewMaxSide;
+
+    client->async_send_request(
+        request,
+        [this, generation, token,
+         direction](rclcpp::Client<moil_interfaces::srv::RenderForDirection>::SharedFuture future) {
+            const auto response = future.get();
+
+            QByteArray bytes;
+            QImage image;
+            if (response->success && !response->image.data.empty()) {
+                bytes = QByteArray(reinterpret_cast<const char *>(response->image.data.data()),
+                                   qsizetype(response->image.data.size()));
+                image.loadFromData(bytes);
+            }
+
+            if (generation != d_->generation.load()) return;
+
+            const bool ok = !image.isNull();
+            QString message = QString::fromStdString(response->message);
+            if (!ok && message.isEmpty())
+                message = tr("%1 gave no preview for %2")
+                              .arg(QString::fromLatin1(kDirectionService), direction.toUpper());
+
+            if (ok) {
+                QMutexLocker locker(&previewMutex);
+                previewImages[direction] = image;
+                previewBytes[direction] = bytes;
+            }
+
+            QMetaObject::invokeMethod(this, "applyPreview", Qt::QueuedConnection,
+                                      Q_ARG(QString, direction), Q_ARG(bool, ok),
+                                      Q_ARG(QString, message), Q_ARG(quint64, token),
+                                      Q_ARG(quint64, generation));
+        });
+
+    QTimer::singleShot(kRenderTimeoutMs, this, [this, generation, token, direction] {
+        if (generation != d_->generation.load() || token != renderTokens_.value(direction)) return;
+        finishRender(direction);
+        setLastError(tr("no reply from %1 within %2 s")
+                         .arg(QString::fromLatin1(kDirectionService))
+                         .arg(kRenderTimeoutMs / 1000));
     });
 #endif
 }
