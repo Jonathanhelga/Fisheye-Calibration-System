@@ -349,12 +349,29 @@ Rectangle {
                     model: layerModel
                     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
+                    function moveFocus(index, column, delta) {
+                        const target = index + delta
+                        if (target < 0 || target >= table.count)
+                            return
+
+                        table.positionViewAtIndex(target, ListView.Contain)
+                        table.forceLayout()
+
+                        const item = table.itemAtIndex(target)
+                        if (item)
+                            item.focusColumn(column)
+                    }
+
                     delegate: Item {
                         id: cell
 
                         required property int index
                         required property real interval
                         required property color color
+
+                        function focusColumn(column) {
+                            layerRow.focusColumn(column)
+                        }
 
                         width: table.width
                         height: layerRow.implicitHeight + Theme.spaceXs
@@ -379,6 +396,7 @@ Rectangle {
 
                             onIntervalEdited: (value) => layerModel.setProperty(cell.index, "interval", value)
                             onColorEdited:    (value) => layerModel.setProperty(cell.index, "color", String(value))
+                            onMoveFocusRequested: (column, delta) => table.moveFocus(cell.index, column, delta)
                         }
                     }
                 }

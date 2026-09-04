@@ -24,6 +24,12 @@ RowLayout {
 
     signal intervalEdited(real interval)
     signal colorEdited(color value)
+    signal moveFocusRequested(string column, int delta)
+
+    function focusColumn(column) {
+        if (column === "interval")
+            intervalField.takeFocus()
+    }
 
     spacing: Theme.rowSpacing
 
@@ -37,6 +43,8 @@ RowLayout {
     }
 
     ValueField {
+        id: intervalField
+
         Layout.preferredWidth: row.heightWidth
         Layout.fillWidth: true
         Layout.preferredHeight: row.cellHeight
@@ -45,6 +53,7 @@ RowLayout {
         validator: IntValidator { bottom: 0; top: 9999 }
         value: row.interval
         onEdited: (value) => row.intervalEdited(parseInt(value))
+        onMoveFocusRequested: (delta) => row.moveFocusRequested("interval", delta)
     }
 
     Item {

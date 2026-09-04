@@ -31,6 +31,13 @@ RowLayout {
     signal colorEdited(color value)
     signal cxEdited(real cx)
     signal cyEdited(real cy)
+    signal moveFocusRequested(string column, int delta)
+
+    function focusColumn(column) {
+        if (column === "radius")   radiusField.takeFocus()
+        else if (column === "cx")  cxField.takeFocus()
+        else if (column === "cy")  cyField.takeFocus()
+    }
 
     spacing: Theme.rowSpacing
 
@@ -54,6 +61,8 @@ RowLayout {
     }
 
     ValueField {
+        id: radiusField
+
         Layout.preferredWidth: row.radiusWidth
         Layout.fillWidth: true
         Layout.preferredHeight: row.cellHeight
@@ -62,6 +71,7 @@ RowLayout {
         validator: IntValidator { bottom: 0; top: 9999 }
         value: row.radius
         onEdited: (value) => row.radiusEdited(parseInt(value))
+        onMoveFocusRequested: (delta) => row.moveFocusRequested("radius", delta)
     }
 
     Item {
@@ -82,6 +92,8 @@ RowLayout {
     }
 
     ValueField {
+        id: cxField
+
         Layout.preferredWidth: row.cxWidth
         Layout.fillWidth: true
         Layout.preferredHeight: row.cellHeight
@@ -90,9 +102,12 @@ RowLayout {
         validator: IntValidator { bottom: -9999; top: 9999 }
         value: row.cx
         onEdited: (value) => row.cxEdited(parseInt(value))
+        onMoveFocusRequested: (delta) => row.moveFocusRequested("cx", delta)
     }
 
     ValueField {
+        id: cyField
+
         Layout.preferredWidth: row.cyWidth
         Layout.fillWidth: true
         Layout.preferredHeight: row.cellHeight
@@ -101,5 +116,6 @@ RowLayout {
         validator: IntValidator { bottom: -9999; top: 9999 }
         value: row.cy
         onEdited: (value) => row.cyEdited(parseInt(value))
+        onMoveFocusRequested: (delta) => row.moveFocusRequested("cy", delta)
     }
 }
