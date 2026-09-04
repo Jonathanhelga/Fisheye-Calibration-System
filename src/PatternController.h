@@ -39,6 +39,7 @@ public:
     Q_INVOKABLE void renderPreview(const QString &patternType, const QString &specJson, int width,
                                    int height);
     Q_INVOKABLE bool savePreview(const QString &patternType, const QUrl &fileUrl);
+    Q_INVOKABLE void showOnMonitor(const QString &direction, const QString &specJson);
 
 signals:
     void statusChanged();
@@ -46,11 +47,14 @@ signals:
     void lastErrorChanged();
     void errorRaised(const QString &message);
     void previewChanged();
+    void patternShown(const QString &direction, int width, int height);
 
 private:
     Q_INVOKABLE void applyLink(int status, const QString &message, quint64 generation);
     Q_INVOKABLE void applyPreview(const QString &patternType, bool ok, const QString &message,
                                   quint64 token, quint64 generation);
+    Q_INVOKABLE void applyShow(const QString &direction, bool ok, const QString &message, int width,
+                               int height, quint64 token, quint64 generation);
 
     void setStatus(ProbeStatus::Status status);
     void setLastError(const QString &message);
@@ -65,6 +69,8 @@ private:
     QHash<QString, int> revisions_;
     QHash<QString, quint64> renderTokens_;
     QSet<QString> pending_;
+    int domainId_ = 0;
+    quint64 showToken_ = 0;
 
     struct Impl;
     std::unique_ptr<Impl> d_;

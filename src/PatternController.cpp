@@ -20,6 +20,7 @@
 #include <rclcpp/rclcpp.hpp>
 
 #include "moil_interfaces/srv/render_pattern.hpp"
+#include "moil_interfaces/srv/show_pattern_spec.hpp"
 #endif
 
 namespace {
@@ -27,10 +28,13 @@ namespace {
 constexpr char kRenderService[] = "/compute/render_pattern";
 constexpr char kRenderType[] = "moil_interfaces/srv/RenderPattern";
 
+constexpr char kShowService[] = "/monitor/show_pattern_spec";
+
 constexpr int kServiceWaitMs = 5000;
 constexpr int kWaitSliceMs = 200;
 constexpr int kSpinSliceMs = 100;
 constexpr int kRenderTimeoutMs = 15000;
+constexpr int kShowTimeoutMs = 15000;
 
 QMutex previewMutex;
 QHash<QString, QImage> previewImages;
@@ -79,6 +83,7 @@ struct PatternController::Impl {
     std::mutex clientMutex;
 #ifdef FISHEYE_ROS_ENABLED
     rclcpp::Client<moil_interfaces::srv::RenderPattern>::SharedPtr renderClient;
+    rclcpp::Client<moil_interfaces::srv::ShowPatternSpec>::SharedPtr showClient;
 #endif
 };
 
@@ -149,9 +154,23 @@ void PatternController::applyPreview(const QString &patternType, bool ok, const 
     }
 }
 
+void PatternController::applyShow(const QString &direction, bool ok, const QString &message,
+                                  int width, int height, quint64 token, quint64 generation) {
+    if (generation != d_->generation.load() || token != showToken_) return;
+
+    if (ok) {
+        setLastError(QString());
+        emit patternShown(direction, width, height);
+    } else {
+        setLastError(message.isEmpty() ? tr("the rig refused to show the pattern") : message);
+    }
+}
+
 void PatternController::connectTo(int domainId) {
     stopWorker();
 
+    domainId_ = domainId;
+    ++showToken_;
     setStatus(ProbeStatus::Checking);
     setLastError(QString());
     for (const QString &patternType : pending_) ++renderTokens_[patternType];
@@ -201,6 +220,7 @@ void PatternController::connectTo(int domainId) {
             executor.add_node(node);
 
             auto client = node->create_client<moil_interfaces::srv::RenderPattern>(kRenderService);
+            auto show = node->create_client<moil_interfaces::srv::ShowPatternSpec>(kShowService);
 
             const auto deadline =
                 std::chrono::steady_clock::now() + std::chrono::milliseconds(kServiceWaitMs);
@@ -218,6 +238,7 @@ void PatternController::connectTo(int domainId) {
                 {
                     std::lock_guard<std::mutex> lock(d_->clientMutex);
                     d_->renderClient = client;
+                    d_->showClient = show;
                 }
                 post(ProbeStatus::Ok, QString());
 
@@ -225,6 +246,7 @@ void PatternController::connectTo(int domainId) {
 
                 std::lock_guard<std::mutex> lock(d_->clientMutex);
                 d_->renderClient.reset();
+                d_->showClient.reset();
             }
         } catch (const std::exception &error) {
             post(ProbeStatus::Failed, QString::fromUtf8(error.what()));
@@ -348,6 +370,76 @@ void PatternController::renderPreview(const QString &patternType, const QString 
         setLastError(tr("no reply from %1 within %2 s")
                          .arg(QString::fromLatin1(kRenderService))
                          .arg(kRenderTimeoutMs / 1000));
+    });
+#endif
+}
+
+void PatternController::showOnMonitor(const QString &direction, const QString &specJson) {
+    if (status_ != ProbeStatus::Ok) {
+        setLastError(tr("not connected to the rig, press ROS Update first"));
+        return;
+    }
+
+#ifndef FISHEYE_ROS_ENABLED
+    Q_UNUSED(direction)
+    Q_UNUSED(specJson)
+    setLastError(tr("this build has no ROS 2 support"));
+#else
+    rclcpp::Client<moil_interfaces::srv::ShowPatternSpec>::SharedPtr client;
+    {
+        std::lock_guard<std::mutex> lock(d_->clientMutex);
+        client = d_->showClient;
+    }
+    if (!client) {
+        setLastError(tr("the pattern link is up but the client is gone"));
+        return;
+    }
+    if (!client->service_is_ready()) {
+        setLastError(tr("nothing is serving %1 on domain %2 "
+                        "(wrong domain, wrong subnet, or the monitor node is not running)")
+                         .arg(QString::fromLatin1(kShowService), QString::number(domainId_)));
+        return;
+    }
+
+    setLastError(QString());
+
+    const quint64 generation = d_->generation.load();
+    const quint64 token = ++showToken_;
+
+    auto request = std::make_shared<moil_interfaces::srv::ShowPatternSpec::Request>();
+    request->direction = direction.toStdString();
+    request->spec_json = specJson.toStdString();
+
+    client->async_send_request(
+        request,
+        [this, generation, token,
+         direction](rclcpp::Client<moil_interfaces::srv::ShowPatternSpec>::SharedFuture future) {
+            const auto response = future.get();
+
+            if (generation != d_->generation.load()) return;
+
+            const bool ok = response->success;
+            QString message = QString::fromStdString(response->message);
+            if (!ok && message.isEmpty())
+                message = tr("%1 refused the pattern, is a display mapped to %2?")
+                              .arg(QString::fromLatin1(kShowService), direction.toUpper());
+
+            const int width = response->widths.empty() ? 0 : response->widths.front();
+            const int height = response->heights.empty() ? 0 : response->heights.front();
+
+            QMetaObject::invokeMethod(this, "applyShow", Qt::QueuedConnection,
+                                      Q_ARG(QString, direction), Q_ARG(bool, ok),
+                                      Q_ARG(QString, message), Q_ARG(int, width),
+                                      Q_ARG(int, height), Q_ARG(quint64, token),
+                                      Q_ARG(quint64, generation));
+        });
+
+    QTimer::singleShot(kShowTimeoutMs, this, [this, generation, token] {
+        if (generation != d_->generation.load() || token != showToken_) return;
+        ++showToken_;
+        setLastError(tr("no reply from %1 within %2 s")
+                         .arg(QString::fromLatin1(kShowService))
+                         .arg(kShowTimeoutMs / 1000));
     });
 #endif
 }

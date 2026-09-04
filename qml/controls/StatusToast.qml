@@ -36,8 +36,8 @@ Rectangle {
 
         Rectangle {
             Layout.alignment: Qt.AlignVCenter
-            width: Theme.spaceSm
-            height: width
+            implicitWidth: Theme.spaceSm
+            implicitHeight: Theme.spaceSm
             radius: width / 2
             color: toast.failure ? Theme.statusFailed : Theme.statusOk
         }

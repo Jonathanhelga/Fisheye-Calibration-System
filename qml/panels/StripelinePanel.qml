@@ -30,7 +30,8 @@ Rectangle {
     signal importRequested()
     signal exportRequested()
     signal saveImageRequested()
-    signal updateRequested(string direction)
+    signal updateRequested()
+    signal showRequested(string direction)
 
     function layerColorAt(index, positive) {
         return String((index % 2 === 0) === positive ? panel.positiveColor : panel.negativeColor)
@@ -151,6 +152,16 @@ Rectangle {
                 currentIndex: 2
             }
 
+            ActionButton {
+                text: qsTr("Show on Monitor")
+                tone: "accent"
+                onClicked: panel.showRequested(PatternConfig.wireDirection(directionCombo.currentIndex))
+
+                ToolTip.visible: hovered
+                ToolTip.delay: Theme.animSlow
+                ToolTip.text: qsTr("Put this pattern on the selected screen. The rig renders it at that screen's own resolution.")
+            }
+
             Item { Layout.fillWidth: true }
 
             GhostButton { text: qsTr("Import"); onClicked: panel.importRequested() }
@@ -160,7 +171,7 @@ Rectangle {
 
         Rectangle {
             Layout.fillWidth: true
-            height: 1
+            Layout.preferredHeight: 1
             color: Theme.panelBorder
         }
 
@@ -288,7 +299,7 @@ Rectangle {
                     Layout.fillWidth: Math.round(Theme.charUnit * 20)
                     tone: "accent"
                     text: qsTr("Update")
-                    onClicked: panel.updateRequested(PatternConfig.wireDirection(directionCombo.currentIndex))
+                    onClicked: panel.updateRequested()
                 }
                 Item { Layout.fillWidth: true }
             }
@@ -321,7 +332,7 @@ Rectangle {
 
                 Rectangle {
                     Layout.fillWidth: true
-                    height: 1
+                    Layout.preferredHeight: 1
                     color: Theme.panelBorder
                 }
 

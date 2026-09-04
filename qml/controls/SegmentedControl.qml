@@ -17,7 +17,7 @@ Rectangle {
     readonly property real measuredSegmentWidth: {
         let widest = 0
         for (let i = 0; i < measurer.count; i++)
-            widest = Math.max(widest, measurer.objectAt(i).advanceWidth)
+            widest = Math.max(widest, (measurer.objectAt(i) as TextMetrics).advanceWidth)
         return Math.ceil(widest) + 3 * Theme.fieldPadding
     }
 

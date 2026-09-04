@@ -61,6 +61,10 @@ Window {
                                         target.resolutionH)
     }
 
+    function showOnMonitor(target, direction) {
+        PatternController.showOnMonitor(direction, JSON.stringify(target.specJson()))
+    }
+
     function saveImage(target) {
         saveImageDialog.target = target
         saveImageDialog.selectedFile = target.patternType + ".png"
@@ -150,6 +154,7 @@ Window {
                         onExportRequested: root.exportPattern(concentricPanel)
                         onSaveImageRequested: root.saveImage(concentricPanel)
                         onUpdateRequested: root.renderPreview(concentricPanel)
+                        onShowRequested: (direction) => root.showOnMonitor(concentricPanel, direction)
                     }
                     StripelinePanel {
                         id: stripelinePanel
@@ -163,6 +168,7 @@ Window {
                         onExportRequested: root.exportPattern(stripelinePanel)
                         onSaveImageRequested: root.saveImage(stripelinePanel)
                         onUpdateRequested: root.renderPreview(stripelinePanel)
+                        onShowRequested: (direction) => root.showOnMonitor(stripelinePanel, direction)
                     }
                     ChessboardPanel {
                         id: chessboardPanel
@@ -172,12 +178,10 @@ Window {
 
                         previewSource: PatternController.previewUrls[chessboardPanel.patternType] || ""
 
-                        onImportRequested: root.importPattern(chessboardPanel)
-                        onExportRequested: root.exportPattern(chessboardPanel)
                         onGenerateRequested: root.renderPreview(chessboardPanel)
                         onSaveImageRequested: root.saveImage(chessboardPanel)
-                        onUpdateRequested: (direction) => console.log(
-                            "[Pattern And Monitor] Chessboard: Update requested, direction=" + direction)
+                        onUpdateRequested: root.renderPreview(chessboardPanel)
+                        onShowRequested: (direction) => root.showOnMonitor(chessboardPanel, direction)
                     }
                 }
 
@@ -403,6 +407,14 @@ Window {
 
         function onErrorRaised(message) {
             toast.show(message, true)
+        }
+
+        function onPatternShown(direction, width, height) {
+            toast.show(width > 0 && height > 0
+                       ? qsTr("Pattern shown on %1 at %2 x %3")
+                             .arg(direction.toUpperCase()).arg(width).arg(height)
+                       : qsTr("Pattern shown on %1").arg(direction.toUpperCase()),
+                       false)
         }
     }
 

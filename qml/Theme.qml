@@ -4,7 +4,7 @@ import QtQuick
 
 QtObject {
 
-    readonly property FontMetrics metrics: FontMetrics { font: Qt.application.font }
+    readonly property FontMetrics metrics: FontMetrics { }
     readonly property real unit: Math.round(metrics.height)
     readonly property real charUnit: Math.round(metrics.averageCharacterWidth)
     //spacing

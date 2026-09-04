@@ -30,11 +30,10 @@ Rectangle {
     readonly property real pixelSizeMm: panel.pixelSizeOptions[Math.max(0, pixelSizeCombo.currentIndex)]
     readonly property int squarePx: Math.round(squareMm / pixelSizeMm)
 
-    signal importRequested()
-    signal exportRequested()
     signal generateRequested()
     signal saveImageRequested()
-    signal updateRequested(string direction)
+    signal updateRequested()
+    signal showRequested(string direction)
 
     function selectPixelSize(value) {
         const options = panel.pixelSizeOptions.slice()
@@ -58,31 +57,6 @@ Rectangle {
         doc.bg_rgb = PatternConfig.rgbArray(panel.negativeColor)
 
         return doc
-    }
-
-    function configJson() {
-        const doc = PatternConfig.configEnvelope(panel)
-
-        doc["pixel size"] = panel.pixelSizeMm
-        doc["grid width mm"] = panel.squareMm
-        doc["grid height mm"] = panel.squareMm
-
-        return doc
-    }
-
-    function loadConfig(doc) {
-        if (!PatternConfig.isConfigFor(doc, panel))
-            return false
-
-        PatternConfig.applyConfigEnvelope(doc, panel)
-
-        panel.squareMm = PatternConfig.toNumber(doc["grid width mm"], panel.squareMm)
-
-        const pixelSize = PatternConfig.toNumber(doc["pixel size"], 0)
-        if (pixelSize > 0)
-            panel.selectPixelSize(pixelSize)
-
-        return true
     }
 
     readonly property real minimumWidth:  content.Layout.minimumWidth  + 2 * Theme.panelMargin
@@ -124,16 +98,22 @@ Rectangle {
                 model: PatternConfig.directionLabels()
             }
 
+            ActionButton {
+                text: qsTr("Show on Monitor")
+                tone: "accent"
+                onClicked: panel.showRequested(PatternConfig.wireDirection(directionCombo.currentIndex))
+
+                ToolTip.visible: hovered
+                ToolTip.delay: Theme.animSlow
+                ToolTip.text: qsTr("Put this pattern on the selected screen. The rig renders it at that screen's own resolution.")
+            }
+
             Item { Layout.fillWidth: true }
-
-            GhostButton { text: qsTr("Import"); onClicked: panel.importRequested() }
-            GhostButton { text: qsTr("Export"); onClicked: panel.exportRequested() }
-
         }
 
         Rectangle {
             Layout.fillWidth: true
-            height: 1
+            Layout.preferredHeight: 1
             color: Theme.panelBorder
         }
 
@@ -269,7 +249,7 @@ Rectangle {
                     Layout.fillWidth: Math.round(Theme.charUnit * 20)
                     tone: "accent"
                     text: qsTr("Update")
-                    onClicked: panel.updateRequested(PatternConfig.wireDirection(directionCombo.currentIndex))
+                    onClicked: panel.updateRequested()
                 }
             }
 
