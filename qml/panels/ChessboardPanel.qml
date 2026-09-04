@@ -30,7 +30,6 @@ Rectangle {
     readonly property real pixelSizeMm: panel.pixelSizeOptions[Math.max(0, pixelSizeCombo.currentIndex)]
     readonly property int squarePx: Math.round(squareMm / pixelSizeMm)
 
-    signal generateRequested()
     signal saveImageRequested()
     signal updateRequested()
     signal showRequested(string direction)
@@ -118,6 +117,8 @@ Rectangle {
         }
 
         ColumnLayout{
+            id: body
+
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.margins: Theme.panelMargin
@@ -158,22 +159,59 @@ Rectangle {
                 id: preview
 
                 Layout.fillWidth: true
-                Layout.fillHeight: true
+                Layout.preferredHeight: Math.round(body.width * panel.resolutionH / panel.resolutionW)
                 Layout.minimumHeight: Theme.minPatternPreviewHeight
+                Layout.maximumHeight: Theme.maxPatternPreviewHeight
 
                 source: panel.previewSource
                 emptyText: qsTr("No preview yet")
                 hint: qsTr("%1 x %2").arg(panel.resolutionW).arg(panel.resolutionH)
             }
-
-            GridLayout {
+            RowLayout{
                 Layout.fillWidth: true
-                columns: 2
-                rowSpacing: Theme.spaceXs
-                columnSpacing: Theme.rowSpacing
+                spacing: Theme.rowSpacing
+                Item { Layout.fillWidth: true }
+
+                ColumnLayout {
+                    spacing: Theme.labelSpacing
+
+                    Label {
+                        text: qsTr("Square")
+                        color: Theme.textCaption
+                        font.pixelSize: Theme.captionFontSize
+                    }
+                    PatternColorButton {
+                        Layout.preferredWidth: Math.round(Theme.charUnit * 9)
+                        Layout.preferredHeight: Theme.controlHeight
+                        value: panel.positiveColor
+                        onPicked: (value) => panel.positiveColor = value
+                    }
+                }
+
+                ColumnLayout {
+                    spacing: Theme.labelSpacing
+
+                    Label {
+                        text: qsTr("Background")
+                        color: Theme.textCaption
+                        font.pixelSize: Theme.captionFontSize
+                    }
+                    PatternColorButton {
+                        Layout.preferredWidth: Math.round(Theme.charUnit * 9)
+                        Layout.preferredHeight: Theme.controlHeight
+                        value: panel.negativeColor
+                        onPicked: (value) => panel.negativeColor = value
+                    }
+                }
+                Item { Layout.fillWidth: true }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: Theme.rowSpacing
 
                 LabeledField {
-                    Layout.fillWidth: true
+                    // Layout.preferredWidth: Math.round(Theme.charUnit * 9)
                     label: qsTr("Square (mm)")
                     text: panel.squareMm
                     validator: DecimalValidator { bottom: 0.1; top: 999; decimals: 2 }
@@ -181,7 +219,7 @@ Rectangle {
                 }
 
                 ColumnLayout {
-                    Layout.fillWidth: true
+                    Layout.preferredWidth: Math.round(Theme.charUnit * 12)
                     spacing: Theme.labelSpacing
 
                     Label {
@@ -189,61 +227,33 @@ Rectangle {
                         color: Theme.textCaption
                         font.pixelSize: Theme.captionFontSize
                     }
-
-                    ComboBox {
+                    SegmentedControl{
                         id: pixelSizeCombo
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: Theme.controlHeight
                         model: panel.pixelSizeOptions
                     }
                 }
 
-                RowLayout {
-                    spacing: Theme.spaceXs
-                    PatternColorButton {
-                        Layout.preferredWidth: Math.round(Theme.controlHeight * 2)
-                        Layout.preferredHeight: Math.round(Theme.controlHeight * 1)
-                        value: panel.positiveColor
-                        onPicked: (value) => panel.positiveColor = value
-                    }
-                    Label {
-                        text: qsTr("Square color")
-                        color: Theme.textCaption
-                        font.pixelSize: Theme.captionFontSize
-                    }
-                }
+                Item { Layout.fillWidth: true }
 
-                RowLayout {
-                    spacing: Theme.spaceXs
-                    PatternColorButton {
-                        Layout.preferredWidth: Math.round(Theme.controlHeight * 2)
-                        Layout.preferredHeight: Math.round(Theme.controlHeight * 1)
-                        value: panel.negativeColor
-                        onPicked: (value) => panel.negativeColor = value
-                    }
-                    Label {
-                        text: qsTr("Background")
-                        color: Theme.textCaption
-                        font.pixelSize: Theme.captionFontSize
-                    }
+                Label {
+                    Layout.alignment: Qt.AlignBottom
+                    Layout.bottomMargin: Math.round((Theme.controlHeight - implicitHeight) / 2)
+                    text: qsTr("square_px = %1").arg(panel.squarePx)
+                    color: Theme.textCaption
+                    font.pixelSize: Theme.captionFontSize
                 }
             }
 
-            Label {
-                Layout.fillWidth: true
-                text: qsTr("square_px = round(%1 / %2) = %3 px")
-                        .arg(panel.squareMm).arg(panel.pixelSizeMm).arg(panel.squarePx)
-                color: Theme.textCaption
-                font.pixelSize: Theme.captionFontSize
-            }
+
 
             RowLayout{
                 Layout.fillWidth: true
-                spacing: Theme.rowSpacing
-                ActionButton {
-                    Layout.fillWidth: true
-                    text: qsTr("Generate")
-                    onClicked: panel.generateRequested()
+                spacing: Theme.spaceLg
+                Item { Layout.fillWidth: true }
+                PatternToggleSwitch {
+                    text: qsTr("Auto Update")
+                    checked: panel.autoUpdate
+                    onToggled: (value) => panel.autoUpdate = value
                 }
                 ActionButton {
                     Layout.fillWidth: Math.round(Theme.charUnit * 20)
@@ -251,7 +261,9 @@ Rectangle {
                     text: qsTr("Update")
                     onClicked: panel.updateRequested()
                 }
+                Item { Layout.fillWidth: true }
             }
+            
 
             Item {
                 Layout.fillWidth: true

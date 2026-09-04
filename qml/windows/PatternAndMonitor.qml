@@ -178,7 +178,6 @@ Window {
 
                         previewSource: PatternController.previewUrls[chessboardPanel.patternType] || ""
 
-                        onGenerateRequested: root.renderPreview(chessboardPanel)
                         onSaveImageRequested: root.saveImage(chessboardPanel)
                         onUpdateRequested: root.renderPreview(chessboardPanel)
                         onShowRequested: (direction) => root.showOnMonitor(chessboardPanel, direction)
