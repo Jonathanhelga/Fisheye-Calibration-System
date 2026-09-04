@@ -48,6 +48,7 @@ QtObject {
     readonly property int minPatternPreviewHeight: Math.round(unit * 23)
     readonly property int maxPatternPreviewHeight: Math.round(unit * 24)
     readonly property int minPatternTableHeight:   Math.round(unit * 10)
+    readonly property int minSingleRowPatternTableWidth:   Math.round(unit * 10)
 
     readonly property int minMonitorPreviewWidth:  Math.round(unit * 9)
     readonly property int minMonitorPreviewHeight: Math.round(unit * 7)

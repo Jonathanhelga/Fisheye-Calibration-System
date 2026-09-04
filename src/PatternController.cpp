@@ -228,8 +228,7 @@ void PatternController::connectTo(int domainId) {
 
             auto client = node->create_client<moil_interfaces::srv::RenderPattern>(kRenderService);
             auto show = node->create_client<moil_interfaces::srv::ShowPatternSpec>(kShowService);
-            auto perDirection =
-                node->create_client<moil_interfaces::srv::RenderForDirection>(kDirectionService);
+            auto perDirection = node->create_client<moil_interfaces::srv::RenderForDirection>(kDirectionService);
 
             const auto deadline =
                 std::chrono::steady_clock::now() + std::chrono::milliseconds(kServiceWaitMs);

@@ -311,7 +311,7 @@ Rectangle {
             QtObject {
                 id: tableColumns
                 readonly property int noWidth:     Math.round(Theme.charUnit * 2.5)
-                readonly property int heightWidth: Math.round(Theme.charUnit * 6)
+                readonly property int heightWidth: Math.round(Theme.charUnit * 15)
                 readonly property int colorWidth:  Math.round(Theme.controlHeight * 0.65)
             }
 

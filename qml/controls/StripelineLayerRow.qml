@@ -18,7 +18,7 @@ RowLayout {
     property color color: "black"
 
     property int noWidth:     Math.round(Theme.charUnit * 2.5)
-    property int heightWidth: Math.round(Theme.charUnit * 6)
+    property int heightWidth: Math.round(Theme.charUnit * 15)
     property int colorWidth:  Math.round(Theme.controlHeight * 0.65)
     readonly property int cellHeight:  Math.round(Theme.controlHeight * 0.72)
 
@@ -42,24 +42,27 @@ RowLayout {
         horizontalAlignment: Text.AlignHCenter
     }
 
-    ValueField {
-        id: intervalField
-
+    Item {
         Layout.preferredWidth: row.heightWidth
         Layout.fillWidth: true
         Layout.preferredHeight: row.cellHeight
-        editable: true
-        horizontalAlignment: Text.AlignHCenter
-        validator: IntValidator { bottom: 0; top: 9999 }
-        value: row.interval
-        onEdited: (value) => row.intervalEdited(parseInt(value))
-        onMoveFocusRequested: (delta) => row.moveFocusRequested("interval", delta)
+
+        ValueField {
+            id: intervalField
+
+            anchors.centerIn: parent
+            width: row.heightWidth
+            height: row.cellHeight
+            editable: true
+            horizontalAlignment: Text.AlignHCenter
+            validator: IntValidator { bottom: 0; top: 9999 }
+            value: row.interval
+            onEdited: (value) => row.intervalEdited(parseInt(value))
+            onMoveFocusRequested: (delta) => row.moveFocusRequested("interval", delta)
+        }
     }
 
     Item {
-        // Stretches with the column like every other cell, but keeps the
-        // swatch itself a fixed square instead of letting it turn into a
-        // rectangle when the window is wider than the minimum.
         Layout.preferredWidth: row.colorWidth
         Layout.fillWidth: true
         Layout.preferredHeight: row.cellHeight
