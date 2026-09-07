@@ -21,6 +21,7 @@ Rectangle {
     property real appliedBrightness: 5
 
     readonly property bool pendingChanges: PatternController.status === ProbeStatus.Ok
+                                        && root.on
                                         && (root.imagePath !== root.appliedImagePath
                                          || (root.brightnessSupported
                                              && root.brightness !== root.appliedBrightness))
@@ -44,6 +45,7 @@ Rectangle {
         function onMonitorClosed(direction) {
             if (direction !== root.direction && direction !== "all") return
             root.on = false
+            root.imagePath = ""
             root.appliedImagePath = ""
         }
 

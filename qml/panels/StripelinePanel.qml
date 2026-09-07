@@ -24,6 +24,11 @@ Rectangle {
     property color positiveColor: "black"
     property color negativeColor: "white"
 
+    // Whether the layer table still holds a generated alternation of the two
+    // colors above ("positive" / "negative"), or was edited row by row
+    // ("custom"). Only a generated table is recolored automatically.
+    property string colorPolarity: "positive"
+
     property alias direction: directionCombo.currentIndex
 
     property url previewSource: ""
@@ -38,15 +43,25 @@ Rectangle {
         return String((index % 2 === 0) === positive ? panel.positiveColor : panel.negativeColor)
     }
 
-    function applyPositivePattern() {
+    function applyPattern(positive) {
+        panel.colorPolarity = positive ? "positive" : "negative"
         for (let i = 0; i < layerModel.count; i++)
-            layerModel.setProperty(i, "color", panel.layerColorAt(i, true))
+            layerModel.setProperty(i, "color", panel.layerColorAt(i, positive))
     }
 
-    function applyNegativePattern() {
-        for (let i = 0; i < layerModel.count; i++)
-            layerModel.setProperty(i, "color", panel.layerColorAt(i, false))
+    function applyPositivePattern() { panel.applyPattern(true) }
+    function applyNegativePattern() { panel.applyPattern(false) }
+
+    // Repaint the table in place whenever either color changes, so the rows
+    // follow the picker without a second click. A hand-edited table is
+    // "custom" and is left alone.
+    function refreshPattern() {
+        if (panel.colorPolarity !== "custom")
+            panel.applyPattern(panel.colorPolarity === "positive")
     }
+
+    onPositiveColorChanged: panel.refreshPattern()
+    onNegativeColorChanged: panel.refreshPattern()
 
     function specJson() {
         const doc = PatternConfig.specEnvelope(panel)
@@ -85,6 +100,9 @@ Rectangle {
         if (!PatternConfig.isConfigFor(doc, panel))
             return false
 
+        // Held at "custom" while the envelope's colors land, so refreshPattern()
+        // does not repaint rows that are about to be rewritten below.
+        panel.colorPolarity = "custom"
         PatternConfig.applyConfigEnvelope(doc, panel)
         const derived = doc.pos_neg_color === true
 
@@ -101,6 +119,7 @@ Rectangle {
                                            : PatternConfig.toColor(layer.color, "#ffffff"))
         }
 
+        panel.colorPolarity = derived ? "positive" : "custom"
         return true
     }
 
@@ -285,12 +304,14 @@ Rectangle {
                 spacing: Theme.rowSpacing
                 ActionButton {
                     Layout.fillWidth: true
-                    text: qsTr("Positive ( + ) Pattern")
+                    text: qsTr("( + ) Positive Pattern")
+                    checked: panel.colorPolarity === "positive"
                     onClicked: panel.applyPositivePattern()
                 }
                 ActionButton {
                     Layout.fillWidth: true
-                    text: qsTr("Negative ( - ) Pattern")
+                    text: qsTr("( - ) Negative Pattern")
+                    checked: panel.colorPolarity === "negative"
                     onClicked: panel.applyNegativePattern()
                 }
             }
@@ -404,7 +425,10 @@ Rectangle {
                             color: cell.color
 
                             onIntervalEdited: (value) => layerModel.setProperty(cell.index, "interval", value)
-                            onColorEdited:    (value) => layerModel.setProperty(cell.index, "color", String(value))
+                            onColorEdited:    (value) => {
+                                panel.colorPolarity = "custom"
+                                layerModel.setProperty(cell.index, "color", String(value))
+                            }
                             onMoveFocusRequested: (column, delta) => table.moveFocus(cell.index, column, delta)
                         }
                     }

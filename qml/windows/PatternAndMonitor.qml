@@ -277,8 +277,6 @@ Window {
                             ActionButton {
                                 text: qsTr("Apply to 4 Sides")
                                 tone: "accent"
-                                enabled: fourSidePathField.text.length > 0
-                                      && PatternController.status === ProbeStatus.Ok
                                 onClicked: root.applyImageToFourSides()
                             }
                         }
