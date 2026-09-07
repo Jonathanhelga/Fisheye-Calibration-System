@@ -22,8 +22,10 @@
 #include <rclcpp/rclcpp.hpp>
 
 #include "moil_interfaces/srv/close_pattern.hpp"
+#include "moil_interfaces/srv/monitor_command.hpp"
 #include "moil_interfaces/srv/render_for_direction.hpp"
 #include "moil_interfaces/srv/set_brightness.hpp"
+#include "moil_interfaces/srv/set_display_direction.hpp"
 #include "moil_interfaces/srv/render_pattern.hpp"
 #include "moil_interfaces/srv/show_pattern.hpp"
 #include "moil_interfaces/srv/show_pattern_spec.hpp"
@@ -39,6 +41,8 @@ constexpr char kShowImageService[] = "/monitor/show_pattern";
 constexpr char kDirectionService[] = "/monitor/render_for_direction";
 constexpr char kCloseService[] = "/monitor/close_pattern";
 constexpr char kBrightnessService[] = "/monitor/set_brightness";
+constexpr char kMonitorCommandService[] = "/monitor/command";
+constexpr char kSetDirectionService[] = "/monitor/set_display_direction";
 
 constexpr int kSlotPreviewMaxSide = 640;
 
@@ -47,6 +51,7 @@ constexpr int kWaitSliceMs = 200;
 constexpr int kSpinSliceMs = 100;
 constexpr int kRenderTimeoutMs = 15000;
 constexpr int kShowTimeoutMs = 15000;
+constexpr int kDisplaySetupTimeoutMs = 30000;
 
 QMutex previewMutex;
 QHash<QString, QImage> previewImages;
@@ -100,6 +105,8 @@ struct PatternController::Impl {
     rclcpp::Client<moil_interfaces::srv::RenderForDirection>::SharedPtr directionClient;
     rclcpp::Client<moil_interfaces::srv::ClosePattern>::SharedPtr closeClient;
     rclcpp::Client<moil_interfaces::srv::SetBrightness>::SharedPtr brightnessClient;
+    rclcpp::Client<moil_interfaces::srv::MonitorCommand>::SharedPtr commandClient;
+    rclcpp::Client<moil_interfaces::srv::SetDisplayDirection>::SharedPtr directionMapClient;
 #endif
 };
 
@@ -220,6 +227,16 @@ void PatternController::applyBrightness(const QString &direction, double brightn
     emit brightnessApplied(direction, brightness);
 }
 
+void PatternController::applyDisplaySetup(bool ok, const QString &message, quint64 token,
+                                          quint64 generation) {
+    if (generation != d_->generation.load() || token != displaySetupToken_) return;
+
+    ++displaySetupToken_;
+
+    setLastError(ok ? QString() : message);
+    emit displaySetupReplied(ok, message);
+}
+
 void PatternController::connectTo(int domainId) {
     stopWorker();
 
@@ -277,6 +294,8 @@ void PatternController::connectTo(int domainId) {
             auto perDirection = node->create_client<moil_interfaces::srv::RenderForDirection>(kDirectionService);
             auto close = node->create_client<moil_interfaces::srv::ClosePattern>(kCloseService);
             auto brightness = node->create_client<moil_interfaces::srv::SetBrightness>(kBrightnessService);
+            auto command = node->create_client<moil_interfaces::srv::MonitorCommand>(kMonitorCommandService);
+            auto directionMap = node->create_client<moil_interfaces::srv::SetDisplayDirection>(kSetDirectionService);
 
             const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(kServiceWaitMs);
             bool ready = false;
@@ -298,6 +317,8 @@ void PatternController::connectTo(int domainId) {
                     d_->directionClient = perDirection;
                     d_->closeClient = close;
                     d_->brightnessClient = brightness;
+                    d_->commandClient = command;
+                    d_->directionMapClient = directionMap;
                 }
                 post(ProbeStatus::Ok, QString());
 
@@ -310,6 +331,8 @@ void PatternController::connectTo(int domainId) {
                 d_->directionClient.reset();
                 d_->closeClient.reset();
                 d_->brightnessClient.reset();
+                d_->commandClient.reset();
+                d_->directionMapClient.reset();
             }
         } catch (const std::exception &error) {
             post(ProbeStatus::Failed, QString::fromUtf8(error.what()));
@@ -718,6 +741,140 @@ void PatternController::setMonitorBrightness(const QString &direction, double br
         setLastError(tr("no reply from %1 within %2 s")
                          .arg(QString::fromLatin1(kBrightnessService))
                          .arg(kShowTimeoutMs / 1000));
+    });
+#endif
+}
+
+void PatternController::showDisplayNumbers() {
+    if (status_ != ProbeStatus::Ok) {
+        setLastError(tr("not connected to the rig, press ROS Update first"));
+        return;
+    }
+
+#ifndef FISHEYE_ROS_ENABLED
+    setLastError(tr("this build has no ROS 2 support"));
+#else
+    rclcpp::Client<moil_interfaces::srv::MonitorCommand>::SharedPtr client;
+    {
+        std::lock_guard<std::mutex> lock(d_->clientMutex);
+        client = d_->commandClient;
+    }
+    if (!client) {
+        setLastError(tr("the pattern link is up but the client is gone"));
+        return;
+    }
+    if (!client->service_is_ready()) {
+        setLastError(tr("nothing is serving %1 on domain %2 "
+                        "(wrong domain, wrong subnet, or the monitor node is not running)")
+                         .arg(QString::fromLatin1(kMonitorCommandService),
+                              QString::number(domainId_)));
+        return;
+    }
+
+    setLastError(QString());
+
+    const quint64 generation = d_->generation.load();
+    const quint64 token = ++displaySetupToken_;
+
+    auto request = std::make_shared<moil_interfaces::srv::MonitorCommand::Request>();
+    request->command = "show_display_number";
+
+    client->async_send_request(
+        request, [this, generation,
+                  token](rclcpp::Client<moil_interfaces::srv::MonitorCommand>::SharedFuture future) {
+            const auto response = future.get();
+
+            if (generation != d_->generation.load()) return;
+
+            QString message = QString::fromStdString(response->message);
+            if (message.isEmpty())
+                message = response->success ? tr("numbers shown on the screens")
+                                            : tr("%1 refused to show the display numbers")
+                                                  .arg(QString::fromLatin1(kMonitorCommandService));
+
+            QMetaObject::invokeMethod(this, "applyDisplaySetup", Qt::QueuedConnection,
+                                      Q_ARG(bool, response->success), Q_ARG(QString, message),
+                                      Q_ARG(quint64, token), Q_ARG(quint64, generation));
+        });
+
+    QTimer::singleShot(kDisplaySetupTimeoutMs, this, [this, generation, token] {
+        if (generation != d_->generation.load() || token != displaySetupToken_) return;
+        ++displaySetupToken_;
+        setLastError(tr("no reply from %1 within %2 s")
+                         .arg(QString::fromLatin1(kMonitorCommandService))
+                         .arg(kDisplaySetupTimeoutMs / 1000));
+    });
+#endif
+}
+
+void PatternController::applyDisplayDirection(int top, int north, int west, int south, int east) {
+    if (status_ != ProbeStatus::Ok) {
+        setLastError(tr("not connected to the rig, press ROS Update first"));
+        return;
+    }
+
+#ifndef FISHEYE_ROS_ENABLED
+    Q_UNUSED(top)
+    Q_UNUSED(north)
+    Q_UNUSED(west)
+    Q_UNUSED(south)
+    Q_UNUSED(east)
+    setLastError(tr("this build has no ROS 2 support"));
+#else
+    rclcpp::Client<moil_interfaces::srv::SetDisplayDirection>::SharedPtr client;
+    {
+        std::lock_guard<std::mutex> lock(d_->clientMutex);
+        client = d_->directionMapClient;
+    }
+    if (!client) {
+        setLastError(tr("the pattern link is up but the client is gone"));
+        return;
+    }
+    if (!client->service_is_ready()) {
+        setLastError(tr("nothing is serving %1 on domain %2 "
+                        "(wrong domain, wrong subnet, or the monitor node is not running)")
+                         .arg(QString::fromLatin1(kSetDirectionService),
+                              QString::number(domainId_)));
+        return;
+    }
+
+    setLastError(QString());
+
+    const quint64 generation = d_->generation.load();
+    const quint64 token = ++displaySetupToken_;
+
+    auto request = std::make_shared<moil_interfaces::srv::SetDisplayDirection::Request>();
+    request->display_top = QString::number(top).toStdString();
+    request->display_n = QString::number(north).toStdString();
+    request->display_w = QString::number(west).toStdString();
+    request->display_s = QString::number(south).toStdString();
+    request->display_e = QString::number(east).toStdString();
+
+    client->async_send_request(
+        request,
+        [this, generation,
+         token](rclcpp::Client<moil_interfaces::srv::SetDisplayDirection>::SharedFuture future) {
+            const auto response = future.get();
+
+            if (generation != d_->generation.load()) return;
+
+            QString message = QString::fromStdString(response->message);
+            if (message.isEmpty())
+                message = response->success ? tr("mapping applied")
+                                            : tr("%1 refused the mapping")
+                                                  .arg(QString::fromLatin1(kSetDirectionService));
+
+            QMetaObject::invokeMethod(this, "applyDisplaySetup", Qt::QueuedConnection,
+                                      Q_ARG(bool, response->success), Q_ARG(QString, message),
+                                      Q_ARG(quint64, token), Q_ARG(quint64, generation));
+        });
+
+    QTimer::singleShot(kDisplaySetupTimeoutMs, this, [this, generation, token] {
+        if (generation != d_->generation.load() || token != displaySetupToken_) return;
+        ++displaySetupToken_;
+        setLastError(tr("no reply from %1 within %2 s")
+                         .arg(QString::fromLatin1(kSetDirectionService))
+                         .arg(kDisplaySetupTimeoutMs / 1000));
     });
 #endif
 }

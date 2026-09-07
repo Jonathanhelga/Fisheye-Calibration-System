@@ -18,10 +18,15 @@ Dialog {
 
     property string statusText: ""
 
-    signal showNumbersRequested()
-    signal applyMappingRequested(int top, int north, int west, int south, int east)
+    readonly property bool linked: PatternController.status === ProbeStatus.Ok
 
-    function reportStatus(text) { dialog.statusText = text }
+    onOpened: dialog.statusText = ""
+
+    Connections {
+        target: PatternController
+
+        function onDisplaySetupReplied(ok, message) { dialog.statusText = message }
+    }
 
     header: Label {
         text: qsTr("Setup Monitor Direction")
@@ -113,7 +118,8 @@ Dialog {
             Layout.fillWidth: true
             tone: "accent"
             text: qsTr("Show Numbers on Screens")
-            onClicked: dialog.showNumbersRequested()
+            enabled: dialog.linked
+            onClicked: PatternController.showDisplayNumbers()
         }
 
         GridLayout {
@@ -159,16 +165,18 @@ Dialog {
             Layout.topMargin: Theme.spaceSm
             tone: "accent"
             text: qsTr("Apply Mapping")
-            onClicked: dialog.applyMappingRequested(dialog.topNumber, dialog.northNumber,
-                                                     dialog.westNumber, dialog.southNumber,
-                                                     dialog.eastNumber)
+            enabled: dialog.linked
+            onClicked: PatternController.applyDisplayDirection(dialog.topNumber, dialog.northNumber,
+                                                               dialog.westNumber, dialog.southNumber,
+                                                               dialog.eastNumber)
         }
 
         Label {
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
-            visible: dialog.statusText.length > 0
-            text: dialog.statusText
+            visible: !dialog.linked || dialog.statusText.length > 0
+            text: dialog.linked ? dialog.statusText
+                                : qsTr("Not connected to the rig, press ROS Update first.")
             color: Theme.textCaption
             font.pixelSize: Theme.captionFontSize
         }

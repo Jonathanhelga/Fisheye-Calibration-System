@@ -44,6 +44,8 @@ public:
     Q_INVOKABLE void refreshDirection(const QString &direction);
     Q_INVOKABLE void closeMonitor(const QString &direction);
     Q_INVOKABLE void setMonitorBrightness(const QString &direction, double brightness);
+    Q_INVOKABLE void showDisplayNumbers();
+    Q_INVOKABLE void applyDisplayDirection(int top, int north, int west, int south, int east);
 
 signals:
     void statusChanged();
@@ -54,6 +56,7 @@ signals:
     void patternShown(const QString &direction, int width, int height, const QString &imagePath);
     void monitorClosed(const QString &direction);
     void brightnessApplied(const QString &direction, double brightness);
+    void displaySetupReplied(bool ok, const QString &message);
 
 private:
     Q_INVOKABLE void applyLink(int status, const QString &message, quint64 generation);
@@ -66,6 +69,8 @@ private:
                                 quint64 token, quint64 generation);
     Q_INVOKABLE void applyBrightness(const QString &direction, double brightness, bool ok,
                                      const QString &message, quint64 token, quint64 generation);
+    Q_INVOKABLE void applyDisplaySetup(bool ok, const QString &message, quint64 token,
+                                       quint64 generation);
 
     void setStatus(ProbeStatus::Status status);
     void setLastError(const QString &message);
@@ -83,6 +88,7 @@ private:
     QHash<QString, quint64> showTokens_;
     QHash<QString, quint64> closeTokens_;
     QHash<QString, quint64> brightnessTokens_;
+    quint64 displaySetupToken_ = 0;
     QSet<QString> pending_;
     int domainId_ = 0;
 

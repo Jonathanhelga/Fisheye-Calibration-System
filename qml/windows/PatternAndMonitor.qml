@@ -39,9 +39,6 @@ Window {
                                                         stripelinePanel.minimumHeight,
                                                         chessboardPanel.minimumHeight)
 
-    signal showNumbersRequested()
-    signal applyMappingRequested(int top, int north, int west, int south, int east)
-
     function importPattern(target) {
         importDialog.target = target
         importDialog.open()
@@ -430,14 +427,5 @@ Window {
     MonitorDirectionDialog {
         id: directionDialog
         anchors.centerIn: parent
-
-        onShowNumbersRequested: {
-            console.log("[Pattern And Monitor] Show Numbers on Screens requested")
-            root.showNumbersRequested()
-        }
-        onApplyMappingRequested: (top, north, west, south, east) => {
-            console.log("[Pattern And Monitor] Apply Mapping requested: top=" + top + " n=" + north + " w=" + west + " s=" + south + " e=" + east)
-            root.applyMappingRequested(top, north, west, south, east)
-        }
     }
 }

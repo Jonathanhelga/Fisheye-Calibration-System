@@ -228,10 +228,5 @@ ApplicationWindow {
 
     PatternAndMonitor {
         id: patternAndMonitor
-
-        onApplyMappingRequested: (top, north, west, south, east) => {
-            console.log("[Main] Pattern & Monitor apply mapping: top=" + top
-                + " n=" + north + " w=" + west + " s=" + south + " e=" + east)
-        }
     }
 }
