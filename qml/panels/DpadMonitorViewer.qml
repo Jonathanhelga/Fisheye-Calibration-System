@@ -45,7 +45,7 @@ GridLayout {
         Layout.minimumHeight: root.slotMinimumHeight
 
         onBrowseRequested: console.log("[Pattern And Monitor] N: Browse requested")
-        onUpdateRequested: (brightness) => console.log("[Pattern And Monitor] N: Update requested, brightness=" + brightness)
+        onUpdateRequested: (brightness) => PatternController.setMonitorBrightness(northSlot.direction, brightness)
         onTurnOffRequested: PatternController.closeMonitor(northSlot.direction)
     }
 
@@ -61,7 +61,7 @@ GridLayout {
         Layout.minimumHeight: root.slotMinimumHeight
 
         onBrowseRequested: console.log("[Pattern And Monitor] W: Browse requested")
-        onUpdateRequested: (brightness) => console.log("[Pattern And Monitor] W: Update requested, brightness=" + brightness)
+        onUpdateRequested: (brightness) => PatternController.setMonitorBrightness(westSlot.direction, brightness)
         onTurnOffRequested: PatternController.closeMonitor(westSlot.direction)
     }
 
@@ -75,7 +75,7 @@ GridLayout {
         Layout.minimumHeight: root.slotMinimumHeight
 
         onBrowseRequested: console.log("[Pattern And Monitor] TOP: Browse requested")
-        onUpdateRequested: (brightness) => console.log("[Pattern And Monitor] TOP: Update requested, brightness=" + brightness)
+        onUpdateRequested: (brightness) => PatternController.setMonitorBrightness(topSlot.direction, brightness)
         onTurnOffRequested: PatternController.closeMonitor(topSlot.direction)
     }
 
@@ -89,7 +89,7 @@ GridLayout {
         Layout.minimumHeight: root.slotMinimumHeight
 
         onBrowseRequested: console.log("[Pattern And Monitor] E: Browse requested")
-        onUpdateRequested: (brightness) => console.log("[Pattern And Monitor] E: Update requested, brightness=" + brightness)
+        onUpdateRequested: (brightness) => PatternController.setMonitorBrightness(eastSlot.direction, brightness)
         onTurnOffRequested: PatternController.closeMonitor(eastSlot.direction)
     }
 
@@ -105,7 +105,7 @@ GridLayout {
         Layout.minimumHeight: root.slotMinimumHeight
 
         onBrowseRequested: console.log("[Pattern And Monitor] S: Browse requested")
-        onUpdateRequested: (brightness) => console.log("[Pattern And Monitor] S: Update requested, brightness=" + brightness)
+        onUpdateRequested: (brightness) => PatternController.setMonitorBrightness(southSlot.direction, brightness)
         onTurnOffRequested: PatternController.closeMonitor(southSlot.direction)
     }
 

@@ -13,7 +13,7 @@ Rectangle {
     property string label: ""
     property string direction: ""
     property string imagePath: ""
-    property real brightness: 5
+    property alias brightness: brightnessField.value
     property bool on: false
 
     readonly property string livePreview:
@@ -133,22 +133,13 @@ Rectangle {
             Layout.fillWidth: true
             spacing: Theme.labelSpacing
 
-            Label {
-                text: qsTr("Brightness")
-                color: Theme.textCaption
-                font.pixelSize: Theme.captionFontSize
-            }
-
-            ValueField {
+            ValueSpinBox {
                 id: brightnessField
 
-                Layout.preferredWidth: Theme.readoutWidth
-                horizontalAlignment: Text.AlignRight
-                editable: true
-                validator: IntValidator { bottom: 0; top: 100 }
-                value: Math.round(root.brightness)
-
-                onEdited: (value) => root.brightness = parseInt(value)
+                label: qsTr("Brightness")
+                from: 0
+                to: 100
+                value: 5
             }
 
             Label {

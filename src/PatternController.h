@@ -42,6 +42,7 @@ public:
     Q_INVOKABLE void showOnMonitor(const QString &direction, const QString &specJson);
     Q_INVOKABLE void refreshDirection(const QString &direction);
     Q_INVOKABLE void closeMonitor(const QString &direction);
+    Q_INVOKABLE void setMonitorBrightness(const QString &direction, double brightness);
 
 signals:
     void statusChanged();
@@ -51,6 +52,7 @@ signals:
     void previewChanged();
     void patternShown(const QString &direction, int width, int height);
     void monitorClosed(const QString &direction);
+    void brightnessApplied(const QString &direction, double brightness);
 
 private:
     Q_INVOKABLE void applyLink(int status, const QString &message, quint64 generation);
@@ -60,6 +62,8 @@ private:
                                int height, quint64 token, quint64 generation);
     Q_INVOKABLE void applyClose(const QString &direction, bool ok, const QString &message,
                                 quint64 token, quint64 generation);
+    Q_INVOKABLE void applyBrightness(const QString &direction, double brightness, bool ok,
+                                     const QString &message, quint64 token, quint64 generation);
 
     void setStatus(ProbeStatus::Status status);
     void setLastError(const QString &message);
@@ -75,6 +79,7 @@ private:
     QHash<QString, quint64> renderTokens_;
     QHash<QString, QString> lastSpecs_;
     QHash<QString, quint64> closeTokens_;
+    QHash<QString, quint64> brightnessTokens_;
     QSet<QString> pending_;
     int domainId_ = 0;
     quint64 showToken_ = 0;
