@@ -731,21 +731,22 @@ property, find a *consumer* — a binding that renders it or a controller call t
 sends it. `grep` for the property name and subtract the declaration and the
 control's own two lines; if nothing is left, it is a dead control.
 
-Two things deliberately did **not** become buttons that do something:
+Also wired, 2026-09-07:
 
-- **Overlap / Aggregation / Graphs tabs** are still empty. They need the three
-  distance *searches*, which are the `CaliJob` action rather than a service
-  precisely because they run for tens of seconds and must be cancellable. Wiring
-  them to the plain service would have given the operator a frozen window with no
-  way out.
-- **Stop** drops the replies this client is waiting for and says so. It does not
-  claim to have cancelled anything: `/compute/cali` and `/compute/xlsx` have no
-  cancel, and the op finishes on the rig either way.
+| UI | Goes to |
+|---|---|
+| Camera → **Pos / Neg** | now a *measurement*: `ShowPrepared(polarity)` then capture, so a shot named after a polarity is taken against it. They previously grabbed whatever was already on the glass and filed it under the wrong name |
+| **Calibration System** combo | applies that rig's pixel sizes and H/V gaps to the table, from the profiles in `Server/v2.1.0/config/cali_system/` (mirrored in `qml/panels/CaliSystems.js`) |
+| Parameter tab → pixel sizes, H/V gaps ×4 | the fields the combo writes, now visible and editable so they can be confirmed before computing |
+| **Overlap** tab | `global_ict_alpha` — every enabled round pooled, which is the only view that shows rounds disagreeing with *each other* |
+| **Aggregation** tab | the three `CaliJob` distance searches, with live progress and a working Cancel |
+| **Graphs** tab | `ict_zfl` per round, full-tab |
+| **Stop** | now cancels a running search for real; still advisory for the plain services |
 
-And one that is still inert, for a reason worth stating: the **Calibration System**
-combo (Yuanman EV2785 / EV2730Q / Yinda / Broland C++) only reaches the saved
-configuration JSON. Nothing in `ComputeOps::cali` or its params JSON selects a
-system, so wiring it would mean *deciding* what Yinda does differently from
-Broland C++ — a specification question the code does not answer, and a wrong guess
-would silently change calibration output. It stays a saved preference until
-someone says what it should switch.
+One thing deliberately did **not** become a button that does something:
+
+- **Stop on a plain service.** With a `CaliJob` search running, Stop cancels it
+  properly. With only `/compute/cali` or `/compute/xlsx` outstanding there is
+  nothing to cancel — those have no cancel in the protocol — so Stop drops the
+  replies this client is waiting for and says exactly that. The op still finishes
+  on the rig; claiming otherwise would be the lie.
