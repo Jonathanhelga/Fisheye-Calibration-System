@@ -39,7 +39,6 @@ Window {
                                                         stripelinePanel.minimumHeight,
                                                         chessboardPanel.minimumHeight)
 
-    signal fourSideBrowseRequested()
     signal showNumbersRequested()
     signal applyMappingRequested(int top, int north, int west, int south, int east)
 
@@ -228,14 +227,6 @@ Window {
                             ToolTip.text: qsTr("Turns off North, West, South, and East together. TOP is left as is.")
                         }
 
-                        ActionButton {
-                            text: qsTr("Reconnect")
-
-                            ToolTip.visible: hovered
-                            ToolTip.delay: Theme.animSlow
-                            ToolTip.text: qsTr("Reconnect")
-                        }
-
                         Item { Layout.fillWidth: true }
                     }
 
@@ -280,15 +271,14 @@ Window {
 
                             ActionButton {
                                 text: qsTr("Browse...")
-                                onClicked: {
-                                    console.log("[Monitor Viewer] 4-Side: Browse requested")
-                                    root.fourSideBrowseRequested()
-                                }
+                                onClicked: fourSideImageDialog.open()
                             }
 
                             ActionButton {
                                 text: qsTr("Apply to 4 Sides")
                                 tone: "accent"
+                                enabled: fourSidePathField.text.length > 0
+                                      && PatternController.status === ProbeStatus.Ok
                                 onClicked: root.applyImageToFourSides()
                             }
                         }
@@ -402,6 +392,24 @@ Window {
                 console.log("[Pattern And Monitor] save image failed, " + PatternController.lastError)
                 toast.show(qsTr("Save Image failed: %1").arg(PatternController.lastError), true)
             }
+        }
+    }
+
+    FileDialog {
+        id: fourSideImageDialog
+
+        title: qsTr("Choose pattern image for N / W / S / E")
+        fileMode: FileDialog.OpenFile
+        nameFilters: [qsTr("Images (*.png *.jpg *.jpeg *.bmp)"), qsTr("All files (*)")]
+
+        Component.onCompleted: fourSideImageDialog.currentFolder = PatternIo.defaultImageDirectory
+
+        onAccepted: {
+            const path = PatternIo.localPath(fourSideImageDialog.selectedFile)
+            if (!path) return
+
+            console.log("[Pattern And Monitor] 4-Side image picked " + path)
+            fourSidePathField.text = path
         }
     }
 

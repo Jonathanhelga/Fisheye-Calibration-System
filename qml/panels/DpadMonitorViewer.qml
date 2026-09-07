@@ -41,10 +41,10 @@ GridLayout {
     }
 
     function applyImageToFourSides(path) {
-        northSlot.imagePath = path
-        westSlot.imagePath = path
-        southSlot.imagePath = path
-        eastSlot.imagePath = path
+        for (const slot of [northSlot, westSlot, southSlot, eastSlot]) {
+            slot.imagePath = path
+            root.pushSlot(slot, slot.brightness)
+        }
     }
 
     Item {}
