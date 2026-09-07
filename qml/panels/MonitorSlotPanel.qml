@@ -14,14 +14,16 @@ Rectangle {
     property string direction: ""
     property string imagePath: ""
     property alias brightness: brightnessField.value
+    property bool brightnessSupported: true
     property bool on: false
 
     property string appliedImagePath: ""
-    property real appliedBrightness: -1
+    property real appliedBrightness: 5
 
     readonly property bool pendingChanges: PatternController.status === ProbeStatus.Ok
                                         && (root.imagePath !== root.appliedImagePath
-                                         || root.brightness !== root.appliedBrightness)
+                                         || (root.brightnessSupported
+                                             && root.brightness !== root.appliedBrightness))
 
     readonly property string livePreview:
         root.direction ? (PatternController.previewUrls[root.direction] || "") : ""
@@ -46,7 +48,9 @@ Rectangle {
         }
 
         function onPatternShown(direction) {
-            if (direction === root.direction) root.appliedImagePath = root.imagePath
+            if (direction !== root.direction) return
+            root.appliedImagePath = root.imagePath
+            root.on = true
         }
 
         function onBrightnessApplied(direction, brightness) {
@@ -164,11 +168,16 @@ Rectangle {
                 from: 0
                 to: 100
                 value: 5
+                enabled: root.brightnessSupported
+
+                ToolTip.visible: hovered && !root.brightnessSupported
+                ToolTip.delay: Theme.animSlow
+                ToolTip.text: qsTr("Only the TOP panel accepts DDC/CI brightness on this rig.")
             }
 
             Label {
                 text: "%"
-                color: Theme.textCaption
+                color: root.brightnessSupported ? Theme.textCaption : Theme.textDisabled
                 font.pixelSize: Theme.captionFontSize
             }
 

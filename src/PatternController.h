@@ -79,11 +79,11 @@ private:
     QHash<QString, int> revisions_;
     QHash<QString, quint64> renderTokens_;
     QHash<QString, QString> lastSpecs_;
+    QHash<QString, quint64> showTokens_;
     QHash<QString, quint64> closeTokens_;
     QHash<QString, quint64> brightnessTokens_;
     QSet<QString> pending_;
     int domainId_ = 0;
-    quint64 showToken_ = 0;
 
     struct Impl;
     std::unique_ptr<Impl> d_;

@@ -171,9 +171,9 @@ void PatternController::applyPreview(const QString &patternType, bool ok, const 
 
 void PatternController::applyShow(const QString &direction, bool ok, const QString &message,
                                   int width, int height, quint64 token, quint64 generation) {
-    if (generation != d_->generation.load() || token != showToken_) return;
+    if (generation != d_->generation.load() || token != showTokens_.value(direction)) return;
 
-    ++showToken_;
+    ++showTokens_[direction];
 
     if (ok) {
         setLastError(QString());
@@ -223,7 +223,6 @@ void PatternController::connectTo(int domainId) {
     stopWorker();
 
     domainId_ = domainId;
-    ++showToken_;
     setStatus(ProbeStatus::Checking);
     setLastError(QString());
     for (const QString &patternType : pending_) ++renderTokens_[patternType];
@@ -467,7 +466,7 @@ void PatternController::showOnMonitor(const QString &direction, const QString &s
     setLastError(QString());
 
     const quint64 generation = d_->generation.load();
-    const quint64 token = ++showToken_;
+    const quint64 token = ++showTokens_[direction];
 
     lastSpecs_[direction] = specJson;
 
@@ -499,9 +498,9 @@ void PatternController::showOnMonitor(const QString &direction, const QString &s
                                       Q_ARG(quint64, generation));
         });
 
-    QTimer::singleShot(kShowTimeoutMs, this, [this, generation, token] {
-        if (generation != d_->generation.load() || token != showToken_) return;
-        ++showToken_;
+    QTimer::singleShot(kShowTimeoutMs, this, [this, generation, token, direction] {
+        if (generation != d_->generation.load() || token != showTokens_.value(direction)) return;
+        ++showTokens_[direction];
         setLastError(tr("no reply from %1 within %2 s")
                          .arg(QString::fromLatin1(kShowService))
                          .arg(kShowTimeoutMs / 1000));
@@ -549,7 +548,10 @@ void PatternController::showImageOnMonitor(const QString &direction, const QStri
     setLastError(QString());
 
     const quint64 generation = d_->generation.load();
-    const quint64 token = ++showToken_;
+    const quint64 token = ++showTokens_[direction];
+
+    lastSpecs_.remove(direction);
+    if (previewUrls_.remove(direction) > 0) emit previewChanged();
 
     const QString suffix = QFileInfo(imagePath).suffix().toLower();
 
@@ -580,9 +582,9 @@ void PatternController::showImageOnMonitor(const QString &direction, const QStri
                                       Q_ARG(quint64, token), Q_ARG(quint64, generation));
         });
 
-    QTimer::singleShot(kShowTimeoutMs, this, [this, generation, token] {
-        if (generation != d_->generation.load() || token != showToken_) return;
-        ++showToken_;
+    QTimer::singleShot(kShowTimeoutMs, this, [this, generation, token, direction] {
+        if (generation != d_->generation.load() || token != showTokens_.value(direction)) return;
+        ++showTokens_[direction];
         setLastError(tr("no reply from %1 within %2 s")
                          .arg(QString::fromLatin1(kShowImageService))
                          .arg(kShowTimeoutMs / 1000));

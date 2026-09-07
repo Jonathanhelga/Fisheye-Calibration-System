@@ -31,7 +31,7 @@ GridLayout {
         if (slot.imagePath && slot.imagePath !== slot.appliedImagePath)
             PatternController.showImageOnMonitor(slot.direction, slot.imagePath)
 
-        if (brightness !== slot.appliedBrightness)
+        if (slot.brightnessSupported && brightness !== slot.appliedBrightness)
             PatternController.setMonitorBrightness(slot.direction, brightness)
     }
 
@@ -53,6 +53,7 @@ GridLayout {
         id: northSlot
         label: qsTr("N")
         direction: "n"
+        brightnessSupported: false
         Layout.fillWidth: true
         Layout.fillHeight: true
         Layout.minimumWidth: root.slotMinimumWidth
@@ -69,6 +70,7 @@ GridLayout {
         id: westSlot
         label: qsTr("W")
         direction: "w"
+        brightnessSupported: false
         Layout.fillWidth: true
         Layout.fillHeight: true
         Layout.minimumWidth: root.slotMinimumWidth
@@ -97,6 +99,7 @@ GridLayout {
         id: eastSlot
         label: qsTr("E")
         direction: "e"
+        brightnessSupported: false
         Layout.fillWidth: true
         Layout.fillHeight: true
         Layout.minimumWidth: root.slotMinimumWidth
@@ -113,6 +116,7 @@ GridLayout {
         id: southSlot
         label: qsTr("S")
         direction: "s"
+        brightnessSupported: false
         Layout.fillWidth: true
         Layout.fillHeight: true
         Layout.minimumWidth: root.slotMinimumWidth
@@ -142,7 +146,6 @@ GridLayout {
             if (!browseDialog.target || !path) return
 
             browseDialog.target.imagePath = path
-            root.pushSlot(browseDialog.target, browseDialog.target.brightness)
         }
     }
 }
