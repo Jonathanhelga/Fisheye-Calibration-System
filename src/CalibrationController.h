@@ -69,6 +69,20 @@ class CalibrationController : public QObject {
     Q_PROPERTY(QString aggregationText READ aggregationText NOTIFY resultChanged)
     Q_PROPERTY(QString noiseText READ noiseText NOTIFY resultChanged)
 
+    // ---- the distance searches (CaliJob) -----------------------------------
+    // These run for minutes and CAN be cancelled, unlike every service above.
+    Q_PROPERTY(bool searchRunning READ searchRunning NOTIFY searchChanged)
+    Q_PROPERTY(QString searchStage READ searchStage NOTIFY searchChanged)
+    Q_PROPERTY(int searchDone READ searchDone NOTIFY searchChanged)
+    Q_PROPERTY(int searchTotal READ searchTotal NOTIFY searchChanged)
+    Q_PROPERTY(QString searchSummary READ searchSummary NOTIFY searchChanged)
+    Q_PROPERTY(double bestDistance READ bestDistance NOTIFY searchChanged)
+    Q_PROPERTY(double bestAggregation READ bestAggregation NOTIFY searchChanged)
+    Q_PROPERTY(QVariantList searchSamples READ searchSamples NOTIFY searchChanged)
+
+    // ---- extra plot series --------------------------------------------------
+    Q_PROPERTY(QVariantList globalIctAlpha READ globalIctAlpha NOTIFY seriesChanged)
+
     Q_PROPERTY(bool singleDistance READ singleDistance WRITE setSingleDistance NOTIFY optionsChanged)
     Q_PROPERTY(double baseDistance READ baseDistance WRITE setBaseDistance NOTIFY optionsChanged)
     Q_PROPERTY(int regressionDegree READ regressionDegree WRITE setRegressionDegree
@@ -106,6 +120,17 @@ public:
     QString aggregationText() const { return aggregationText_; }
     QString noiseText() const { return noiseText_; }
 
+    bool searchRunning() const { return searchRunning_; }
+    QString searchStage() const { return searchStage_; }
+    int searchDone() const { return searchDone_; }
+    int searchTotal() const { return searchTotal_; }
+    QString searchSummary() const { return searchSummary_; }
+    double bestDistance() const { return bestDistance_; }
+    double bestAggregation() const { return bestAggregation_; }
+    QVariantList searchSamples() const { return searchSamples_; }
+
+    QVariantList globalIctAlpha() const { return globalIctAlpha_; }
+
     bool singleDistance() const { return singleDistance_; }
     void setSingleDistance(bool on);
     double baseDistance() const { return baseDistance_; }
@@ -141,6 +166,20 @@ public:
     // ---- the graphs --------------------------------------------------------
     Q_INVOKABLE void updateSeries();
 
+    // ---- the distance searches ---------------------------------------------
+    // Ternary search over one round.
+    Q_INVOKABLE void findMinForRound(int round, double distMin, double distMax);
+    // Coarse sweep then refine, over every enabled round.
+    Q_INVOKABLE void findMinInWindow(bool useWindow, double xLo, double xHi);
+    // 282 probes, each recomputing all eleven rounds. The reason this is an
+    // action rather than a service.
+    Q_INVOKABLE void findDistanceForTarget(double target, bool useRange, double xLo, double xHi);
+
+    // Asks the rig to unwind the search. The table comes back at whatever the
+    // last probe wrote -- a cancelled search produced a partial answer, it did
+    // not fail.
+    Q_INVOKABLE void cancelSearch();
+
     // Drops whatever is in flight so the window unblocks. The op itself is a
     // plain service with no cancel, so it finishes on the rig regardless -- say
     // so rather than pretend it stopped.
@@ -158,6 +197,7 @@ signals:
     void resultChanged();
     void folderChanged();
     void optionsChanged();
+    void searchChanged();
 
 private:
     Q_INVOKABLE void applyLink(int status, const QString &message, quint64 generation);
@@ -172,6 +212,15 @@ private:
                                    quint64 generation);
     Q_INVOKABLE void applyXlsxWrite(bool ok, const QByteArray &data, const QString &message,
                                     const QString &path, quint64 token, quint64 generation);
+
+    Q_INVOKABLE void applySearchAccepted(bool accepted, const QString &message, quint64 generation);
+    Q_INVOKABLE void applySearchFeedback(int done, int total, const QString &stage,
+                                         quint64 generation);
+    Q_INVOKABLE void applySearchResult(bool ok, bool cancelled, const QString &tableJson,
+                                       const QString &resultJson, const QString &message,
+                                       quint64 generation);
+
+    void startSearch(const QString &op, const QJsonObject &extra, int round);
 
     void setStatus(ProbeStatus::Status status);
     void setLastError(const QString &message);
@@ -250,6 +299,17 @@ private:
     int pendingLoads_ = 0;
     int loadedOk_ = 0;
     QStringList loadFailures_;
+
+    bool searchRunning_ = false;
+    QString searchStage_;
+    QString searchSummary_;
+    int searchDone_ = 0;
+    int searchTotal_ = 0;
+    double bestDistance_ = 0;
+    double bestAggregation_ = 0;
+    QVariantList searchSamples_;
+
+    QVariantList globalIctAlpha_;
 
     QSet<quint64> liveTokens_;
     quint64 nextToken_ = 0;

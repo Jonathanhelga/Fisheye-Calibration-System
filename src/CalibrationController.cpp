@@ -20,7 +20,9 @@
 #include <string>
 
 #include <rclcpp/rclcpp.hpp>
+#include <rclcpp_action/rclcpp_action.hpp>
 
+#include "moil_interfaces/action/cali_job.hpp"
 #include "moil_interfaces/srv/cali_op.hpp"
 #include "moil_interfaces/srv/cali_series.hpp"
 #include "moil_interfaces/srv/xlsx_io.hpp"
@@ -31,6 +33,7 @@ namespace {
 constexpr char kCaliService[] = "/compute/cali";
 constexpr char kSeriesService[] = "/compute/series";
 constexpr char kXlsxService[] = "/compute/xlsx";
+constexpr char kCaliJobAction[] = "/compute/cali_job";
 constexpr char kCaliType[] = "moil_interfaces/srv/CaliOp";
 
 constexpr int kServiceWaitMs = 5000;
@@ -130,6 +133,12 @@ struct CalibrationController::Impl {
     rclcpp::Client<moil_interfaces::srv::CaliOp>::SharedPtr cali;
     rclcpp::Client<moil_interfaces::srv::CaliSeries>::SharedPtr series;
     rclcpp::Client<moil_interfaces::srv::XlsxIo>::SharedPtr xlsx;
+    rclcpp_action::Client<moil_interfaces::action::CaliJob>::SharedPtr job;
+
+    // Held so Cancel has something to cancel. Written on the executor thread
+    // when the goal is accepted, read from the GUI thread by cancelSearch, so
+    // it takes the same mutex as the clients.
+    rclcpp_action::ClientGoalHandle<moil_interfaces::action::CaliJob>::SharedPtr goal;
 #endif
 };
 
@@ -321,6 +330,14 @@ bool CalibrationController::ready() {
 }
 
 void CalibrationController::stop() {
+    // A running search is the one thing here that can genuinely be stopped, so
+    // Stop means that first and falls back to dropping replies only when there
+    // is no search to cancel.
+    if (searchRunning_) {
+        cancelSearch();
+        return;
+    }
+
     if (liveTokens_.isEmpty()) return;
 
     const int dropped = static_cast<int>(liveTokens_.size());
@@ -454,6 +471,8 @@ void CalibrationController::connectTo(int domainId) {
             auto cali = node->create_client<moil_interfaces::srv::CaliOp>(kCaliService);
             auto series = node->create_client<moil_interfaces::srv::CaliSeries>(kSeriesService);
             auto xlsx = node->create_client<moil_interfaces::srv::XlsxIo>(kXlsxService);
+            auto job = rclcpp_action::create_client<moil_interfaces::action::CaliJob>(
+                node, kCaliJobAction);
 
             const auto deadline =
                 std::chrono::steady_clock::now() + std::chrono::milliseconds(kServiceWaitMs);
@@ -473,6 +492,7 @@ void CalibrationController::connectTo(int domainId) {
                     d_->cali = cali;
                     d_->series = series;
                     d_->xlsx = xlsx;
+                    d_->job = job;
                 }
                 post(ProbeStatus::Ok, QString());
 
@@ -482,6 +502,8 @@ void CalibrationController::connectTo(int domainId) {
                 d_->cali.reset();
                 d_->series.reset();
                 d_->xlsx.reset();
+                d_->job.reset();
+                d_->goal.reset();
             }
         } catch (const std::exception &error) {
             post(ProbeStatus::Failed, QString::fromUtf8(error.what()));
@@ -563,6 +585,9 @@ void CalibrationController::clearAllTables() {
     alphaRounds_.clear();
     alphaFit_.clear();
     zflRounds_.clear();
+    globalIctAlpha_.clear();
+    searchSamples_.clear();
+    searchSummary_.clear();
     maxIct_ = 0;
     hasRawIct_ = false;
     seriesVersion_ = -1;
@@ -891,6 +916,8 @@ void CalibrationController::applySeries(const QString &kind, bool ok, const QStr
         }
     } else if (kind == QLatin1String("ih_alpha_regression")) {
         alphaFit_ = pointsToVariant(r.value(QStringLiteral("pts")).toArray());
+    } else if (kind == QLatin1String("global_ict_alpha")) {
+        globalIctAlpha_ = pointsToVariant(r.value(QStringLiteral("pts")).toArray());
     } else if (kind == QLatin1String("alpha_polynomial")) {
         QVariantList coefficients;
         for (const QJsonValue &v : r.value(QStringLiteral("coeffs")).toArray())
@@ -916,6 +943,254 @@ void CalibrationController::updateSeries() {
     sendSeries(QStringLiteral("ih_alpha_regression"), {});
     sendSeries(QStringLiteral("ict_zfl"), {});
     sendSeries(QStringLiteral("alpha_polynomial"), {});
+    // Every enabled round's (ict, alpha) pooled -- what the Overlap tab draws.
+    sendSeries(QStringLiteral("global_ict_alpha"), {});
+}
+
+// ---- the distance searches (CaliJob) ---------------------------------------
+//
+// The only cancellable work in this window. Everything else here is a plain
+// service that finishes on the rig whatever the client does; these three run for
+// minutes -- find_distance_for_target_aggregation is 282 probes, each recomputing
+// eleven rounds -- and unwind properly when asked.
+//
+// The table comes back even on cancel, at whatever the last probe wrote. That is
+// deliberate on the server side and it is why `cancelled` is reported next to
+// `success` rather than instead of it: a cancelled search produced a partial
+// answer, it did not fail.
+
+void CalibrationController::startSearch(const QString &op, const QJsonObject &extra, int round) {
+    if (searchRunning_) {
+        setLastError(tr("a search is already running -- stop it first"));
+        return;
+    }
+    if (!ready()) return;
+
+#ifndef FISHEYE_ROS_ENABLED
+    Q_UNUSED(op)
+    Q_UNUSED(extra)
+    Q_UNUSED(round)
+#else
+    rclcpp_action::Client<moil_interfaces::action::CaliJob>::SharedPtr client;
+    {
+        std::lock_guard<std::mutex> lock(d_->clientMutex);
+        client = d_->job;
+    }
+    if (!client) return;
+
+    if (!client->action_server_is_ready()) {
+        setLastError(tr("nothing is serving %1 -- the compute node is running but has no "
+                        "search action")
+                         .arg(QString::fromLatin1(kCaliJobAction)));
+        return;
+    }
+
+    searchRunning_ = true;
+    searchStage_ = tr("starting");
+    searchSummary_.clear();
+    searchDone_ = 0;
+    searchTotal_ = 0;
+    searchSamples_.clear();
+    emit searchChanged();
+    beginCall(tr("searching: %1").arg(op));
+
+    const quint64 generation = d_->generation.load();
+
+    moil_interfaces::action::CaliJob::Goal goal;
+    goal.op = op.toStdString();
+    goal.table_json = tableJson().toStdString();
+    goal.params_json = paramsJson(round, extra).toStdString();
+
+    using GoalHandle = rclcpp_action::ClientGoalHandle<moil_interfaces::action::CaliJob>;
+    rclcpp_action::Client<moil_interfaces::action::CaliJob>::SendGoalOptions options;
+
+    options.goal_response_callback = [this, generation](GoalHandle::SharedPtr handle) {
+        if (handle) {
+            std::lock_guard<std::mutex> lock(d_->clientMutex);
+            d_->goal = handle;
+        }
+        QMetaObject::invokeMethod(this, "applySearchAccepted", Qt::QueuedConnection,
+                                  Q_ARG(bool, handle != nullptr),
+                                  Q_ARG(QString, handle ? QString()
+                                                        : tr("the rig rejected the search")),
+                                  Q_ARG(quint64, generation));
+    };
+
+    options.feedback_callback =
+        [this, generation](GoalHandle::SharedPtr,
+                           const std::shared_ptr<const moil_interfaces::action::CaliJob::Feedback>
+                               feedback) {
+            QMetaObject::invokeMethod(this, "applySearchFeedback", Qt::QueuedConnection,
+                                      Q_ARG(int, feedback->done), Q_ARG(int, feedback->total),
+                                      Q_ARG(QString, QString::fromStdString(feedback->stage)),
+                                      Q_ARG(quint64, generation));
+        };
+
+    options.result_callback = [this, generation](const GoalHandle::WrappedResult &result) {
+        {
+            std::lock_guard<std::mutex> lock(d_->clientMutex);
+            d_->goal.reset();
+        }
+
+        const bool reached = result.code == rclcpp_action::ResultCode::SUCCEEDED ||
+                             result.code == rclcpp_action::ResultCode::CANCELED;
+        const bool ok = reached && result.result && result.result->success;
+        const bool cancelled = result.result && result.result->cancelled;
+
+        QMetaObject::invokeMethod(
+            this, "applySearchResult", Qt::QueuedConnection, Q_ARG(bool, ok),
+            Q_ARG(bool, cancelled),
+            Q_ARG(QString, result.result ? QString::fromStdString(result.result->table_json)
+                                         : QString()),
+            Q_ARG(QString, result.result ? QString::fromStdString(result.result->result_json)
+                                         : QString()),
+            Q_ARG(QString, result.result ? QString::fromStdString(result.result->message)
+                                         : tr("the search was aborted by the rig")),
+            Q_ARG(quint64, generation));
+    };
+
+    client->async_send_goal(goal, options);
+#endif
+}
+
+void CalibrationController::applySearchAccepted(bool accepted, const QString &message,
+                                                quint64 generation) {
+    if (generation != d_->generation.load() || !searchRunning_) return;
+
+    if (!accepted) {
+        searchRunning_ = false;
+        searchStage_.clear();
+        endCall();
+        setLastError(message);
+        emit searchChanged();
+        return;
+    }
+    searchStage_ = tr("running");
+    emit searchChanged();
+}
+
+void CalibrationController::applySearchFeedback(int done, int total, const QString &stage,
+                                                quint64 generation) {
+    if (generation != d_->generation.load() || !searchRunning_) return;
+
+    searchDone_ = done;
+    // 0 means the op cannot report a total -- the bar shows indeterminate rather
+    // than pretending to know how far along it is.
+    searchTotal_ = total;
+    searchStage_ = stage.isEmpty() ? tr("running") : stage;
+    emit searchChanged();
+}
+
+void CalibrationController::applySearchResult(bool ok, bool cancelled, const QString &tableJson,
+                                              const QString &resultJson, const QString &message,
+                                              quint64 generation) {
+    if (generation != d_->generation.load()) return;
+
+    searchRunning_ = false;
+    searchStage_.clear();
+    endCall();
+
+    if (!tableJson.isEmpty()) {
+        const QJsonObject next = QJsonDocument::fromJson(tableJson.toUtf8()).object();
+        if (!next.isEmpty()) {
+            table_ = next;
+            bumpVersion();
+        }
+    }
+
+    if (!ok) {
+        searchSummary_ = message.isEmpty() ? tr("the search failed") : message;
+        setLastError(searchSummary_);
+        emit searchChanged();
+        return;
+    }
+
+    const QJsonObject r = QJsonDocument::fromJson(resultJson.toUtf8()).object();
+    const bool found = r.value(QStringLiteral("found")).toBool(false);
+    bestDistance_ = r.value(QStringLiteral("best_distance")).toDouble();
+    bestAggregation_ = r.value(QStringLiteral("best_aggr")).toDouble();
+
+    searchSamples_.clear();
+    for (const QJsonValue &v : r.value(QStringLiteral("samples")).toArray()) {
+        const QJsonArray pair = v.toArray();
+        if (pair.size() < 2) continue;
+        QVariantMap point;
+        point[QStringLiteral("x")] = pair.at(0).toDouble();
+        point[QStringLiteral("y")] = pair.at(1).toDouble();
+        searchSamples_.append(point);
+    }
+
+    if (!found) {
+        searchSummary_ = tr("no distance found -- nothing to aggregate over");
+    } else if (cancelled) {
+        // Said outright. A partial answer that looks like a final one is the
+        // worst outcome here, because the number goes into a calibration.
+        searchSummary_ = tr("stopped early: best so far %1 at distance %2 (partial)")
+                             .arg(bestAggregation_, 0, 'f', 4)
+                             .arg(bestDistance_, 0, 'f', 2);
+    } else {
+        searchSummary_ = tr("best aggregation %1 at distance %2")
+                             .arg(bestAggregation_, 0, 'f', 4)
+                             .arg(bestDistance_, 0, 'f', 2);
+    }
+
+    setLastError(QString());
+    emit searchChanged();
+    emit notice(searchSummary_);
+    if (found && !cancelled) setBaseDistance(bestDistance_);
+}
+
+void CalibrationController::cancelSearch() {
+    if (!searchRunning_) return;
+
+#ifdef FISHEYE_ROS_ENABLED
+    rclcpp_action::Client<moil_interfaces::action::CaliJob>::SharedPtr client;
+    rclcpp_action::ClientGoalHandle<moil_interfaces::action::CaliJob>::SharedPtr goal;
+    {
+        std::lock_guard<std::mutex> lock(d_->clientMutex);
+        client = d_->job;
+        goal = d_->goal;
+    }
+    if (client && goal) {
+        client->async_cancel_goal(goal);
+        searchStage_ = tr("stopping");
+        emit searchChanged();
+        emit notice(tr("Asked the rig to stop the search; it will answer with the table as "
+                       "the last probe left it."));
+        return;
+    }
+#endif
+
+    // Accepted but no handle yet, or no ROS at all. Nothing to cancel remotely.
+    searchRunning_ = false;
+    searchStage_.clear();
+    endCall();
+    emit searchChanged();
+}
+
+void CalibrationController::findMinForRound(int round, double distMin, double distMax) {
+    QJsonObject extra;
+    extra[QStringLiteral("dist_min")] = distMin;
+    extra[QStringLiteral("dist_max")] = distMax;
+    startSearch(QStringLiteral("find_min_aggr_single_round"), extra, round);
+}
+
+void CalibrationController::findMinInWindow(bool useWindow, double xLo, double xHi) {
+    QJsonObject extra;
+    extra[QStringLiteral("use_window")] = useWindow;
+    extra[QStringLiteral("x_lo")] = xLo;
+    extra[QStringLiteral("x_hi")] = xHi;
+    startSearch(QStringLiteral("find_min_aggregation_in_window"), extra, 0);
+}
+
+void CalibrationController::findDistanceForTarget(double target, bool useRange, double xLo,
+                                                  double xHi) {
+    QJsonObject extra;
+    extra[QStringLiteral("target")] = target;
+    extra[QStringLiteral("use_range")] = useRange;
+    extra[QStringLiteral("x_lo")] = xLo;
+    extra[QStringLiteral("x_hi")] = xHi;
+    startSearch(QStringLiteral("find_distance_for_target_aggregation"), extra, 0);
 }
 
 // ---- Excel -----------------------------------------------------------------
