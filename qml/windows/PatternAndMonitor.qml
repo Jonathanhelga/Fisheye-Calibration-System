@@ -499,7 +499,7 @@ Window {
             toast.show(message, true)
         }
 
-        function onPatternShown(direction, width, height) {
+        function onPatternShown(direction, width, height, imagePath) {
             toast.show(width > 0 && height > 0
                        ? qsTr("Pattern shown on %1 at %2 x %3")
                              .arg(direction.toUpperCase()).arg(width).arg(height)

@@ -40,6 +40,7 @@ public:
                                    int height);
     Q_INVOKABLE bool savePreview(const QString &patternType, const QUrl &fileUrl);
     Q_INVOKABLE void showOnMonitor(const QString &direction, const QString &specJson);
+    Q_INVOKABLE void showImageOnMonitor(const QString &direction, const QString &imagePath);
     Q_INVOKABLE void refreshDirection(const QString &direction);
 
 signals:
@@ -48,14 +49,22 @@ signals:
     void lastErrorChanged();
     void errorRaised(const QString &message);
     void previewChanged();
-    void patternShown(const QString &direction, int width, int height);
+    // imagePath is set when the thing shown came from a FILE rather than from a
+    // rendered spec, so a monitor slot can report what is actually on its glass
+    // instead of what was last typed into it. Empty for a spec render.
+    //
+    // monitorClosed and brightnessApplied are deliberately NOT here: closing a
+    // panel and setting its brightness are device operations and live on
+    // MonitorController, which owns the monitor node's device services.
+    void patternShown(const QString &direction, int width, int height, const QString &imagePath);
 
 private:
     Q_INVOKABLE void applyLink(int status, const QString &message, quint64 generation);
     Q_INVOKABLE void applyPreview(const QString &patternType, bool ok, const QString &message,
                                   quint64 token, quint64 generation);
     Q_INVOKABLE void applyShow(const QString &direction, bool ok, const QString &message, int width,
-                               int height, quint64 token, quint64 generation);
+                               int height, const QString &imagePath, quint64 token,
+                               quint64 generation);
 
     void setStatus(ProbeStatus::Status status);
     void setLastError(const QString &message);
@@ -70,9 +79,15 @@ private:
     QHash<QString, int> revisions_;
     QHash<QString, quint64> renderTokens_;
     QHash<QString, QString> lastSpecs_;
+    // Per DIRECTION, not one token for the whole controller.
+    //
+    // With a single showToken_, showing a pattern on TOP and then on N dropped
+    // the first reply -- so refreshDirection(TOP) never ran and the TOP slot's
+    // preview kept showing the previous picture while the glass showed the new
+    // one. Two shots in quick succession is the normal way this panel is used.
+    QHash<QString, quint64> showTokens_;
     QSet<QString> pending_;
     int domainId_ = 0;
-    quint64 showToken_ = 0;
 
     struct Impl;
     std::unique_ptr<Impl> d_;

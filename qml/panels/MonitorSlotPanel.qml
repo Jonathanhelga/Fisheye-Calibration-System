@@ -20,6 +20,17 @@ Rectangle {
     property alias brightness: brightnessField.value
     property bool on: false
 
+    // What the RIG has, as opposed to what is typed in the boxes. The two drift
+    // apart the moment someone edits a path or a brightness and does not press
+    // Update, and without this the panel looks identical either way -- so an
+    // un-pushed edit reads as a pushed one and the operator shoots against the
+    // wrong screen contents.
+    property string appliedImagePath: ""
+    property real appliedBrightness: 5
+
+    readonly property bool pendingChanges:
+        root.imagePath !== root.appliedImagePath || root.brightness !== root.appliedBrightness
+
     readonly property string livePreview:
         root.direction ? (PatternController.previewUrls[root.direction] || "") : ""
 
@@ -42,13 +53,36 @@ Rectangle {
         target: MonitorController
 
         function onImageShown(direction) {
-            if (direction === root.direction || direction === "all")
-                root.on = true
+            if (direction !== root.direction && direction !== "all") return
+            root.on = true
+            root.appliedImagePath = root.imagePath
         }
 
         function onPatternClosed(direction) {
-            if (direction === root.direction || direction === "all")
-                root.on = false
+            if (direction !== root.direction && direction !== "all") return
+            root.on = false
+            // Nothing is on the glass any more, so nothing is "applied".
+            root.appliedImagePath = ""
+        }
+
+        function onBrightnessRead(direction, brightness) {
+            if (direction === root.direction) root.appliedBrightness = brightness
+        }
+    }
+
+    // A pattern that reached this screen from the spec editor also changes what
+    // is on the glass, so the slot follows it -- otherwise pushing a pattern and
+    // then looking at the slot shows a stale path with no hint that it is stale.
+    Connections {
+        target: PatternController
+
+        function onPatternShown(direction, width, height, imagePath) {
+            if (direction !== root.direction) return
+            root.on = true
+            if (imagePath !== "") {
+                root.imagePath = imagePath
+                root.appliedImagePath = imagePath
+            }
         }
     }
 
@@ -170,10 +204,18 @@ Rectangle {
             Item { Layout.fillWidth: true }
 
             ActionButton {
-                text: qsTr("Update")
-                tone: "accent"
+                // Marked while the boxes differ from what the rig has, so an
+                // edit that was never pushed is visible rather than silent.
+                text: root.pendingChanges ? qsTr("Update *") : qsTr("Update")
+                tone: root.pendingChanges ? "danger" : "accent"
                 enabled: root.imagePath !== "" && !MonitorController.busy
                 onClicked: root.updateRequested(root.brightness)
+
+                ToolTip.visible: hovered
+                ToolTip.delay: Theme.animSlow
+                ToolTip.text: root.pendingChanges
+                    ? qsTr("This slot's image or brightness differs from what is on the rig.")
+                    : qsTr("Push this image and brightness to the screen.")
             }
 
             ActionButton {
