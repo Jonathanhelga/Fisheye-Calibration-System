@@ -17,17 +17,16 @@ Rectangle {
     property bool on: false
 
     property string appliedImagePath: ""
-    property real appliedBrightness: 0
+    property real appliedBrightness: -1
 
-    readonly property bool pendingChanges: root.imagePath !== root.appliedImagePath
-                                        || root.brightness !== root.appliedBrightness
+    readonly property bool pendingChanges: PatternController.status === ProbeStatus.Ok
+                                        && (root.imagePath !== root.appliedImagePath
+                                         || root.brightness !== root.appliedBrightness)
 
     readonly property string livePreview:
         root.direction ? (PatternController.previewUrls[root.direction] || "") : ""
 
     onLivePreviewChanged: if (root.livePreview) root.on = true
-
-    Component.onCompleted: root.appliedBrightness = root.brightness
 
     signal browseRequested()
     signal updateRequested(real brightness)

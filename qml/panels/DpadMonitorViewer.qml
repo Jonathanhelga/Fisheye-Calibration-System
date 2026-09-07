@@ -31,7 +31,8 @@ GridLayout {
         if (slot.imagePath && slot.imagePath !== slot.appliedImagePath)
             PatternController.showImageOnMonitor(slot.direction, slot.imagePath)
 
-        PatternController.setMonitorBrightness(slot.direction, brightness)
+        if (brightness !== slot.appliedBrightness)
+            PatternController.setMonitorBrightness(slot.direction, brightness)
     }
 
     function browseFor(slot) {
@@ -141,7 +142,7 @@ GridLayout {
             if (!browseDialog.target || !path) return
 
             browseDialog.target.imagePath = path
-            PatternController.showImageOnMonitor(browseDialog.target.direction, path)
+            root.pushSlot(browseDialog.target, browseDialog.target.brightness)
         }
     }
 }
