@@ -153,6 +153,7 @@ qt_add_qml_module(moil_fisheye_cali
         qml/controls/SectionFrame.qml
         qml/controls/PanelPlaceholder.qml
         qml/controls/StatusToast.qml
+        qml/controls/AutoRefresh.qml
 
     RESOURCES
         assets/sample_shot.png

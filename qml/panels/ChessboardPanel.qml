@@ -19,6 +19,7 @@ Rectangle {
     property int resolutionH: 1080
     property int resolutionW: 1920
     property real squareMm: 45
+    property bool autoUpdate: false
     property bool crossLine: false
     property color positiveColor: "black"
     property color negativeColor: "#b4b4b4"

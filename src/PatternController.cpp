@@ -220,7 +220,6 @@ void PatternController::connectTo(int domainId) {
 
         try {
             auto node = std::make_shared<rclcpp::Node>("fisheye_cali_jojo_pattern", nodeOptions);
-
             rclcpp::ExecutorOptions executorOptions;
             executorOptions.context = context;
             rclcpp::executors::SingleThreadedExecutor executor(executorOptions);
@@ -230,8 +229,7 @@ void PatternController::connectTo(int domainId) {
             auto show = node->create_client<moil_interfaces::srv::ShowPatternSpec>(kShowService);
             auto perDirection = node->create_client<moil_interfaces::srv::RenderForDirection>(kDirectionService);
 
-            const auto deadline =
-                std::chrono::steady_clock::now() + std::chrono::milliseconds(kServiceWaitMs);
+            const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(kServiceWaitMs);
             bool ready = false;
             while (alive() && std::chrono::steady_clock::now() < deadline) {
                 if (client->wait_for_service(std::chrono::milliseconds(kWaitSliceMs))) {

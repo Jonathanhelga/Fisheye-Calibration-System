@@ -148,6 +148,7 @@ Window {
                         Layout.fillHeight: true
                         visible: root.mode === root.concentricMode
 
+                        connected: PatternController.status === ProbeStatus.Ok
                         previewSource: PatternController.previewUrls[concentricPanel.patternType] || ""
 
                         onImportRequested: root.importPattern(concentricPanel)
@@ -303,6 +304,7 @@ Window {
 
     StatusToast {
         id: toast
+
 
         anchors.centerIn: parent
         z: 100
