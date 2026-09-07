@@ -40,6 +40,7 @@ public:
                                    int height);
     Q_INVOKABLE bool savePreview(const QString &patternType, const QUrl &fileUrl);
     Q_INVOKABLE void showOnMonitor(const QString &direction, const QString &specJson);
+    Q_INVOKABLE void showImageOnMonitor(const QString &direction, const QString &imagePath);
     Q_INVOKABLE void refreshDirection(const QString &direction);
     Q_INVOKABLE void closeMonitor(const QString &direction);
     Q_INVOKABLE void setMonitorBrightness(const QString &direction, double brightness);

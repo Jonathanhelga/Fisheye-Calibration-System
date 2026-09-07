@@ -16,10 +16,18 @@ Rectangle {
     property alias brightness: brightnessField.value
     property bool on: false
 
+    property string appliedImagePath: ""
+    property real appliedBrightness: 0
+
+    readonly property bool pendingChanges: root.imagePath !== root.appliedImagePath
+                                        || root.brightness !== root.appliedBrightness
+
     readonly property string livePreview:
         root.direction ? (PatternController.previewUrls[root.direction] || "") : ""
 
     onLivePreviewChanged: if (root.livePreview) root.on = true
+
+    Component.onCompleted: root.appliedBrightness = root.brightness
 
     signal browseRequested()
     signal updateRequested(real brightness)
@@ -33,7 +41,17 @@ Rectangle {
         target: PatternController
 
         function onMonitorClosed(direction) {
-            if (direction === root.direction || direction === "all") root.on = false
+            if (direction !== root.direction && direction !== "all") return
+            root.on = false
+            root.appliedImagePath = ""
+        }
+
+        function onPatternShown(direction) {
+            if (direction === root.direction) root.appliedImagePath = root.imagePath
+        }
+
+        function onBrightnessApplied(direction, brightness) {
+            if (direction === root.direction) root.appliedBrightness = brightness
         }
     }
 
@@ -59,11 +77,18 @@ Rectangle {
             spacing: Theme.rowSpacing
 
             Label {
-                Layout.fillWidth: true
                 text: root.label
                 font.bold: true
                 font.pixelSize: Theme.fontTitle
                 color: Theme.accent
+            }
+
+            Label {
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignRight
+                text: root.pendingChanges ? qsTr("Press Update") : ""
+                color: Theme.statusPartial
+                font.pixelSize: Theme.captionFontSize
                 elide: Text.ElideRight
             }
 
@@ -153,10 +178,7 @@ Rectangle {
             ActionButton {
                 text: qsTr("Update")
                 tone: "accent"
-                onClicked: {
-                    root.on = root.imagePath !== ""
-                    root.updateRequested(root.brightness)
-                }
+                onClicked: root.updateRequested(root.brightness)
             }
 
             ActionButton {

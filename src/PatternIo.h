@@ -23,6 +23,7 @@ public:
 
     Q_INVOKABLE bool writeText(const QUrl &fileUrl, const QString &text);
     Q_INVOKABLE QString readText(const QUrl &fileUrl);
+    Q_INVOKABLE QString localPath(const QUrl &fileUrl) const;
 
 signals:
     void changed();
