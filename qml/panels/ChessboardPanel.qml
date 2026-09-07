@@ -20,6 +20,7 @@ Rectangle {
     property int resolutionW: 1920
     property real squareMm: 45
     property bool autoUpdate: false
+    property bool connected: false
     property bool crossLine: false
     property color positiveColor: "black"
     property color negativeColor: "#b4b4b4"
@@ -57,6 +58,14 @@ Rectangle {
         doc.bg_rgb = PatternConfig.rgbArray(panel.negativeColor)
 
         return doc
+    }
+
+    readonly property string configFingerprint: JSON.stringify(panel.specJson())
+
+    AutoRefresh {
+        enabled: panel.autoUpdate && panel.connected
+        fingerprint: panel.configFingerprint
+        onTriggered: panel.updateRequested()
     }
 
     readonly property real minimumWidth:  content.Layout.minimumWidth  + 2 * Theme.panelMargin

@@ -20,6 +20,7 @@ Rectangle {
     property int resolutionW: 2160
     property bool crossLine: false
     property bool autoUpdate: false
+    property bool connected: false
     property color positiveColor: "black"
     property color negativeColor: "white"
 
@@ -110,6 +111,14 @@ Rectangle {
             for (let i = 0; i < panel.layerCount; i++)
                 layerModel.append({ interval: 77, color: panel.layerColorAt(i, true) })
         }
+    }
+
+    readonly property string configFingerprint: JSON.stringify(panel.specJson())
+
+    AutoRefresh {
+        enabled: panel.autoUpdate && panel.connected
+        fingerprint: panel.configFingerprint
+        onTriggered: panel.updateRequested()
     }
 
     readonly property real minimumWidth:  content.Layout.minimumWidth  + 2 * Theme.panelMargin

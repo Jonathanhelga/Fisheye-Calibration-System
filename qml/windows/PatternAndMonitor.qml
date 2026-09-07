@@ -163,6 +163,7 @@ Window {
                         Layout.fillHeight: true
                         visible: root.mode === root.stripelineMode
 
+                        connected: PatternController.status === ProbeStatus.Ok
                         previewSource: PatternController.previewUrls[stripelinePanel.patternType] || ""
 
                         onImportRequested: root.importPattern(stripelinePanel)
@@ -177,6 +178,7 @@ Window {
                         Layout.fillHeight: true
                         visible: root.mode === root.chessboardMode
 
+                        connected: PatternController.status === ProbeStatus.Ok
                         previewSource: PatternController.previewUrls[chessboardPanel.patternType] || ""
 
                         onSaveImageRequested: root.saveImage(chessboardPanel)
