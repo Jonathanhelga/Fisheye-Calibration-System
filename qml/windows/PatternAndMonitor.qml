@@ -61,6 +61,11 @@ Window {
                                         target.resolutionH)
     }
 
+    // Auto Update lives in each panel, as an AutoRefresh -- see that control. It
+    // is not driven from here: the panel owns the fingerprint of its own spec,
+    // and a window-level scheduler would have to reach into three different
+    // panels to build one.
+
     function showOnMonitor(target, direction) {
         PatternController.showOnMonitor(direction, JSON.stringify(target.specJson()))
     }
@@ -77,6 +82,22 @@ Window {
 
     function applyImageToFourSides() {
         monitorViewer.applyImageToFourSides(fourSidePathField.text)
+    }
+
+    // Render both polarities once and keep them on the rig, which is what makes a
+    // Pos/Neg/Pair shot a lookup and a blit instead of five re-renders per shot.
+    //
+    // The polarity swap is NOT done here. It is the rule that odd layers take the
+    // positive colour and even layers the negative one -- arithmetic over the
+    // operator's design, and therefore the server's job. Sending the two colours
+    // and letting it invert them is what keeps there from being a second
+    // implementation of that rule.
+    function preparePatterns() {
+        MonitorController.preparePatterns(
+            JSON.stringify(concentricPanel.specJson()),
+            JSON.stringify(stripelinePanel.specJson()),
+            concentricPanel.positiveRgb(),
+            concentricPanel.negativeRgb())
     }
 
     ScaledCanvas {
@@ -148,6 +169,7 @@ Window {
                         Layout.fillHeight: true
                         visible: root.mode === root.concentricMode
 
+                        connected: PatternController.status === ProbeStatus.Ok
                         previewSource: PatternController.previewUrls[concentricPanel.patternType] || ""
 
                         onImportRequested: root.importPattern(concentricPanel)
@@ -162,6 +184,7 @@ Window {
                         Layout.fillHeight: true
                         visible: root.mode === root.stripelineMode
 
+                        connected: PatternController.status === ProbeStatus.Ok
                         previewSource: PatternController.previewUrls[stripelinePanel.patternType] || ""
 
                         onImportRequested: root.importPattern(stripelinePanel)
@@ -176,6 +199,7 @@ Window {
                         Layout.fillHeight: true
                         visible: root.mode === root.chessboardMode
 
+                        connected: PatternController.status === ProbeStatus.Ok
                         previewSource: PatternController.previewUrls[chessboardPanel.patternType] || ""
 
                         onSaveImageRequested: root.saveImage(chessboardPanel)
@@ -204,11 +228,49 @@ Window {
                         Layout.fillWidth: true
                         spacing: Theme.rowSpacing
 
-                        Item { Layout.fillWidth: true }
+                        StatusDot {
+                            Layout.alignment: Qt.AlignVCenter
+                            status: MonitorController.status
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            Layout.preferredWidth: 0
+                            text: MonitorController.lastError !== "" ? MonitorController.lastError
+                                : MonitorController.screensSummary !== ""
+                                    ? MonitorController.screensSummary
+                                    : qsTr("Monitor node not queried yet")
+                            color: MonitorController.lastError !== "" ? Theme.danger
+                                                                     : Theme.textCaption
+                            font.pixelSize: Theme.captionFontSize
+                            elide: Text.ElideRight
+                        }
+
+                        ActionButton {
+                            text: qsTr("Prepare Patterns")
+                            tone: MonitorController.preparedReady ? "accent" : "danger"
+                            enabled: MonitorController.status === ProbeStatus.Ok
+                                     && !MonitorController.busy
+                            onClicked: root.preparePatterns()
+
+                            ToolTip.visible: hovered
+                            ToolTip.delay: Theme.animSlow
+                            ToolTip.text: MonitorController.preparedReady
+                                ? qsTr("Re-render both polarities on the rig. Do this after any "
+                                     + "pattern edit -- a shot taken against a stale prepared "
+                                     + "pattern looks exactly like a good one.")
+                                : qsTr("Required before Pos / Neg / Pair Shot will work. Renders "
+                                     + "the positive and negative patterns once and keeps them "
+                                     + "on the rig.")
+                        }
 
                         ActionButton {
                             text: qsTr("Setup Monitor Direction")
-                            onClicked: directionDialog.open()
+                            onClicked: {
+                                MonitorController.describeScreens()
+                                directionDialog.open()
+                            }
 
                             ToolTip.visible: hovered
                             ToolTip.delay: Theme.animSlow
@@ -227,13 +289,18 @@ Window {
 
                         ActionButton {
                             text: qsTr("Reconnect")
+                            // describeScreens runs itself once the link comes
+                            // up (see MonitorController::applyLink), so asking
+                            // for it here would only be answered by an early
+                            // return while the status is still Checking.
+                            onClicked: MonitorController.reconnect()
 
                             ToolTip.visible: hovered
                             ToolTip.delay: Theme.animSlow
-                            ToolTip.text: qsTr("Reconnect")
+                            ToolTip.text: qsTr("Tear down and re-open the monitor link on the "
+                                             + "same domain, then re-read which screens the "
+                                             + "server can see.")
                         }
-
-                        Item { Layout.fillWidth: true }
                     }
 
                     SectionFrame {
@@ -277,10 +344,7 @@ Window {
 
                             ActionButton {
                                 text: qsTr("Browse...")
-                                onClicked: {
-                                    console.log("[Monitor Viewer] 4-Side: Browse requested")
-                                    root.fourSideBrowseRequested()
-                                }
+                                onClicked: fourSideDialog.open()
                             }
 
                             ActionButton {
@@ -401,6 +465,33 @@ Window {
         }
     }
 
+    FileDialog {
+        id: fourSideDialog
+
+        title: qsTr("Image for N / W / S / E")
+        fileMode: FileDialog.OpenFile
+        nameFilters: [qsTr("Images (*.png *.jpg *.jpeg *.bmp)"), qsTr("All files (*)")]
+
+        Component.onCompleted: fourSideDialog.currentFolder = PatternIo.defaultImageDirectory
+
+        onAccepted: {
+            fourSidePathField.text = PatternIo.toLocalPath(fourSideDialog.selectedFile)
+            root.fourSideBrowseRequested()
+        }
+    }
+
+    Connections {
+        target: MonitorController
+
+        function onErrorRaised(message) {
+            toast.show(message, true)
+        }
+
+        function onNotice(message) {
+            toast.show(message, false)
+        }
+    }
+
     Connections {
         target: PatternController
 
@@ -421,12 +512,19 @@ Window {
         id: directionDialog
         anchors.centerIn: parent
 
+        // What the SERVER thinks it has, which is the question this dialog
+        // exists to answer -- the operator's own machine's screens are a
+        // different set entirely.
+        statusText: MonitorController.screensSummary
+
         onShowNumbersRequested: {
-            console.log("[Pattern And Monitor] Show Numbers on Screens requested")
+            MonitorController.showDisplayNumbers()
             root.showNumbersRequested()
         }
+        // The display numbers travel as TEXT, as the old HTTP API spelled them.
         onApplyMappingRequested: (top, north, west, south, east) => {
-            console.log("[Pattern And Monitor] Apply Mapping requested: top=" + top + " n=" + north + " w=" + west + " s=" + south + " e=" + east)
+            MonitorController.setDisplayDirection(String(top), String(north), String(west),
+                                                  String(south), String(east))
             root.applyMappingRequested(top, north, west, south, east)
         }
     }

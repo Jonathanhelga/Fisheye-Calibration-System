@@ -74,12 +74,20 @@ What went with it, and what that means for anyone picking up the auto-centre wor
 
 **The `auto_center` cascade itself survives**, server-side, in
 [ComputeDetectOps.cpp](Server/v2.1.0/common/engine/compute/ComputeDetectOps.cpp),
-and builds clean. What has no caller is the client half.
+and builds clean.
 
-**The QML app cannot drive it.** It has no session or compute layer — no
-`RunCompute`, no `DetectOp`, no engine. Its only ROS consumers are
-`AxisController` and `RosServerProbe`. Wiring auto-centring into it is future
-work, gated on that app growing a session/compute layer.
+**Updated 2026-09-07 — the QML app now drives it.**
+[ComputeController](src/ComputeController.h) calls `auto_center`, `roi_exact`,
+`histogram_8dir` and `nodes_8dir` over `/compute/detect`, and the Centering panel's
+*Find Pos* / *Find Neg* buttons are its callers. The app still has **no session
+layer**: there is no `RunCompute`, no `SessionState`, and captures are held
+client-side in [ImageStore](src/ImageStore.h) and re-sent with each op rather than
+resolved from a server session slot. So the *cascade* is wired; the *session* is
+still not, and anything wanting `/session/run_compute` remains future work.
+
+The degrade path that lived in `session_ros_client` — `parseResult` / `describe` /
+`isMissingOpError` — did **not** come back. `ComputeController` reports a failed op
+by its message; it does not fall back to `roi_exact` when `auto_center` is missing.
 
 ### Centring is a control signal, not a display value
 
@@ -155,7 +163,7 @@ still gets a browsable UI:
 
 | Option | Needs | Off means |
 |---|---|---|
-| `FISHEYE_ENABLE_ROS` (default ON on Linux, OFF elsewhere) | `rclcpp`, `rclcpp_action`, `moil_interfaces` | `FISHEYE_ROS_ENABLED` undefined; `RosServerProbe` and `AxisController` compile to inert stubs, rig controls do nothing |
+| `FISHEYE_ENABLE_ROS` (default ON on Linux, OFF elsewhere) | `rclcpp`, `rclcpp_action`, `moil_interfaces` | `FISHEYE_ROS_ENABLED` undefined; `RosServerProbe`, `AxisController`, `CameraController`, `MonitorController`, `PatternController`, `ComputeController` and `CalibrationController` compile to inert stubs that report "this build has no ROS 2 support" rather than failing silently; rig controls do nothing |
 | `FISHEYE_ENABLE_SUBAPPS` (default ON) | Qt Widgets/Concurrent/OpenGLWidgets, OpenCV **4**, Eigen3 | `FISHEYE_SUBAPPS_ENABLED` undefined; 3D Verification and Center Setup unavailable, and `src/main.cpp` falls back from `QApplication` to `QGuiApplication` |
 
 Keep the `#ifdef FISHEYE_ROS_ENABLED` and `#ifdef FISHEYE_SUBAPPS_ENABLED` guards
@@ -245,10 +253,30 @@ also `QML_SINGLETON`, so QML calls them by type name:
 | Type | Role |
 |---|---|
 | `AxisController` + `AxisState` | the live rig: connection state, capabilities, jog, drive-to-limit, home, stop |
+| `CameraController` | `/camera/capture` into named slots, the live topic subscription, FOV |
+| `MonitorController` | brightness, `show_pattern`, `close_pattern`, screen mapping, `prepare`/`show_prepared` |
+| `PatternController` | renders a pattern spec and shows it — the spec editor's controller, not a device one |
+| `ComputeController` | `/compute/detect`: centres, histogram curves, nodes |
+| `CalibrationController` | `/compute/xlsx`, `/compute/cali`, `/compute/series` — the Cali Result window |
+| `PatternIo` | local file read/write, and path↔URL conversion QML must not do by hand |
 | `RosServerProbe` | the three ROS status dots in the Server panel |
 | `HttpServerProbe` | the HTTP tab's host/port config and status dots |
 | `SubAppWindows` | opens the two ported QWidget sub-apps as top-level windows |
-| `ProbeStatus` | `Q_NAMESPACE` enum (`Unknown/Checking/Ok/Failed/Partial`) shared by both probes |
+| `ProbeStatus` | `Q_NAMESPACE` enum (`Unknown/Checking/Ok/Failed/Partial`) shared by every controller |
+
+**Each controller owns its own `rclcpp::Context`, node and executor**, exactly as
+`AxisController` does, and each threads a `generation` counter through every
+callback so a reconnect invalidates in-flight replies. That is six contexts in one
+process now, which makes the Windows `XTYPES_TYPE_REPRESENTATION` wall of text
+longer — still cosmetic, still a sign DDS is working.
+
+**`ImageStore` is not a QML type.** It is a plain namespace holding the captures
+once, keyed by slot (`single`, `positive`, `negative`, `live`), because two
+different pieces of code want two different representations of the same frame:
+`CameraController` wants a `QImage` to paint, `ComputeController` wants the
+**original compressed bytes** to send back to `/compute/detect`. Re-encoding a
+`QImage` to PNG would hand the detect ops a picture that is not the one the camera
+produced, and every centre fit here is a measurement of exact pixel values.
 
 `AxisState` is `QML_UNCREATABLE` — instances are owned by `AxisController` and
 exposed as `AxisController.x`, `.y`, `.z`, `.yaw`, `.pitch`, `.allAxes`.
@@ -327,6 +355,44 @@ lost:
   while you hear silence from it.
 - **A leftover `ROS_DISCOVERY_SERVER` / Fast DDS profile** makes discovery find
   nothing at all. The launchers blank these deliberately.
+- **`qt_policy(SET QTP0004 NEW)` stopped the app from starting at all.** NEW writes
+  an extra `qmldir` into every subdirectory holding QML files, each saying
+  `prefer :/qt/qml/FisheyeCaliJojo/`. The engine then finds the module twice and
+  refuses to load with `"FisheyeCaliJojo" is ambiguous. Found in
+  qrc:/qt/qml/FisheyeCaliJojo/ and in qrc:/qt/qml/FisheyeCaliJojo/` — the two
+  paths are identical because both copies report the *prefer* target rather than
+  where they were found, which makes the message read like nonsense. It is now
+  `OLD` ([CMakeLists.txt](CMakeLists.txt)); nothing here imports a subdirectory as
+  a module.
+- **On Windows Qt sends `qWarning` to OutputDebugString, not to stderr.** A QML
+  error that kills the app therefore prints *nothing*: you get `Exit code -1` and
+  an empty console. `tools/run_windows_ros.ps1` now sets
+  `QT_FORCE_STDERR_LOGGING=1`; without it, diagnosing any QML failure on Windows
+  is guesswork.
+- **The pixi environment ships a complete conda-forge Qt 6 in `Library\bin`.**
+  Anything that puts that directory ahead of `C:\Qt\...\bin` swaps the whole
+  toolkit underneath an app built against the other one. It can even appear to
+  work. `run_windows_ros.ps1` puts `$Qt\bin` first and appends pixi last for this
+  reason — do not reorder them.
+- **`slots` cannot be used as a C++ identifier.** It is a Qt keyword macro that
+  expands to nothing, so a parameter named `slots` silently loses its name and any
+  `for (x : slots)` over it fails to compile in a way that points at the wrong
+  line. Same for `signals`, `emit` and `foreach`.
+- **A QML binding cannot see a `ListModel` edit.** `layerModel.setProperty()`
+  emits no signal a binding depends on, so `JSON.stringify(panel.specJson())`
+  re-evaluates when a scalar property changes and *never* when a layer's radius,
+  shape or centre does — the edit an operator actually makes. Auto Update looked
+  correct and ignored the layer table. The pattern panels carry a `layerRevision`
+  counter, bumped by `setLayer()`, and the fingerprint includes it; a
+  `setProperty` that skips `setLayer()` is a change nothing will notice.
+- **`"file://" + path` is right on Linux and wrong on Windows.** A Windows path
+  starts with a drive letter, so the two-slash form makes `C:` the *host* and the
+  `Image` renders nothing, with no error. Use `PatternIo.toFileUrl()` /
+  `toLocalPath()` from QML rather than building URLs by string concatenation.
+- **A QML image URL that does not change serves the cached picture.** A new
+  capture into the same slot looks like a button that did nothing. That is what
+  `ImageStore`'s per-slot revision counter is for, and why `clear()` bumps it
+  instead of resetting it.
 - **`concentric_positive` and `concentric_negative` show different ring counts.**
   The negative swaps the colour pair, and `renderConcentric` draws on a white
   canvas — an outermost white layer produces no outer edge. A count measured on the

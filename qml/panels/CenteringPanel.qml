@@ -35,7 +35,71 @@ Rectangle {
     readonly property bool hasPositiveCenter: positiveCpx >= 0 && positiveCpy >= 0
     readonly property bool hasNegativeCenter: negativeCpx >= 0 && negativeCpy >= 0
 
+    // Ring count for the fit. 0 lets auto_center take it from the prepared PNG,
+    // which is the source it trusts most -- see ComputeDetectOps.cpp.
+    property int expectedRings: 0
+    property bool noiseCleaning: false
+
+    property string lastMethod: ""
+    property string lastConfidence: ""
+    property string refusalReason: ""
+
+    readonly property bool linked: ComputeController.status === ProbeStatus.Ok
+    readonly property bool computing: ComputeController.busy
+
+    readonly property string detectStatus: computing
+        ? ComputeController.activity
+        : refusalReason !== "" ? refusalReason
+        : lastMethod !== "" ? qsTr("%1, %2 confidence").arg(lastMethod).arg(lastConfidence)
+        : linked ? qsTr("Ready")
+                 : qsTr("Not connected -- press Update in the Server panel")
+
     signal centerChanged(string target, int x, int y)
+
+    function slotFor(target) {
+        return target === "Positive" ? "positive" : target === "Negative" ? "negative" : ""
+    }
+
+    function thresholdFor(target) {
+        return target === "Negative" ? negThreshold : posThreshold
+    }
+
+    // Ask the rig where the centre is. The answer may be "nowhere" and that is a
+    // valid answer -- see onCenterRefused.
+    function findCenter(target) {
+        const slot = slotFor(target)
+        if (slot === "" || locked)
+            return
+        refusalReason = ""
+        ComputeController.autoCenter(slot, expectedRings, noiseCleaning)
+    }
+
+    // The edge ring, per polarity. Returned through accessors rather than read
+    // field-by-field at the call site so a caller cannot pick the positive
+    // radius and the negative colour by mistake.
+    function edgeShown(target) {
+        return target === "Positive" ? positiveEdge
+             : target === "Negative" ? negativeEdge
+                                     : false
+    }
+
+    function edgeRadius(target) {
+        return target === "Positive" ? positiveEdgeRadius
+             : target === "Negative" ? negativeEdgeRadius
+                                     : 0
+    }
+
+    function edgeThickness(target) {
+        return target === "Positive" ? positiveEdgeThickness
+             : target === "Negative" ? negativeEdgeThickness
+                                     : 1
+    }
+
+    function edgeColor(target) {
+        return target === "Positive" ? positiveEdgeColor
+             : target === "Negative" ? negativeEdgeColor
+                                     : "transparent"
+    }
 
     function centerX(target) {
         return target === "Positive" ? positiveCpx
@@ -61,7 +125,59 @@ Rectangle {
         } else {
             return
         }
+        refusalReason = ""
+        lastMethod = qsTr("picked by hand")
+        lastConfidence = ""
         centerChanged(target, x, y)
+
+        // In Manual the click is a SEED, not the answer: roi_exact recurses
+        // detect_roi from it until the point stops moving. In Locked nothing is
+        // sent at all, and in Auto the click is an override the operator made
+        // deliberately, so it is left exactly where they put it.
+        if (mode === modeManual && linked)
+            ComputeController.refineCenter(slotFor(target), x, y, thresholdFor(target))
+    }
+
+    Connections {
+        target: ComputeController
+
+        function onCenterFound(slot, x, y, method, confidence) {
+            if (root.locked)
+                return
+            // Assigned directly rather than through setCenter, which would send
+            // the answer straight back out as a new seed and loop.
+            if (slot === "positive") {
+                root.positiveCpx = x
+                root.positiveCpy = y
+                root.centerChanged("Positive", x, y)
+            } else if (slot === "negative") {
+                root.negativeCpx = x
+                root.negativeCpy = y
+                root.centerChanged("Negative", x, y)
+            } else {
+                return
+            }
+            root.refusalReason = ""
+            root.lastMethod = method
+            root.lastConfidence = confidence
+        }
+
+        function onCenterRefused(slot, reason) {
+            // A fit the cascade could not validate is NO CENTRE. It is cleared,
+            // not left showing the previous run's coordinates: the rig drives
+            // five axes off this number, and a stale one looks exactly like a
+            // fresh one to whoever reads it next.
+            if (slot === "positive") {
+                root.positiveCpx = -1
+                root.positiveCpy = -1
+            } else if (slot === "negative") {
+                root.negativeCpx = -1
+                root.negativeCpy = -1
+            }
+            root.lastMethod = ""
+            root.lastConfidence = ""
+            root.refusalReason = reason
+        }
     }
 
     implicitWidth: content.implicitWidth + 2 * Theme.panelMargin + Theme.rowSpacing
@@ -102,6 +218,64 @@ Rectangle {
             Layout.fillWidth: true
             spacing: Theme.rowSpacing
 
+            StatusDot {
+                Layout.alignment: Qt.AlignVCenter
+                status: root.computing ? ProbeStatus.Checking
+                      : root.refusalReason !== "" ? ProbeStatus.Failed
+                      : root.lastConfidence === "good" ? ProbeStatus.Ok
+                      : root.lastConfidence === "marginal" ? ProbeStatus.Partial
+                      : root.linked ? ProbeStatus.Unknown
+                                    : ProbeStatus.Failed
+            }
+
+            Label {
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                Layout.preferredWidth: 0
+                text: root.detectStatus
+                color: root.refusalReason !== "" ? Theme.danger : Theme.textCaption
+                font.pixelSize: Theme.captionFontSize
+                elide: Text.ElideRight
+
+                // The refusal reason is usually longer than the strip it is
+                // elided into, and it is the one thing worth reading in full.
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: root.refusalReason !== ""
+                    acceptedButtons: Qt.NoButton
+
+                    ToolTip.visible: containsMouse
+                    ToolTip.delay: Theme.animSlow
+                    ToolTip.text: root.refusalReason
+                }
+            }
+
+            ActionButton {
+                text: qsTr("Find Pos")
+                enabled: root.linked && !root.computing && !root.locked
+                onClicked: root.findCenter("Positive")
+
+                ToolTip.visible: hovered
+                ToolTip.delay: Theme.animSlow
+                ToolTip.text: qsTr("Run the auto_center cascade on the positive shot. "
+                                 + "It answers 'no centre' rather than guessing.")
+            }
+
+            ActionButton {
+                text: qsTr("Find Neg")
+                enabled: root.linked && !root.computing && !root.locked
+                onClicked: root.findCenter("Negative")
+
+                ToolTip.visible: hovered
+                ToolTip.delay: Theme.animSlow
+                ToolTip.text: qsTr("Run the auto_center cascade on the negative shot")
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.rowSpacing
+
             LabeledField {
                 Layout.fillWidth: true
                 label: qsTr("Positive Threshold")
@@ -124,6 +298,40 @@ Rectangle {
                 text: root.negThreshold
                 validator: IntValidator { bottom: 0; top: 255 }
                 onEdited: (value) => root.negThreshold = parseInt(value)
+            }
+
+            LabeledField {
+                Layout.fillWidth: true
+                label: qsTr("Rings")
+                text: root.expectedRings
+                validator: IntValidator { bottom: 0; top: 99 }
+                // 0 means "take it from the prepared pattern PNG", which is
+                // measured off the picture that was actually on the glass and
+                // beats the modal count inferred from the capture itself.
+                onEdited: (value) => root.expectedRings = parseInt(value)
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: Theme.rowSpacing
+
+            PatternToggleSwitch {
+                text: qsTr("Noise cleaning")
+                checked: root.noiseCleaning
+                onToggled: (value) => root.noiseCleaning = value
+            }
+
+            Item { Layout.fillWidth: true }
+
+            Label {
+                text: root.mode === root.modeAuto
+                        ? qsTr("Auto: Find asks the rig")
+                        : root.mode === root.modeManual
+                            ? qsTr("Manual: a click seeds roi_exact")
+                            : qsTr("Locked: centres are read-only")
+                color: Theme.textCaption
+                font.pixelSize: Theme.captionFontSize
             }
         }
 

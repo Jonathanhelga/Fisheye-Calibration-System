@@ -33,6 +33,18 @@ Rectangle {
     property int centerY: -1
     property int roiRadius: 0
 
+    // The fisheye edge circle: a second ring on the same centre, drawn at a
+    // radius the operator sets by hand. Separate from the ROI because it means
+    // something different -- the ROI is the search window a centre fit works in,
+    // the edge is where the image circle ends.
+    property int edgeRadius: 0
+    property color edgeColor: "transparent"
+    property int edgeThickness: 2
+    property bool edgeVisible: false
+
+    readonly property bool hasEdge: loaded && edgeVisible && edgeRadius > 0
+                                    && centerX >= 0 && centerY >= 0
+
     readonly property bool hasCenter: loaded && centerX >= 0 && centerY >= 0 && roiRadius > 0
     readonly property real markerThickness: Math.max(1, Math.round(Theme.unit / 8))
     readonly property real hairline: 1
@@ -147,6 +159,31 @@ Rectangle {
             width: guides.width
             height: root.hairline
             color: Theme.previewGuide
+        }
+    }
+
+    // Just the circle -- no crosshair and no bounding square. Those belong to the
+    // ROI marker and would clutter the one thing this ring is for: seeing whether
+    // the radius matches where the image circle actually ends.
+    Item {
+        id: edge
+
+        readonly property real half: root.edgeRadius * root.zoom
+
+        visible: root.hasEdge
+
+        x: root.padLeft + (root.centerX + 0.5) * root.zoom - half
+        y: root.padTop + (root.centerY + 0.5) * root.zoom - half
+        width: 2 * half
+        height: 2 * half
+
+        Rectangle {
+            anchors.fill: parent
+            radius: width / 2
+            color: "transparent"
+            border.color: root.edgeColor
+            border.width: root.edgeThickness
+            antialiasing: true
         }
     }
 

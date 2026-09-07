@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Layouts
 import QtQuick.Window
 import FisheyeCaliJojo
@@ -18,6 +19,24 @@ ApplicationWindow {
     Component.onCompleted: {
         width  = Math.min(Theme.designWidth,  Screen.desktopAvailableWidth)
         height = Math.min(Theme.designHeight, Screen.desktopAvailableHeight)
+        camera.cameraFov = CameraController.fov
+    }
+
+    // Both histogram panels and the ICT extraction need the two centres. They are
+    // taken from the Centering panel, which is where they were established --
+    // either by the auto_center cascade or by hand.
+    function runDirectionDiff() {
+        if (!centering.hasPositiveCenter || !centering.hasNegativeCenter) {
+            toast.show(qsTr("Set both centres first -- press Find in the Centering panel, "
+                          + "or click each shot in Manual mode."), true)
+            return
+        }
+        ComputeController.histogram8Dir(centering.positiveCpx, centering.positiveCpy,
+                                        centering.negativeCpx, centering.negativeCpy,
+                                        centering.noiseCleaning)
+        ComputeController.nodes8Dir(centering.positiveCpx, centering.positiveCpy,
+                                    centering.negativeCpx, centering.negativeCpy,
+                                    centering.noiseCleaning)
     }
 
     ScaledCanvas {
@@ -55,11 +74,19 @@ ApplicationWindow {
 
                     ServerConfigPanel {
                         Layout.fillWidth: true
+                        // One press opens every link. They are separate contexts
+                        // and separate nodes on purpose -- a slow camera capture
+                        // must not block a stop command -- but they all live or
+                        // die with the same Update, so the operator never has a
+                        // half-connected rig to reason about.
                         onRosUpdateRequested: (domainId, axisNamespace, monitorNamespace, cameraTopic) => {
                             RosServerProbe.probeAll(domainId, axisNamespace, monitorNamespace, cameraTopic)
                             AxisController.connectTo(domainId, axisNamespace, true)
                             CameraController.connectTo(domainId)
                             PatternController.connectTo(domainId)
+                            MonitorController.connectTo(domainId)
+                            ComputeController.connectTo(domainId)
+                            CalibrationController.connectTo(domainId)
                         }
                     }
                     AxisControlPanel { Layout.fillWidth: true; Layout.fillHeight: true }
@@ -68,15 +95,27 @@ ApplicationWindow {
                 CameraPanel {
                     id: camera
 
-                    singlePath: CameraController.frameUrl
+                    singlePath:   CameraController.frameUrl
+                    positivePath: CameraController.positiveUrl
+                    negativePath: CameraController.negativeUrl
+                    positiveTime: CameraController.positiveTime
+                    negativeTime: CameraController.negativeTime
+
                     imageLabel: CameraController.frameLabel
                     errorText: CameraController.lastError
-                    busy: CameraController.busy
+                    busy: CameraController.busy || CameraController.pairing
+                    pendingMode: CameraController.pendingSlot
+                    pairing: CameraController.pairing
 
-                    onCaptureRequested: (mode) => {
-                        if (mode === "")
-                            CameraController.capture()
-                    }
+                    // The slot name travels through unchanged: "" is the plain
+                    // Capture button, "Positive" / "Negative" are the retakes.
+                    // The old handler dropped everything but "", which is why
+                    // Pos and Neg looked enabled and did nothing.
+                    onCaptureRequested: (mode) => CameraController.capture(mode)
+                    onPairRequested: CameraController.capturePair()
+                    onBrowseRequested: openImageDialog.open()
+                    onDirectionDiffRequested: window.runDirectionDiff()
+                    onFovEdited: (value) => CameraController.fov = value
 
                     Layout.fillWidth: true
                     Layout.fillHeight: true
@@ -91,6 +130,13 @@ ApplicationWindow {
                     centerY: camera.patternMode === "Positive" ? centering.positiveCpy
                            : camera.patternMode === "Negative" ? centering.negativeCpy
                                                                : -1
+
+                    // The edge ring follows whichever polarity the view is on, so
+                    // the positive radius is never drawn over a negative shot.
+                    edgeVisible: centering.edgeShown(camera.patternMode)
+                    edgeRadius: centering.edgeRadius(camera.patternMode)
+                    edgeThickness: centering.edgeThickness(camera.patternMode)
+                    edgeColor: centering.edgeColor(camera.patternMode)
 
                     onCenterPicked: (mode, x, y) => centering.setCenter(mode, x, y)
                 }
@@ -112,11 +158,33 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
 
+                        framePath:  CameraController.liveUrl
+                        streaming:  CameraController.streaming
+                        receiving:  CameraController.receiving
+                        fps:        CameraController.fps
+                        linkStatus: CameraController.status
+
+                        onStartRequested: CameraController.startStream()
+                        onStopRequested: CameraController.stopStream()
+                        // A preview frame kept as the Camera panel image. It came
+                        // off a BEST_EFFORT topic and is labelled as such, so it
+                        // is never mistaken for a measurement.
+                        onSnapshotRequested: CameraController.snapshot()
+
                         roiRadius: centering.centerRoi
                         centerX: centering.hasPositiveCenter ? centering.positiveCpx
                                                              : centering.negativeCpx
                         centerY: centering.hasPositiveCenter ? centering.positiveCpy
                                                              : centering.negativeCpy
+
+                        // Matched to the centre being drawn, positive preferred,
+                        // so the ring and the cross always describe one polarity.
+                        readonly property string edgeSide: centering.hasPositiveCenter
+                                                             ? "Positive" : "Negative"
+                        edgeVisible: centering.edgeShown(live.edgeSide)
+                        edgeRadius: centering.edgeRadius(live.edgeSide)
+                        edgeThickness: centering.edgeThickness(live.edgeSide)
+                        edgeColor: centering.edgeColor(live.edgeSide)
                     }
 
                     CenteringPanel {
@@ -229,9 +297,58 @@ ApplicationWindow {
     PatternAndMonitor {
         id: patternAndMonitor
 
+        // The mapping itself is applied inside that window, which owns the
+        // monitor link. This is the record for anything in the main window that
+        // needs to know the screens were remapped.
         onApplyMappingRequested: (top, north, west, south, east) => {
-            console.log("[Main] Pattern & Monitor apply mapping: top=" + top
-                + " n=" + north + " w=" + west + " s=" + south + " e=" + east)
+            toast.show(qsTr("Display mapping sent: TOP=%1 N=%2 W=%3 S=%4 E=%5")
+                       .arg(top).arg(north).arg(west).arg(south).arg(east), false)
         }
+    }
+
+    StatusToast {
+        id: toast
+
+        anchors.centerIn: parent
+        z: 100
+    }
+
+    FileDialog {
+        id: openImageDialog
+
+        title: qsTr("Open an image into the %1 slot")
+                   .arg(camera.patternMode === "" ? qsTr("single") : camera.patternMode.toLowerCase())
+        fileMode: FileDialog.OpenFile
+        nameFilters: [qsTr("Images (*.png *.jpg *.jpeg *.bmp)"), qsTr("All files (*)")]
+
+        Component.onCompleted: openImageDialog.currentFolder = PatternIo.defaultImageDirectory
+
+        // The file lands in whichever slot the view is showing, so an existing
+        // pair can be re-analysed with no rig attached.
+        onAccepted: CameraController.openImage(openImageDialog.selectedFile, camera.patternMode)
+    }
+
+    Connections {
+        target: CameraController
+
+        function onErrorRaised(message) { toast.show(message, true) }
+        function onNotice(message) { toast.show(message, false) }
+        function onPairFailed(reason) { toast.show(qsTr("Pair shot: %1").arg(reason), true) }
+
+        // A finished pair is the moment both centres can be established, so the
+        // fits are offered straight away rather than waiting to be asked.
+        function onPairComplete() {
+            if (centering.mode !== centering.modeLocked) {
+                centering.findCenter("Positive")
+                centering.findCenter("Negative")
+            }
+        }
+    }
+
+    Connections {
+        target: ComputeController
+
+        function onErrorRaised(message) { toast.show(message, true) }
+        function onNotice(message) { toast.show(message, false) }
     }
 }

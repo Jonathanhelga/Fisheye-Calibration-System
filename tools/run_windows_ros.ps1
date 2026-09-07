@@ -29,6 +29,20 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# The README documents C:\dev\ros2-lyrical, but a Lyrical archive unpacked with
+# its own name lands in C:\dev\lyrical, and that is what is on at least one
+# machine here. Probe the alternative rather than failing with a path the
+# operator never chose -- an explicit -Ros2 always wins.
+if (-not $PSBoundParameters.ContainsKey('Ros2') -and -not (Test-Path $Ros2)) {
+    foreach ($candidate in @("C:\dev\lyrical", "C:\opt\ros2-lyrical")) {
+        if (Test-Path (Join-Path $candidate "local_setup.ps1")) {
+            Write-Host "ROS 2 not at the default path; using $candidate" -ForegroundColor DarkGray
+            $Ros2 = $candidate
+            break
+        }
+    }
+}
+
 # The repo root is the parent of tools\, so the script works from any directory.
 $repo = Split-Path -Parent $PSScriptRoot
 
@@ -49,6 +63,35 @@ if (-not (Test-Path "$Qt\bin\Qt6Quick.dll")) {
 }
 $paths = @("$Qt\bin")
 $env:QT_QPA_PLATFORM_PLUGIN_PATH = "$Qt\plugins\platforms"
+
+# Do NOT set QML_IMPORT_PATH here.
+#
+# With $Qt\bin first on PATH the engine finds Qt's own QML modules through
+# QLibraryInfo, from the Qt installation the app was built against. Pointing
+# QML_IMPORT_PATH at the same qml\ directory on top of that makes the app's own
+# compiled-in module resolve twice and the app dies with:
+#
+#   "FisheyeCaliJojo" is ambiguous. Found in qrc:/qt/qml/FisheyeCaliJojo/
+#                                   and in qrc:/qt/qml/FisheyeCaliJojo/
+#
+# which reads like nonsense and means "it is on the import list twice".
+#
+# If you ever DO see "module QtQuick.Controls plugin qtquickcontrols2plugin not
+# found", the cause is not a missing import path -- it is that a different Qt got
+# loaded first. The pixi environment ships a complete conda-forge Qt 6 in
+# Library\bin, so anything that puts that directory ahead of $Qt\bin silently
+# swaps the whole toolkit underneath the app. That is why $Qt\bin is first in
+# $paths below and the pixi directory is appended last.
+Remove-Item Env:\QML_IMPORT_PATH  -ErrorAction SilentlyContinue
+Remove-Item Env:\QML2_IMPORT_PATH -ErrorAction SilentlyContinue
+
+# On Windows Qt routes qWarning/qCritical to OutputDebugString, NOT to stderr.
+# A QML error that kills the app therefore leaves the console completely empty
+# and all you get is "Exit code -1" with nothing to act on. These two make the
+# engine talk to the console it actually has, and they are the difference
+# between "QML failed to load" and a file and a line number.
+if (-not $env:QT_FORCE_STDERR_LOGGING)    { $env:QT_FORCE_STDERR_LOGGING = "1" }
+if (-not $env:QT_ASSUME_STDERR_HAS_CONSOLE) { $env:QT_ASSUME_STDERR_HAS_CONSOLE = "1" }
 
 # ---- OpenCV -----------------------------------------------------------------
 # Not Qt's problem, so windeployqt never fetches it.

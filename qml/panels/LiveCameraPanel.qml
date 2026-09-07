@@ -8,12 +8,18 @@ Rectangle {
 
     property string framePath: ""
 
-    readonly property url frameUrl: root.framePath === "" ? ""
-                                  : root.framePath.startsWith("qrc:") ? root.framePath
-                                                                      : "file://" + root.framePath
+    // Anything already carrying a scheme is passed through untouched. The live
+    // frames arrive as image://moilcamera/live/<revision> from the image
+    // provider, and prefixing those with file:// produced a silent blank panel.
+    readonly property url frameUrl: PatternIo.toFileUrl(root.framePath)
 
+    // Owned by the controller: the stream is a ROS subscription, and a local bool
+    // that says "streaming" while nothing is subscribed is exactly the lie this
+    // panel used to tell.
     property bool streaming: false
     property real fps: 0
+
+    property int linkStatus: ProbeStatus.Unknown
 
     property bool showGrid: false
     property bool showRoi: true
@@ -22,11 +28,19 @@ Rectangle {
     property int centerY: -1
     property int roiRadius: 0
 
-    readonly property bool receiving: streaming && preview.loaded
+    property int edgeRadius: 0
+    property color edgeColor: "transparent"
+    property int edgeThickness: 2
+    property bool edgeVisible: false
 
-    readonly property string sourceUrl: HttpServerProbe.host
-        ? "http://" + HttpServerProbe.host + ":" + HttpServerProbe.cameraPort + "/single_image"
-        : ""
+    // Told by the controller whether frames are actually arriving. preview.loaded
+    // only says the last URL decoded, which stays true after the stream stops.
+    property bool receiving: streaming && preview.loaded
+
+    // What the operator should be told the frames come from. It is a ROS topic,
+    // not the HTTP endpoint this used to name -- HTTP is a reachability probe in
+    // this app and carries no image data at all.
+    readonly property string sourceUrl: "/camera/image_raw/compressed"
 
     readonly property string frameSize: preview.sourceWidth + "x" + preview.sourceHeight
 
@@ -66,9 +80,12 @@ Rectangle {
 
             StatusDot {
                 Layout.alignment: Qt.AlignVCenter
+                // Falls back to the ROS camera link, not the HTTP probe: the
+                // frames come over a ROS topic now, so an HTTP dot here would be
+                // reporting the health of something this panel does not use.
                 status: root.receiving ? ProbeStatus.Ok
                       : root.streaming ? ProbeStatus.Checking
-                                       : HttpServerProbe.cameraStatus
+                                       : root.linkStatus
             }
 
             Label {
@@ -87,9 +104,7 @@ Rectangle {
 
                     ToolTip.visible: containsMouse
                     ToolTip.delay: Theme.animSlow
-                    ToolTip.text: root.sourceUrl
-                        ? root.sourceUrl
-                        : qsTr("No camera URL yet. Press Update in the HTTP Server panel.")
+                    ToolTip.text: qsTr("Frames arrive on %1").arg(root.sourceUrl)
                 }
             }
 
@@ -140,6 +155,14 @@ Rectangle {
             centerX: root.showRoi ? root.centerX : -1
             centerY: root.showRoi ? root.centerY : -1
             roiRadius: root.showRoi ? root.roiRadius : 0
+
+            // The ROI button governs both markers: they are the same overlay to
+            // anyone aiming the rig, and one toggle that leaves half of it on
+            // would read as a bug.
+            edgeVisible: root.showRoi && root.edgeVisible
+            edgeRadius: root.edgeRadius
+            edgeColor: root.edgeColor
+            edgeThickness: root.edgeThickness
         }
 
         RowLayout {
@@ -150,13 +173,10 @@ Rectangle {
                 Layout.fillWidth: true
                 tone: root.streaming ? "danger" : "accent"
                 text: root.streaming ? qsTr("Stop") : qsTr("Go Live")
-                onClicked: {
-                    root.streaming = !root.streaming
-                    if (root.streaming)
-                        root.startRequested()
-                    else
-                        root.stopRequested()
-                }
+                // The button asks; the controller decides. `streaming` follows
+                // the subscription, so a Go Live that cannot connect leaves the
+                // button reading Go Live instead of pretending to stream.
+                onClicked: root.streaming ? root.stopRequested() : root.startRequested()
             }
 
             ActionButton {

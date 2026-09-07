@@ -15,7 +15,12 @@ Rectangle {
     property string negativeTime: ""
 
     property bool busy: false
+
+    // Which slot a capture is currently filling, driven by the controller rather
+    // than guessed locally: a pair shot fills two of them without the panel
+    // being the thing that asked for the second.
     property string pendingMode: ""
+    property bool pairing: false
 
     property string imageLabel: ""
     property string errorText: ""
@@ -24,6 +29,14 @@ Rectangle {
     property int centerY: -1
     property int roiRadius: 0
     property bool centerLocked: false
+
+    // The edge ring for whichever polarity is being shown. Owned by the Centering
+    // panel; passed straight through so the magnifier and the inline preview
+    // cannot disagree about it.
+    property int edgeRadius: 0
+    property color edgeColor: "transparent"
+    property int edgeThickness: 2
+    property bool edgeVisible: false
 
     property alias cameraFov: fovSpin.value
 
@@ -39,14 +52,22 @@ Rectangle {
                                       : viewSelector.currentIndex === 2 ? negativePath
                                                                         : singlePath
 
-    readonly property url imageUrl: root.imagePath === "" ? ""
-                                 : root.imagePath.includes("://") ? root.imagePath
-                                                                  : "file://" + root.imagePath
+    // Handles both the image:// provider URLs the controller hands out and a
+    // plain path, without the "file://" + path form that breaks on Windows.
+    readonly property url imageUrl: PatternIo.toFileUrl(root.imagePath)
 
-    readonly property string fileName: imageLabel !== "" ? imageLabel
-        : imagePath.substring(imagePath.lastIndexOf("/") + 1)
+    // imageLabel describes the SINGLE slot only. Showing it over the Pos or Neg
+    // view would caption one shot with another's timestamp, which is the kind of
+    // wrong that reads as right.
+    readonly property string fileName: patternMode === "" && imageLabel !== ""
+        ? imageLabel
+        : patternMode !== ""
+            ? qsTr("%1 shot").arg(patternMode)
+            : imagePath.substring(imagePath.lastIndexOf("/") + 1)
 
-    readonly property string statusText: busy
+    readonly property string statusText: pairing
+        ? qsTr("Pair shot in progress, keep the rig still...")
+        : busy
         ? (pendingMode ? qsTr("Capturing %1 shot...").arg(pendingMode)
                        : qsTr("Capturing..."))
         : errorText !== "" ? errorText
@@ -65,8 +86,10 @@ Rectangle {
     signal centerPicked(string mode, int x, int y)
     signal fovEdited(int value)
 
+    // pendingMode is a binding to the controller, so it is NOT assigned here --
+    // writing it would break that binding and the panel would then report a
+    // capture state it invented rather than the one that is happening.
     function requestCapture(mode) {
-        pendingMode = mode
         captureRequested(mode)
     }
 
@@ -253,6 +276,11 @@ Rectangle {
             centerY: root.centerY
             roiRadius: root.roiRadius
 
+            edgeRadius: root.edgeRadius
+            edgeColor: root.edgeColor
+            edgeThickness: root.edgeThickness
+            edgeVisible: root.edgeVisible
+
             onPicked: (x, y) => root.centerPicked(root.patternMode, x, y)
         }
 
@@ -341,6 +369,11 @@ Rectangle {
             centerX: root.centerX
             centerY: root.centerY
             roiRadius: root.roiRadius
+
+            edgeRadius: root.edgeRadius
+            edgeColor: root.edgeColor
+            edgeThickness: root.edgeThickness
+            edgeVisible: root.edgeVisible
 
             onPicked: (x, y) => root.centerPicked(root.patternMode, x, y)
         }

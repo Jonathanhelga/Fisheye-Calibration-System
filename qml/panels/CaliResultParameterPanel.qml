@@ -8,27 +8,51 @@ import FisheyeCaliJojo
 Rectangle {
     id: panel
 
-    readonly property int roundCount: 3
     readonly property real alphaMax: 90
-    readonly property real ictMax: 2500
 
-    property var alphaRounds: []
-    property var alphaFit: []
-    property var zflRounds: []
+    // The plots are the server's series, cached against the table version they
+    // were computed from. Nothing here derives a point.
+    readonly property var alphaRounds: CalibrationController.alphaRounds
+    readonly property var alphaFit: CalibrationController.alphaFit
+    readonly property var zflRounds: CalibrationController.zflRounds
+
+    // The ICT axis is sized from the largest ict anywhere, which is a question
+    // only the pipeline can answer (max_ict_all_rounds).
+    readonly property real ictMax: CalibrationController.maxIct > 0
+                                     ? CalibrationController.maxIct : 2500
 
     property string cameraName: ""
-    property string cameraFov: ""
     property string cameraSensorWidth: "1"
     property string cameraSensorHeight: "1"
-    property string iCx: ""
-    property string iCy: ""
     property string ratio: "1"
     property string imageWidth: ""
     property string imageHeight: ""
     property string calibrationRatio: ""
-    property string distancePerRound: ""
 
-    property var coefficients: ["0", "0", "21.4507", "-97.8215", "186.442", "1402.31"]
+    // The camera's FOV belongs to the rig, and the image centre is a measurement.
+    // Both are read here rather than typed.
+    readonly property string cameraFov: String(CameraController.fov)
+    readonly property var posCenter: ComputeController.centers["positive"]
+    readonly property string iCx: posCenter && posCenter.ok ? String(posCenter.x) : ""
+    readonly property string iCy: posCenter && posCenter.ok ? String(posCenter.y) : ""
+
+    readonly property string distancePerRound:
+        CalibrationController.fields["lineedit_dis_per_round"] || ""
+
+    // Straight from alpha_polynomial. An operator may still type over a slot, but
+    // the next fit wins -- see the Connections below.
+    property var coefficients: CalibrationController.coefficients
+
+    Connections {
+        target: CalibrationController
+
+        // Re-assigned explicitly, not left to the binding: an edit above breaks
+        // the binding, and without this a freshly fitted polynomial would be
+        // silently ignored in favour of a hand-typed one.
+        function onSeriesChanged() {
+            panel.coefficients = CalibrationController.coefficients
+        }
+    }
 
     readonly property var coefficientRows: [
         { name: "parameter0", note: qsTr("always 0"), fitted: false },
@@ -45,8 +69,12 @@ Rectangle {
     signal saveParametersRequested()
     signal saveConfigurationRequested()
 
+    // The round colours come with the series. They are the pipeline's own
+    // curve_color table, so a round is the same colour here as it is in every
+    // other tool that reads these files.
     function roundColor(index) {
-        return Theme.curvePalette[index % Theme.curvePalette.length]
+        const given = CalibrationController.roundColors[index]
+        return given ? given : Theme.curvePalette[index % Theme.curvePalette.length]
     }
 
     function bandColor(index) {
@@ -58,42 +86,6 @@ Rectangle {
         const next = panel.coefficients.slice()
         next[index] = value
         panel.coefficients = next
-    }
-
-    // Stand-in measurements so the plots show their real shape during design
-    // review. Jitter is a sine of the sample index, not a random draw, so the
-    // scatter stays identical across repaints.
-    function buildPlaceholderData() {
-        const alpha = []
-        for (let r = 0; r < panel.roundCount; ++r) {
-            const points = []
-            for (let i = 0; i <= 16; ++i) {
-                const a = 5 + i * 5
-                points.push({ x: a,
-                              y: 24 * a - 0.05 * a * a
-                                 + Math.sin((i + r * 3) * 1.7) * 26 + r * 18 })
-            }
-            alpha.push(points)
-        }
-        panel.alphaRounds = alpha
-
-        const fit = []
-        for (let k = 0; k <= panel.alphaMax; ++k)
-            fit.push({ x: k, y: 24 * k - 0.05 * k * k + 18 })
-        panel.alphaFit = fit
-
-        const zfl = []
-        for (let s = 0; s < panel.roundCount; ++s) {
-            const points = []
-            for (let j = 0; j <= 24; ++j) {
-                const ict = -2400 + j * 200
-                points.push({ x: ict,
-                              y: 2600 - 0.00035 * ict * ict
-                                 + Math.sin((j + s * 5) * 1.3) * 55 - s * 40 })
-            }
-            zfl.push(points)
-        }
-        panel.zflRounds = zfl
     }
 
     readonly property var roundLegend: {
@@ -126,17 +118,21 @@ Rectangle {
         return out
     }
 
+    // Bands scaled to the measured ICT range rather than fixed pixel spans, which
+    // only lined up with the stand-in data they were drawn for.
     readonly property var zflRegions: {
-        const spans = [{ min: -2200, max: -1300 },
-                       { min: -500,  max: 500 },
-                       { min: 1300,  max: 2200 }]
+        if (panel.ictMax <= 0)
+            return []
+        const spans = [{ min: -0.88, max: -0.52 },
+                       { min: -0.20, max:  0.20 },
+                       { min:  0.52, max:  0.88 }]
         const out = []
         for (let i = 0; i < spans.length; ++i)
-            out.push({ min: spans[i].min, max: spans[i].max, color: panel.bandColor(i) })
+            out.push({ min: spans[i].min * panel.ictMax,
+                       max: spans[i].max * panel.ictMax,
+                       color: panel.bandColor(i) })
         return out
     }
-
-    Component.onCompleted: buildPlaceholderData()
 
     color: Theme.panelBackground
     border.color: Theme.panelBorder
@@ -490,7 +486,10 @@ Rectangle {
                                 caption: qsTr("cameraFov")
                                 unit: "°"
                                 value: panel.cameraFov
-                                onEdited: (value) => panel.cameraFov = value
+                                // The FOV is a property of the rig's camera, so
+                                // it is stored there and shared with the Camera
+                                // panel's spin box rather than kept twice.
+                                onEdited: (value) => CameraController.fov = parseInt(value)
                             }
                             ParamField {
                                 caption: qsTr("cameraSensorWidth")
@@ -511,17 +510,20 @@ Rectangle {
 
                             SectionTitle { text: qsTr("Image") }
 
+                            // The image centre is what the detect cascade found,
+                            // not a number to type. Blank means no centre was
+                            // established -- run Find in the Centering panel.
                             ParamField {
                                 caption: qsTr("iCx")
                                 unit: qsTr("px")
                                 value: panel.iCx
-                                onEdited: (value) => panel.iCx = value
+                                note: panel.iCx === "" ? qsTr("not measured") : ""
                             }
                             ParamField {
                                 caption: qsTr("iCy")
                                 unit: qsTr("px")
                                 value: panel.iCy
-                                onEdited: (value) => panel.iCy = value
+                                note: panel.iCy === "" ? qsTr("not measured") : ""
                             }
                             ParamField {
                                 caption: qsTr("ratio")
@@ -588,7 +590,11 @@ Rectangle {
                                 caption: qsTr("Distance / Round")
                                 unit: qsTr("px")
                                 value: panel.distancePerRound
-                                onEdited: (value) => panel.distancePerRound = value
+                                // A pipeline field, so it goes into the table
+                                // that travels rather than into a local string
+                                // the server never sees.
+                                onEdited: (value) =>
+                                    CalibrationController.setField("lineedit_dis_per_round", value)
                             }
 
                             ActionButton {

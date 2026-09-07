@@ -27,6 +27,21 @@ Rectangle {
 
     property url previewSource: ""
 
+    property bool connected: false
+
+    // See ConcentricPanel: a ListModel gives no bindable change signal, so a
+    // fingerprint built from specJson() alone would miss every layer edit.
+    property int layerRevision: 0
+
+    readonly property string configFingerprint:
+        panel.layerRevision + "|" + JSON.stringify(panel.specJson())
+
+    AutoRefresh {
+        enabled: panel.autoUpdate && panel.connected
+        fingerprint: panel.configFingerprint
+        onTriggered: panel.updateRequested()
+    }
+
     signal importRequested()
     signal exportRequested()
     signal saveImageRequested()
@@ -37,14 +52,23 @@ Rectangle {
         return String((index % 2 === 0) === positive ? panel.positiveColor : panel.negativeColor)
     }
 
+    // Every layerModel mutation goes through here or bumps layerRevision itself;
+    // a setProperty that skips it is a change Auto Update will never see.
+    function setLayer(index, key, value) {
+        layerModel.setProperty(index, key, value)
+        panel.layerRevision++
+    }
+
     function applyPositivePattern() {
         for (let i = 0; i < layerModel.count; i++)
             layerModel.setProperty(i, "color", panel.layerColorAt(i, true))
+        panel.layerRevision++
     }
 
     function applyNegativePattern() {
         for (let i = 0; i < layerModel.count; i++)
             layerModel.setProperty(i, "color", panel.layerColorAt(i, false))
+        panel.layerRevision++
     }
 
     function specJson() {
@@ -100,6 +124,8 @@ Rectangle {
                                            : PatternConfig.toColor(layer.color, "#ffffff"))
         }
 
+        // Once for the whole import, not once per row.
+        panel.layerRevision++
         return true
     }
 
@@ -394,8 +420,8 @@ Rectangle {
                             interval: cell.interval
                             color: cell.color
 
-                            onIntervalEdited: (value) => layerModel.setProperty(cell.index, "interval", value)
-                            onColorEdited:    (value) => layerModel.setProperty(cell.index, "color", String(value))
+                            onIntervalEdited: (value) => panel.setLayer(cell.index, "interval", value)
+                            onColorEdited:    (value) => panel.setLayer(cell.index, "color", String(value))
                             onMoveFocusRequested: (column, delta) => table.moveFocus(cell.index, column, delta)
                         }
                     }

@@ -9,13 +9,21 @@ Rectangle {
     id: panel
 
     readonly property var directions: ["N", "S", "W", "E", "NW", "SE", "SW", "NE"]
-    readonly property int layerCount: 74
+
+    // 75, not 74. A round table is 77 rows: two headers then the layer rows, and
+    // the model on the far side (CaliTableData::kRows) is the same table. A
+    // shorter count here does not mean a smaller table, it means a truncated one
+    // -- a real capture's after-bezel segment runs well past layer 40.
+    readonly property int layerCount: 75
     readonly property int noSideLayer: layerCount
 
     property alias round: roundSelector.currentIndex
 
-    property var rounds: []
-    property var sideLayers: []
+    // The table lives in the controller. This panel displays it and sends edits
+    // back; it does not hold a second copy, because the copy that travels to the
+    // rig must be the copy on screen.
+    readonly property var rounds: CalibrationController.rounds
+    readonly property var sideLayers: CalibrationController.sideLayers
 
     readonly property var rows: round < rounds.length ? rounds[round] : []
     readonly property var blankRow: panel.emptyRow()
@@ -33,12 +41,19 @@ Rectangle {
         return false
     }
 
-    property string posICx: ""
-    property string posICy: ""
-    property string negICx: ""
-    property string negICy: ""
-    property string aggregation: ""
-    property string distance: "250"
+    // Where the centres were found, read straight off the detect results. These
+    // are a read-out of a measurement, not an input -- typing over them would be
+    // claiming a centre nothing measured.
+    readonly property var posCenter: ComputeController.centers["positive"]
+    readonly property var negCenter: ComputeController.centers["negative"]
+
+    readonly property string posICx: posCenter && posCenter.ok ? String(posCenter.x) : ""
+    readonly property string posICy: posCenter && posCenter.ok ? String(posCenter.y) : ""
+    readonly property string negICx: negCenter && negCenter.ok ? String(negCenter.x) : ""
+    readonly property string negICy: negCenter && negCenter.ok ? String(negCenter.y) : ""
+
+    readonly property string aggregation: CalibrationController.aggregationText
+    property string distance: String(CalibrationController.baseDistance)
 
     signal calculateRequested(int round)
     signal aggrRoundRequested(int round)
@@ -55,47 +70,20 @@ Rectangle {
         }
     }
 
-    function buildPlaceholderData() {
-        const tables = []
-        const sides = []
-        for (let r = 0; r <= 10; r++) {
-            const table = []
-            for (let layer = 0; layer < panel.layerCount; layer++)
-                table.push(panel.emptyRow())
-            tables.push(table)
-            sides.push(panel.noSideLayer)
-        }
-        panel.rounds = tables
-        panel.sideLayers = sides
-    }
-
-    function updateRow(layer, changes) {
-        if (panel.round >= panel.rounds.length)
-            return
-        const tables = panel.rounds.slice()
-        const table = tables[panel.round].slice()
-        table[layer] = Object.assign({}, table[layer], changes)
-        tables[panel.round] = table
-        panel.rounds = tables
-    }
-
+    // Edits go to the controller, which owns the table and bumps its version so
+    // every cached series knows it is stale. The display then follows the
+    // controller back; nothing is written locally and re-sent later.
     function setPct(layer, value) {
-        panel.updateRow(layer, { pct: value })
+        CalibrationController.setPct(panel.round, layer, value)
     }
 
     function setIct(layer, direction, value) {
-        const ict = panel.rows[layer].ict.slice()
-        ict[direction] = value
-        panel.updateRow(layer, { ict: ict })
+        CalibrationController.setIct(panel.round, layer, direction, value)
     }
 
     function setSideLayer(layer) {
-        const next = panel.sideLayers.slice()
-        next[panel.round] = next[panel.round] === layer ? panel.noSideLayer : layer
-        panel.sideLayers = next
+        CalibrationController.setSideLayer(panel.round, layer)
     }
-
-    Component.onCompleted: buildPlaceholderData()
 
     color: Theme.panelBackground
     border.color: Theme.panelBorder
@@ -238,26 +226,10 @@ Rectangle {
             Layout.fillWidth: true
             spacing: Theme.spaceSm
 
-            ToolField {
-                caption: qsTr("pos_iCx:")
-                value: panel.posICx
-                onEdited: (value) => panel.posICx = value
-            }
-            ToolField {
-                caption: qsTr("pos_iCy:")
-                value: panel.posICy
-                onEdited: (value) => panel.posICy = value
-            }
-            ToolField {
-                caption: qsTr("neg_iCx:")
-                value: panel.negICx
-                onEdited: (value) => panel.negICx = value
-            }
-            ToolField {
-                caption: qsTr("neg_iCy:")
-                value: panel.negICy
-                onEdited: (value) => panel.negICy = value
-            }
+            ToolField { caption: qsTr("pos_iCx:"); value: panel.posICx; editable: false }
+            ToolField { caption: qsTr("pos_iCy:"); value: panel.posICy; editable: false }
+            ToolField { caption: qsTr("neg_iCx:"); value: panel.negICx; editable: false }
+            ToolField { caption: qsTr("neg_iCy:"); value: panel.negICy; editable: false }
 
             Item { Layout.fillWidth: true }
 
@@ -269,11 +241,15 @@ Rectangle {
             ToolField {
                 caption: qsTr("Distance:")
                 value: panel.distance
-                onEdited: (value) => panel.distance = value
+                onEdited: (value) => {
+                    panel.distance = value
+                    CalibrationController.baseDistance = parseFloat(value)
+                }
             }
 
             ActionButton {
                 text: qsTr("Aggr Round %1").arg(panel.round)
+                enabled: !CalibrationController.busy
                 onClicked: panel.aggrRoundRequested(panel.round)
 
                 ToolTip.visible: hovered
@@ -282,6 +258,7 @@ Rectangle {
             }
             ActionButton {
                 text: qsTr("Clean Noise")
+                enabled: !CalibrationController.busy
                 onClicked: panel.cleanNoiseRequested(panel.round)
 
                 ToolTip.visible: hovered
@@ -358,6 +335,7 @@ Rectangle {
             ActionButton {
                 text: qsTr("Calculate Result")
                 tone: "accent"
+                enabled: !CalibrationController.busy
                 onClicked: panel.calculateRequested(panel.round)
 
                 ToolTip.visible: hovered

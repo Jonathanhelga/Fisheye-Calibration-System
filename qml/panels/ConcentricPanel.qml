@@ -24,6 +24,27 @@ Rectangle {
 
     property url previewSource: ""
 
+    // Auto Update only renders when there is something to render to.
+    property bool connected: false
+
+    // Bumped by every edit that touches the layer table.
+    //
+    // specJson() reads the layers through layerModel.get(), and a ListModel
+    // emits no signal a QML binding can depend on -- so a fingerprint built from
+    // specJson() alone re-evaluates for the scalar fields (resolution, colours,
+    // crossline) and NEVER for a layer's radius, shape or centre, which is the
+    // edit an operator actually makes. This counter is what makes those visible.
+    property int layerRevision: 0
+
+    readonly property string configFingerprint:
+        panel.layerRevision + "|" + JSON.stringify(panel.specJson())
+
+    AutoRefresh {
+        enabled: panel.autoUpdate && panel.connected
+        fingerprint: panel.configFingerprint
+        onTriggered: panel.updateRequested()
+    }
+
     signal importRequested()
     signal exportRequested()
     signal saveImageRequested()
@@ -34,14 +55,29 @@ Rectangle {
         return String((index % 2 === 0) === positive ? panel.positiveColor : panel.negativeColor)
     }
 
+    // The two colours as [r, g, b], for PreparePatterns. The server applies the
+    // odd/even inversion itself -- these are just the pair, not a polarity.
+    function positiveRgb() { return PatternConfig.rgbArray(panel.positiveColor) }
+    function negativeRgb() { return PatternConfig.rgbArray(panel.negativeColor) }
+
+    // One edit to a layer, announced. Every mutation of layerModel goes through
+    // here or bumps layerRevision itself; a setProperty that skips it is a change
+    // Auto Update will never see.
+    function setLayer(index, key, value) {
+        layerModel.setProperty(index, key, value)
+        panel.layerRevision++
+    }
+
     function applyPositivePattern() {
         for (let i = 0; i < layerModel.count; i++)
             layerModel.setProperty(i, "color", panel.layerColorAt(i, true))
+        panel.layerRevision++
     }
 
     function applyNegativePattern() {
         for (let i = 0; i < layerModel.count; i++)
             layerModel.setProperty(i, "color", panel.layerColorAt(i, false))
+        panel.layerRevision++
     }
 
     function specJson() {
@@ -107,6 +143,9 @@ Rectangle {
                                            : PatternConfig.toColor(layer.color, "#000000"))
         }
 
+        // Once for the whole import rather than per row: an imported file is one
+        // change, and bumping per layer would fire 25 auto-renders.
+        panel.layerRevision++
         return true
     }
 
@@ -415,11 +454,11 @@ Rectangle {
                             cx: cell.cx
                             cy: cell.cy
 
-                            onShapeEdited:  (value) => layerModel.setProperty(cell.index, "shape", value)
-                            onRadiusEdited: (value) => layerModel.setProperty(cell.index, "radius", value)
-                            onColorEdited:  (value) => layerModel.setProperty(cell.index, "color", String(value))
-                            onCxEdited:     (value) => layerModel.setProperty(cell.index, "cx", value)
-                            onCyEdited:     (value) => layerModel.setProperty(cell.index, "cy", value)
+                            onShapeEdited:  (value) => panel.setLayer(cell.index, "shape", value)
+                            onRadiusEdited: (value) => panel.setLayer(cell.index, "radius", value)
+                            onColorEdited:  (value) => panel.setLayer(cell.index, "color", String(value))
+                            onCxEdited:     (value) => panel.setLayer(cell.index, "cx", value)
+                            onCyEdited:     (value) => panel.setLayer(cell.index, "cy", value)
                             onMoveFocusRequested: (column, delta) => table.moveFocus(cell.index, column, delta)
                         }
                     }

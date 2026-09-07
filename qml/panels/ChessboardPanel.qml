@@ -19,6 +19,13 @@ Rectangle {
     property int resolutionH: 1080
     property int resolutionW: 1920
     property real squareMm: 45
+
+    // Declared here because the Auto Update switch below binds to it. Without it
+    // the binding assigned [undefined] to a bool and the engine logged
+    // "Unable to assign [undefined] to bool" on every startup -- the sibling
+    // Concentric and Stripeline panels both declare it and this one did not.
+    property bool autoUpdate: false
+
     property bool crossLine: false
     property color positiveColor: "black"
     property color negativeColor: "#b4b4b4"
@@ -29,6 +36,19 @@ Rectangle {
 
     readonly property real pixelSizeMm: panel.pixelSizeOptions[Math.max(0, pixelSizeCombo.currentIndex)]
     readonly property int squarePx: Math.round(squareMm / pixelSizeMm)
+
+    property bool connected: false
+
+    // No layer table here, so every input is a bindable property and specJson()
+    // alone is a sufficient fingerprint -- no revision counter needed, unlike the
+    // concentric and stripeline panels.
+    readonly property string configFingerprint: JSON.stringify(panel.specJson())
+
+    AutoRefresh {
+        enabled: panel.autoUpdate && panel.connected
+        fingerprint: panel.configFingerprint
+        onTriggered: panel.updateRequested()
+    }
 
     signal saveImageRequested()
     signal updateRequested()

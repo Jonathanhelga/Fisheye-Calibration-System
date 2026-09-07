@@ -26,6 +26,17 @@ QUrl PatternIo::defaultImageDirectory() const {
     return workspaceSubdirectory(QStringLiteral("pattern_image"));
 }
 
+QUrl PatternIo::toFileUrl(const QString &path) const {
+    if (path.isEmpty()) return {};
+    // Already a URL of some kind (image://, qrc:, file:) -- leave it alone.
+    if (path.contains(QStringLiteral("://"))) return QUrl(path);
+    return QUrl::fromLocalFile(path);
+}
+
+QString PatternIo::toLocalPath(const QUrl &fileUrl) const {
+    return fileUrl.isLocalFile() ? fileUrl.toLocalFile() : fileUrl.toString();
+}
+
 bool PatternIo::setError(const QString &message) {
     if (lastError_ != message) {
         lastError_ = message;

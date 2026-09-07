@@ -89,26 +89,42 @@ Rectangle {
         return out
     }
 
+    // The crossings come from the server, not from re-deriving them here.
+    //
+    // get_list_intersecting_nodes is a calibration measurement -- it is what the
+    // ICT columns are built from -- and a second implementation of it in QML
+    // would be a second answer to the same question. The server returns the raw
+    // crossings of exactly this pair of curves, with no diagonal scaling and no
+    // cross-direction reconciliation, so they line up with what is drawn once
+    // this panel applies its own scale.
     readonly property var intersections: {
         if (!showCurves || compareDirection === "")
             return []
-        const positive = curveShapes["pos:" + compareDirection]
-        const negative = curveShapes["neg:" + compareDirection]
-        if (!positive || !negative)
+        const all = ComputeController.histogram["nodes"]
+        if (!all)
             return []
-        const count = Math.min(positive.length, negative.length)
+        const raw = all[compareDirection]
+        if (!raw)
+            return []
+
+        const diagonal = compareDirection === "nw" || compareDirection === "se"
+                      || compareDirection === "sw" || compareDirection === "ne"
+        const scale = diagonal ? Math.SQRT2 : 1
+
         const out = []
-        for (let i = 1; i < count; ++i) {
-            const before = positive[i - 1].y - negative[i - 1].y
-            const after = positive[i].y - negative[i].y
-            if ((before < 0) !== (after < 0))
-                out.push(positive[i].x)
-        }
+        for (let i = 0; i < raw.length; ++i)
+            out.push(raw[i] * scale)
         return out
     }
 
-    readonly property string statusText: !showCurves ? qsTr("Curves hidden")
-        : compareDirection !== "" ? qsTr("Comparing %1").arg(compareDirection.toUpperCase())
+    readonly property bool hasData: ComputeController.hasHistogram
+
+    readonly property string statusText: ComputeController.busy ? ComputeController.activity
+        : !hasData ? qsTr("No measurement yet -- take a pair, then press Direction Diff")
+        : !showCurves ? qsTr("Curves hidden")
+        : compareDirection !== "" ? qsTr("Comparing %1, %2 crossing(s)")
+                                        .arg(compareDirection.toUpperCase())
+                                        .arg(intersections.length)
         : curveSet.length === 0 ? qsTr("No direction selected")
         : curveSet.length === 1 ? qsTr("1 curve")
                                 : qsTr("%1 curves").arg(curveSet.length)
@@ -148,22 +164,33 @@ Rectangle {
         colorOverrides = next
     }
 
+    // The curve is what the rig measured, or nothing.
+    //
+    // This used to be a closed-form formula that produced a plausible-looking
+    // greyscale trace for any direction, which meant the panel drew a full set of
+    // curves whether or not a shot had ever been taken. Reading a node position
+    // off one of those was reading a sine wave. An empty list is the honest
+    // answer until Direction Diff has run.
+    //
+    // The sqrt(2) on the diagonals is this panel's own x-axis scaling: a
+    // diagonal ray crosses sqrt(2) pixels per step, and the server deliberately
+    // does NOT apply it (see histogram_8dir in ComputeDetectOps.cpp) so that the
+    // plotted crossings land where the two drawn curves actually meet.
     function sampleCurve(side, direction) {
+        const bySide = ComputeController.histogram[side]
+        if (!bySide)
+            return []
+        const values = bySide[direction]
+        if (!values || values.length === 0)
+            return []
+
         const diagonal = direction === "nw" || direction === "se"
                       || direction === "sw" || direction === "ne"
         const scale = diagonal ? Math.SQRT2 : 1
-        const seed = directionOrder.indexOf(direction) + (side === "neg" ? 8 : 0) + channel * 3
-        const rate = 0.5 + 0.02 * (seed % 5)
-        const base = side === "pos" ? 148 : 126
-        const count = 880
+
         const points = []
-        for (let i = 0; i < count; ++i) {
-            const travelled = i / count
-            const contrast = 96 * Math.pow(1 - travelled, 0.6)
-            const value = base - 34 * travelled
-                        + contrast * Math.sin(rate * Math.pow(i, 0.82) + seed)
-            points.push({ x: i * scale, y: Math.max(0, Math.min(255, value)) })
-        }
+        for (let i = 0; i < values.length; ++i)
+            points.push({ x: i * scale, y: values[i] })
         return points
     }
 

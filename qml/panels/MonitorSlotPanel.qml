@@ -5,16 +5,19 @@ import FisheyeCaliJojo
 
 // One projector/camera slot in the Monitor Viewer window: preview, image
 // path, and brightness controls for a single direction (TOP, N, W, S, E).
-// Port of monitor_viewer.ui / ControllerMonitor: Update pushes the current
-// image + brightness to that screen; Turn off pushes a black frame at 0%
-// brightness through the same path, so it snaps brightness to 0 too.
+//
+// Update pushes the current image + brightness to that screen; Turn off asks the
+// rig to close the pattern on it, so the panel returns to its desktop. Turn off
+// deliberately does NOT zero the brightness: brightness is a monitor hardware
+// setting, closing a pattern is a window operation, and conflating them left the
+// screen black afterwards with no way to tell which of the two had happened.
 Rectangle {
     id: root
 
     property string label: ""
     property string direction: ""
     property string imagePath: ""
-    property real brightness: 5
+    property alias brightness: brightnessField.value
     property bool on: false
 
     readonly property string livePreview:
@@ -27,9 +30,26 @@ Rectangle {
     signal turnOffRequested()
 
     function turnOff() {
-        root.brightness = 0
-        root.on = false
         root.turnOffRequested()
+    }
+
+    // The ON badge follows the rig, not the button press. An Update that the
+    // monitor node refused used to leave the slot reading ON with nothing on the
+    // glass, which is the failure mode this whole panel exists to make visible.
+    //
+    // The brightness is left alone on close -- see the note at the top.
+    Connections {
+        target: MonitorController
+
+        function onImageShown(direction) {
+            if (direction === root.direction || direction === "all")
+                root.on = true
+        }
+
+        function onPatternClosed(direction) {
+            if (direction === root.direction || direction === "all")
+                root.on = false
+        }
     }
 
     readonly property real minimumWidth:  content.Layout.minimumWidth  + 2 * Theme.panelMargin
@@ -78,9 +98,11 @@ Rectangle {
             Layout.minimumWidth:  Theme.minMonitorPreviewWidth
             Layout.minimumHeight: Theme.minMonitorPreviewHeight
 
+            // PatternIo does the path->URL conversion. "file://" + path is wrong
+            // on Windows -- the drive letter becomes the host and the image just
+            // silently does not load.
             source: root.livePreview ? root.livePreview
-                  : root.imagePath ? "file://" + root.imagePath
-                                   : ""
+                                     : PatternIo.toFileUrl(root.imagePath)
             emptyText: root.on ? qsTr("No image") : qsTr("Off")
             pickEnabled: false
             opacity: root.on ? 1 : 0.35
@@ -128,22 +150,15 @@ Rectangle {
             Layout.fillWidth: true
             spacing: Theme.labelSpacing
 
-            Label {
-                text: qsTr("Brightness")
-                color: Theme.textCaption
-                font.pixelSize: Theme.captionFontSize
-            }
-
-            ValueField {
+            ValueSpinBox {
                 id: brightnessField
 
-                Layout.preferredWidth: Theme.readoutWidth
-                horizontalAlignment: Text.AlignRight
-                editable: true
-                validator: IntValidator { bottom: 0; top: 100 }
-                value: Math.round(root.brightness)
-
-                onEdited: (value) => root.brightness = parseInt(value)
+                // The spin box carries its own caption, so there is no separate
+                // Label here any more.
+                label: qsTr("Brightness")
+                from: 0
+                to: 100
+                value: 5
             }
 
             Label {
@@ -157,10 +172,8 @@ Rectangle {
             ActionButton {
                 text: qsTr("Update")
                 tone: "accent"
-                onClicked: {
-                    root.on = root.imagePath !== ""
-                    root.updateRequested(root.brightness)
-                }
+                enabled: root.imagePath !== "" && !MonitorController.busy
+                onClicked: root.updateRequested(root.brightness)
             }
 
             ActionButton {

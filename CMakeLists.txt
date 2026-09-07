@@ -92,7 +92,28 @@ if(FISHEYE_ENABLE_ROS)
 endif()
 
 qt_standard_project_setup(REQUIRES 6.5)
-qt_policy(SET QTP0004 NEW)
+
+# QTP0004 stays OLD. Fixed 2026-09-07 -- with NEW the app would not start.
+#
+# NEW generates an extra qmldir for every subdirectory that holds QML files
+# (qml/, qml/windows/, qml/panels/, qml/controls/), each containing
+# "prefer :/qt/qml/FisheyeCaliJojo/". The engine then finds the module twice --
+# once from the real qmldir at the module root, once via a subdirectory qmldir
+# whose prefer line points back at that same root -- and refuses to load with:
+#
+#   "FisheyeCaliJojo" is ambiguous. Found in qrc:/qt/qml/FisheyeCaliJojo/
+#                                   and in qrc:/qt/qml/FisheyeCaliJojo/
+#
+# The two paths being IDENTICAL is what makes that message so hard to read: both
+# copies report the prefer target rather than where they were found.
+#
+# Nothing here needs NEW. Every type is declared in the module root qmldir and
+# QML imports the module flat, as "import FisheyeCaliJojo" -- no subdirectory is
+# ever imported as a module of its own.
+#
+# Symptom if this regresses: the app exits instantly with code -1 and, unless
+# QT_FORCE_STDERR_LOGGING=1 is set, prints nothing at all.
+qt_policy(SET QTP0004 OLD)
 
 qt_add_executable(moil_fisheye_cali
     src/main.cpp
@@ -153,6 +174,7 @@ qt_add_qml_module(moil_fisheye_cali
         qml/controls/SectionFrame.qml
         qml/controls/PanelPlaceholder.qml
         qml/controls/StatusToast.qml
+        qml/controls/AutoRefresh.qml
 
     RESOURCES
         assets/sample_shot.png
@@ -167,6 +189,10 @@ qt_add_qml_module(moil_fisheye_cali
         src/CameraController.cpp src/CameraController.h
         src/PatternController.cpp src/PatternController.h
         src/PatternIo.cpp src/PatternIo.h
+        src/ImageStore.cpp src/ImageStore.h
+        src/MonitorController.cpp src/MonitorController.h
+        src/ComputeController.cpp src/ComputeController.h
+        src/CalibrationController.cpp src/CalibrationController.h
 )
 
 

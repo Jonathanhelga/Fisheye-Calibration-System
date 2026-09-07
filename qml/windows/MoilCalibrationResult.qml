@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Dialogs
 import QtQuick.Layouts
 import FisheyeCaliJojo
 
@@ -15,9 +16,13 @@ Window {
         height = Math.min(Theme.designHeight, Screen.desktopAvailableHeight)
     }
 
-    property bool busy: false
-    property int loadStatus: ProbeStatus.Unknown
-    property bool singleDistance: false
+    // All of it belongs to the controller. The window is the form; the table, the
+    // load state and the option flags live where the ops that use them live.
+    readonly property bool busy: CalibrationController.busy
+    readonly property int loadStatus: CalibrationController.loadStatus
+
+    property bool singleDistance: CalibrationController.singleDistance
+    onSingleDistanceChanged: CalibrationController.singleDistance = root.singleDistance
 
     property alias caliFolder: caliFolderField.text
     property alias caliSystem: caliSystemCombo.currentIndex
@@ -26,7 +31,12 @@ Window {
                                       : root.caliFolder.length === 0 ? ProbeStatus.Unknown
                                                                      : root.loadStatus
 
-    readonly property string folderStatusText: root.busy ? qsTr("Loading...")
+    readonly property string folderStatusText: root.busy
+                                                 ? (CalibrationController.activity !== ""
+                                                        ? CalibrationController.activity
+                                                        : qsTr("Loading..."))
+                                             : CalibrationController.loadSummary !== ""
+                                                 ? CalibrationController.loadSummary
                                              : root.caliFolder.length === 0 ? qsTr("No folder chosen")
                                              : root.loadStatus === ProbeStatus.Ok ? qsTr("Loaded")
                                              : root.loadStatus === ProbeStatus.Partial ? qsTr("Partly loaded")
@@ -51,6 +61,45 @@ Window {
     signal stopRequested()
     signal clearTableRequested()
     signal clearAllTablesRequested()
+
+    // The camera parameters, as the .json the rest of the toolchain reads. Built
+    // from what was measured and fitted, not from anything typed here.
+    function parameterDocument() {
+        return {
+            "cameraName": parameterPanel.cameraName,
+            "cameraFov": parseFloat(parameterPanel.cameraFov) || 0,
+            "cameraSensorWidth": parseFloat(parameterPanel.cameraSensorWidth) || 0,
+            "cameraSensorHeight": parseFloat(parameterPanel.cameraSensorHeight) || 0,
+            "iCx": parseFloat(parameterPanel.iCx) || 0,
+            "iCy": parseFloat(parameterPanel.iCy) || 0,
+            "ratio": parseFloat(parameterPanel.ratio) || 0,
+            "imageWidth": parseFloat(parameterPanel.imageWidth) || 0,
+            "imageHeight": parseFloat(parameterPanel.imageHeight) || 0,
+            "calibrationRatio": parseFloat(parameterPanel.calibrationRatio) || 0,
+            "parameter0": parseFloat(parameterPanel.coefficients[0]) || 0,
+            "parameter1": parseFloat(parameterPanel.coefficients[1]) || 0,
+            "parameter2": parseFloat(parameterPanel.coefficients[2]) || 0,
+            "parameter3": parseFloat(parameterPanel.coefficients[3]) || 0,
+            "parameter4": parseFloat(parameterPanel.coefficients[4]) || 0,
+            "parameter5": parseFloat(parameterPanel.coefficients[5]) || 0
+        }
+    }
+
+    function configurationDocument() {
+        return {
+            "calibration_system": caliSystemCombo.currentText,
+            "distance_per_round": parseFloat(parameterPanel.distancePerRound) || 0,
+            "base_distance": CalibrationController.baseDistance,
+            "single_distance": CalibrationController.singleDistance
+        }
+    }
+
+    function writeJson(fileUrl, document, label) {
+        if (PatternIo.writeText(fileUrl, JSON.stringify(document, null, 2)))
+            toast.show(qsTr("Saved %1").arg(label), false)
+        else
+            toast.show(qsTr("Could not save %1: %2").arg(label).arg(PatternIo.lastError), true)
+    }
 
     ScaledCanvas {
         id: fit
@@ -109,6 +158,8 @@ Window {
                         color: Theme.textPrimary
                         font.pixelSize: Theme.captionFontSize
                         selectByMouse: true
+                        text: CalibrationController.folder
+                        onEditingFinished: CalibrationController.folder = text
                         placeholderText: qsTr("Folder holding this camera's round Excel files")
 
                         background: Rectangle {
@@ -122,7 +173,8 @@ Window {
                     ActionButton {
                         text: qsTr("Browse...")
                         onClicked: {
-                            console.log("[Cali Result] Browse calibration folder requested")
+                            folderDialog.loadAfterPick = false
+                            folderDialog.open()
                             root.browseRequested()
                         }
                     }
@@ -183,7 +235,17 @@ Window {
                 ActionButton {
                     text: qsTr("Load All Excel")
                     tone: "accent"
-                    onClicked: root.loadAllExcelRequested()
+                    enabled: !root.busy
+                    onClicked: {
+                        if (CalibrationController.folder === "") {
+                            folderDialog.loadAfterPick = true
+                            folderDialog.open()
+                        } else {
+                            CalibrationController.loadAllExcel(
+                                PatternIo.toFileUrl(CalibrationController.folder))
+                        }
+                        root.loadAllExcelRequested()
+                    }
 
                     ToolTip.visible: hovered
                     ToolTip.delay: Theme.animSlow
@@ -191,7 +253,11 @@ Window {
                 }
                 ActionButton {
                     text: qsTr("Load Excel")
-                    onClicked: root.loadExcelRequested()
+                    enabled: !root.busy
+                    onClicked: {
+                        loadExcelDialog.open()
+                        root.loadExcelRequested()
+                    }
 
                     ToolTip.visible: hovered
                     ToolTip.delay: Theme.animSlow
@@ -199,7 +265,12 @@ Window {
                 }
                 ActionButton {
                     text: qsTr("Load Database")
-                    onClicked: root.loadDatabaseRequested()
+                    enabled: !root.busy
+                    onClicked: {
+                        folderDialog.loadAfterPick = true
+                        folderDialog.open()
+                        root.loadDatabaseRequested()
+                    }
 
                     ToolTip.visible: hovered
                     ToolTip.delay: Theme.animSlow
@@ -210,7 +281,11 @@ Window {
 
                 ActionButton {
                     text: qsTr("Update Table")
-                    onClicked: root.updateTableRequested()
+                    enabled: !root.busy
+                    onClicked: {
+                        CalibrationController.computeAll()
+                        root.updateTableRequested()
+                    }
 
                     ToolTip.visible: hovered
                     ToolTip.delay: Theme.animSlow
@@ -218,7 +293,12 @@ Window {
                 }
                 ActionButton {
                     text: qsTr("Save to Excel")
-                    onClicked: root.saveExcelRequested()
+                    enabled: !root.busy
+                    onClicked: {
+                        saveExcelDialog.selectedFile = "round_" + root.round + ".xlsx"
+                        saveExcelDialog.open()
+                        root.saveExcelRequested()
+                    }
 
                     ToolTip.visible: hovered
                     ToolTip.delay: Theme.animSlow
@@ -227,7 +307,10 @@ Window {
                 ActionButton {
                     text: qsTr("Stop")
                     enabled: root.busy
-                    onClicked: root.stopRequested()
+                    onClicked: {
+                        CalibrationController.stop()
+                        root.stopRequested()
+                    }
 
                     ToolTip.visible: hovered
                     ToolTip.delay: Theme.animSlow
@@ -239,7 +322,11 @@ Window {
                 ActionButton {
                     text: qsTr("Clear Table")
                     tone: "danger"
-                    onClicked: root.clearTableRequested()
+                    enabled: !root.busy
+                    onClicked: {
+                        CalibrationController.clearTable(root.round)
+                        root.clearTableRequested()
+                    }
 
                     ToolTip.visible: hovered
                     ToolTip.delay: Theme.animSlow
@@ -248,7 +335,11 @@ Window {
                 ActionButton {
                     text: qsTr("Clear All Table")
                     tone: "danger"
-                    onClicked: root.clearAllTablesRequested()
+                    enabled: !root.busy
+                    onClicked: {
+                        CalibrationController.clearAllTables()
+                        root.clearAllTablesRequested()
+                    }
 
                     ToolTip.visible: hovered
                     ToolTip.delay: Theme.animSlow
@@ -277,9 +368,9 @@ Window {
                 Layout.fillHeight: true
                 visible: root.view === root.viewData
 
-                onCalculateRequested: (round) => console.log("[Cali Result] Calculate result for round " + round)
-                onAggrRoundRequested: (round) => console.log("[Cali Result] Aggregation for round " + round)
-                onCleanNoiseRequested: (round) => console.log("[Cali Result] Clean noise for round " + round)
+                onCalculateRequested: (round) => CalibrationController.calculateRound(round)
+                onAggrRoundRequested: (round) => CalibrationController.aggregationForRound(round)
+                onCleanNoiseRequested: (round) => CalibrationController.cleanNoise(round)
             }
 
             CaliResultParameterPanel {
@@ -289,11 +380,23 @@ Window {
                 Layout.fillHeight: true
                 visible: root.view === root.viewParameter
 
-                onUpdateAllRequested: console.log("[Cali Result] Update all calibration results")
-                onUpdateIhAlphaRequested: console.log("[Cali Result] Update IH-Alpha plot")
-                onUpdateIhZflRequested: console.log("[Cali Result] Update ZFL-IH plot")
-                onSaveParametersRequested: console.log("[Cali Result] Save camera parameters")
-                onSaveConfigurationRequested: console.log("[Cali Result] Save calibration system configuration")
+                // Update All recomputes the pipeline and then re-reads the
+                // series; the two plot buttons only re-read, because the numbers
+                // behind them have not changed unless the table did.
+                onUpdateAllRequested: CalibrationController.computeAll()
+                onUpdateIhAlphaRequested: CalibrationController.updateSeries()
+                onUpdateIhZflRequested: CalibrationController.updateSeries()
+
+                onSaveParametersRequested: {
+                    saveJsonDialog.kind = "parameters"
+                    saveJsonDialog.selectedFile = "camera_parameters.json"
+                    saveJsonDialog.open()
+                }
+                onSaveConfigurationRequested: {
+                    saveJsonDialog.kind = "configuration"
+                    saveJsonDialog.selectedFile = "main.json"
+                    saveJsonDialog.open()
+                }
             }
 
             Rectangle {
@@ -314,6 +417,87 @@ Window {
                                                              : qsTr("IH-alpha and IH-ZFL graphs go here.")
                 }
             }
+        }
+    }
+
+    StatusToast {
+        id: toast
+
+        anchors.centerIn: parent
+        z: 100
+    }
+
+    // The file dialogs stay on the client: picking a path is the operator's, and
+    // the operator is sitting at the client. Everything between the path and the
+    // numbers is parsing, and that happens on the rig.
+
+    FolderDialog {
+        id: folderDialog
+
+        // Browse just records the folder; Load All / Load Database go on to read
+        // it. One dialog, because "which folder" is the same question.
+        property bool loadAfterPick: false
+
+        title: qsTr("Calibration folder")
+
+        onAccepted: {
+            CalibrationController.folder = PatternIo.toLocalPath(folderDialog.selectedFolder)
+            if (folderDialog.loadAfterPick)
+                CalibrationController.loadAllExcel(folderDialog.selectedFolder)
+        }
+    }
+
+    FileDialog {
+        id: loadExcelDialog
+
+        title: qsTr("Excel file for round %1").arg(root.round)
+        fileMode: FileDialog.OpenFile
+        nameFilters: [qsTr("Excel workbooks (*.xlsx)"), qsTr("All files (*)")]
+
+        onAccepted: CalibrationController.loadExcel(root.round, loadExcelDialog.selectedFile)
+    }
+
+    FileDialog {
+        id: saveExcelDialog
+
+        title: qsTr("Save round %1 to Excel").arg(root.round)
+        fileMode: FileDialog.SaveFile
+        defaultSuffix: "xlsx"
+        nameFilters: [qsTr("Excel workbooks (*.xlsx)"), qsTr("All files (*)")]
+
+        onAccepted: CalibrationController.saveExcel(root.round, saveExcelDialog.selectedFile)
+    }
+
+    FileDialog {
+        id: saveJsonDialog
+
+        property string kind: "parameters"
+
+        title: saveJsonDialog.kind === "parameters" ? qsTr("Save camera parameters")
+                                                    : qsTr("Save calibration configuration")
+        fileMode: FileDialog.SaveFile
+        defaultSuffix: "json"
+        nameFilters: [qsTr("JSON files (*.json)"), qsTr("All files (*)")]
+
+        onAccepted: {
+            if (saveJsonDialog.kind === "parameters")
+                root.writeJson(saveJsonDialog.selectedFile, root.parameterDocument(),
+                               qsTr("camera parameters"))
+            else
+                root.writeJson(saveJsonDialog.selectedFile, root.configurationDocument(),
+                               qsTr("configuration"))
+        }
+    }
+
+    Connections {
+        target: CalibrationController
+
+        function onErrorRaised(message) {
+            toast.show(message, true)
+        }
+
+        function onNotice(message) {
+            toast.show(message, false)
         }
     }
 }

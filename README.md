@@ -629,6 +629,13 @@ Copy the **whole** error, not the last line — the useful part of a CMake error
 ```
 src/                     QML app C++: HttpServerProbe (HTTP dots), RosServerProbe (ROS dots),
                          AxisState + AxisController (live axis, jog, stop),
+                         CameraController (captures, slots, live preview),
+                         MonitorController (brightness, images, screen mapping),
+                         PatternController (render + show a pattern spec),
+                         ComputeController (/compute/detect: centres, curves, nodes),
+                         CalibrationController (Excel, the cali pipeline, plot series),
+                         ImageStore (the captures, once, shared by camera and compute),
+                         PatternIo (local file I/O and path<->URL),
                          SubAppWindows (C++/QML touchpoint, owns the two sub-app windows)
 subapp_3d_verification/  the copied QWidget 3D dialog (D2)
 subapp_center_setup/     the copied QWidget centre-setup dialog (D2)
@@ -672,6 +679,73 @@ The rest of `docs/` is local-only and does not ship -- `.gitignore` keeps only t
 1. Create `qml/panels/<PanelName>.qml`.
 2. Add it to `QML_FILES` in `CMakeLists.txt`.
 3. Replace the matching placeholder in the relevant window.
-4. Live data goes on `SubAppWindows`, or a new panel bridge class, as `Q_PROPERTY` / `Q_INVOKABLE`.
+4. Live data goes on an existing controller singleton, or a new one, as `Q_PROPERTY` / `Q_INVOKABLE`.
 
-There is no `setContextProperty`. C++ types reach QML through `QML_ELEMENT`, which is what lets `qmllint` see them statically. `SubAppWindows`, `HttpServerProbe`, `RosServerProbe` and `AxisController` are `QML_SINGLETON` too, so QML calls them directly — `SubAppWindows.openMeasure3d()` — rather than instantiating them.
+There is no `setContextProperty`. C++ types reach QML through `QML_ELEMENT`, which is what lets `qmllint` see them statically. `SubAppWindows`, `HttpServerProbe`, `RosServerProbe`, `AxisController`, `CameraController`, `MonitorController`, `PatternController`, `ComputeController`, `CalibrationController` and `PatternIo` are `QML_SINGLETON` too, so QML calls them directly — `SubAppWindows.openMeasure3d()` — rather than instantiating them.
+
+---
+
+## D7. What the UI is wired to
+
+**Wired 2026-09-07 — every panel now reaches a backend.** Before this, roughly half
+the UI emitted signals nothing listened to: the buttons were enabled, the click did
+nothing, and no message said so. The audit and the wiring are recorded here because
+"looks connected" is the failure mode this whole app is prone to.
+
+| UI | Goes to |
+|---|---|
+| Server panel → **Update** | opens *all six* ROS links at once (axis, camera, pattern, monitor, detect, cali) plus the probe |
+| Axis Control panel | `AxisController` — jog, drive-to-limit, home, stop |
+| Camera panel → Capture / Pos / Neg | `/camera/capture`, into the `single` / `positive` / `negative` slots |
+| Camera panel → **Pair Shot** | `ShowPrepared("positive")` → capture → `ShowPrepared("negative")` → capture, sequenced in C++ |
+| Camera panel → Open Img | reads a file into the slot the view is showing, so a pair can be re-analysed with no rig |
+| Camera panel → **Direction Diff** | `histogram_8dir` + `nodes_8dir` on the current pair |
+| Camera panel → FOV | `CameraController.fov`, shared with the parameter box |
+| Live Camera → Go Live / Snapshot | subscribes `/camera/image_raw/compressed` while on; Snapshot keeps a frame, *labelled as a preview frame* |
+| Centering → **Find Pos / Find Neg** | `auto_center`. A refused fit clears the centre — it is never rounded up into a plausible coordinate |
+| Centering → click in Manual | `roi_exact`, seeded by the click and settled by the rig |
+| Centering → **Edge** checkbox / Radius / Colour / Thickness | draws the edge ring on the camera preview, the magnifier and the live view, per polarity |
+| Pattern panels → **Auto Update** | `qml/controls/AutoRefresh.qml` — re-renders when the spec fingerprint changes, debounced by `Theme.autoUpdateDelay`, and only while the compute link is up. The fingerprint includes `layerRevision` because a `ListModel` edit is invisible to a binding |
+| Histogram panels ×2 | the curves and crossings from `histogram_8dir`. Empty until a Direction Diff has run |
+| Monitor slots → Update / Turn off / Browse / brightness | `set_brightness`, `show_pattern`, `close_pattern`. Turn off closes the pattern only — it does **not** zero the brightness, which is a monitor hardware setting and would leave a black screen indistinguishable from a failed close |
+| Setup Monitor Direction | `describe_screens`, `set_display_direction`, `show_display_number` |
+| **Prepare Patterns** | `prepare_patterns` — required before Pos/Neg/Pair will work |
+| Pattern panels → Update / Show | `/compute/render_pattern`, `/monitor/show_pattern_spec` |
+| Cali Result → Load/Save Excel | `/compute/xlsx` — the bytes go to the rig, a grid comes back |
+| Cali Result → Calculate / Aggr / Clean Noise / Update Table | `/compute/cali` |
+| Cali Result → the plots and the six coefficients | `/compute/series` |
+
+**How to check this yourself, and how the first pass got it wrong.** The audit that
+produced this table originally enumerated `signal` declarations and checked each
+had an `on…` handler. That finds a button whose click goes nowhere. It does *not*
+find a control whose handler works fine and writes to a property nothing reads —
+which looks identical:
+
+```qml
+CheckBox { checked: root.positiveEdge; onToggled: root.positiveEdge = checked }
+```
+
+Eight Centering controls and three Auto Update switches passed the signal test and
+were dead. The check that catches them is the other direction: for every declared
+property, find a *consumer* — a binding that renders it or a controller call that
+sends it. `grep` for the property name and subtract the declaration and the
+control's own two lines; if nothing is left, it is a dead control.
+
+Two things deliberately did **not** become buttons that do something:
+
+- **Overlap / Aggregation / Graphs tabs** are still empty. They need the three
+  distance *searches*, which are the `CaliJob` action rather than a service
+  precisely because they run for tens of seconds and must be cancellable. Wiring
+  them to the plain service would have given the operator a frozen window with no
+  way out.
+- **Stop** drops the replies this client is waiting for and says so. It does not
+  claim to have cancelled anything: `/compute/cali` and `/compute/xlsx` have no
+  cancel, and the op finishes on the rig either way.
+
+And one that is still inert, for a reason worth stating: the **Calibration System**
+combo (Yuanman EV2785 / EV2730Q / Yinda / Broland C++) only reaches the saved
+configuration JSON. Nothing in `ComputeOps::cali` or its params JSON selects a
+system, so wiring it would mean *deciding* what Yinda does differently from
+Broland C++ — a specification question the code does not answer, and a wrong guess
+would silently change calibration output. It stays a saved preference until
+someone says what it should switch.

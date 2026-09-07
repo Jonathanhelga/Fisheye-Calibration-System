@@ -24,6 +24,16 @@ public:
     Q_INVOKABLE bool writeText(const QUrl &fileUrl, const QString &text);
     Q_INVOKABLE QString readText(const QUrl &fileUrl);
 
+    // Path <-> URL, done by Qt rather than by string surgery in QML.
+    //
+    // "file://" + path is wrong on Windows and right on Linux: a Windows path
+    // starts with a drive letter and needs three slashes, so the two-slash form
+    // makes "C:" the HOST and the image silently fails to load. Both directions
+    // are here because QML needs a local path to hand a controller and a URL to
+    // hand an Image.
+    Q_INVOKABLE QUrl toFileUrl(const QString &path) const;
+    Q_INVOKABLE QString toLocalPath(const QUrl &fileUrl) const;
+
 signals:
     void changed();
 
