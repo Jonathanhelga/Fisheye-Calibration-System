@@ -11,16 +11,36 @@ Rectangle {
     property bool editable: false
 
     signal edited(string value)
+    signal moveFocusRequested(int delta)
 
-    function sync() {
-        const shown = (value === undefined || value === null) ? "" : String(value)
+    function takeFocus() {
+        input.forceActiveFocus()
+        input.selectAll()
+    }
+
+    function displayText() {
+        if (value === undefined || value === null)
+            return ""
+        if (typeof value === "number" && !isFinite(value))
+            return ""
+        return String(value)
+    }
+
+    function forceSync() {
+        const shown = field.displayText()
         if (input.text !== shown)
             input.text = shown
     }
 
+    function sync() {
+        if (input.activeFocus)
+            return
+        field.forceSync()
+    }
+
     onValueChanged: sync()
-    onSyncTokenChanged: sync()
-    Component.onCompleted: sync()
+    onSyncTokenChanged: forceSync()
+    Component.onCompleted: forceSync()
 
     implicitWidth: Theme.fieldMinWidth
     implicitHeight: Theme.controlHeight
@@ -51,7 +71,17 @@ Rectangle {
         activeFocusOnPress: field.editable
         selectByMouse: field.editable
 
-        onTextEdited: if (text.length === 0 || acceptableInput) field.edited(text)
-        onActiveFocusChanged: if (!activeFocus) cursorPosition = 0
+        Keys.onReturnPressed: (event) => { event.accepted = true; field.moveFocusRequested(1) }
+        Keys.onEnterPressed:  (event) => { event.accepted = true; field.moveFocusRequested(1) }
+        Keys.onDownPressed:   (event) => { event.accepted = true; field.moveFocusRequested(1) }
+        Keys.onUpPressed:     (event) => { event.accepted = true; field.moveFocusRequested(-1) }
+
+        onTextEdited: if (acceptableInput) field.edited(text)
+        onActiveFocusChanged: {
+            if (!activeFocus) {
+                field.forceSync()
+                cursorPosition = 0
+            }
+        }
     }
 }

@@ -82,6 +82,11 @@ There is a third shape, an **action**, which the next-but-one subsection covers 
 
 Source: `packages/moil_camera_ros/moil_camera_ros/camera_node.py`.
 
+**Superseded on 2026-09-02, kept because the reasoning still teaches the ideas.**
+The rig now serves `/camera/capture` as `moil_interfaces/srv/Capture`, which returns the pixels in the reply, and publishes no `/camera/single_image/compressed` at all.
+The service-then-latched-topic dance described below is the older server and is not what our client talks to.
+See `CAMERA_CAPTURE.md` for what the rig actually serves and how our client is built against it.
+
 The camera node is the one place where topics and services meet, so it is worth spelling out.
 It offers three endpoints, two topics and one service:
 

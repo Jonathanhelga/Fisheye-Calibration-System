@@ -118,6 +118,12 @@ void AxisState::applySample(int low, int org, int high, int moving, const QStrin
     if (staleWas || lowBlockedWas != lowBlocked() || highBlockedWas != highBlocked())
         emit interlockChanged();
 
+    qWarning("AXISDBG sample %s low=%d org=%d high=%d moving=%d posValid=%d "
+             "idle=%d motion=%d pending=%d replied=%d moving_=%d",
+             qPrintable(name_), sensorLow_, sensorOrg_, sensorHigh_, sensorMoving_,
+             int(positionValid), idleStreak_, motionStreak_, int(commandPending_),
+             int(rigReplied_), int(moving_));
+
     updateActivity(busyWas, awaitingWas);
 }
 
@@ -162,6 +168,9 @@ void AxisState::setCommandPending(bool pending, const QString &activity) {
         motionStreak_ = 0;
     }
 
+    qWarning("AXISDBG pending %s -> %d (%s)", qPrintable(name_), int(pending),
+             qPrintable(activity_));
+
     emit activityChanged();
 }
 
@@ -173,6 +182,9 @@ void AxisState::markRigReplied() {
 
     rigReplied_ = true;
     if (!sawMotion_) idleStreak_ = 0;
+
+    qWarning("AXISDBG rigReplied %s sawMotion=%d idle=%d", qPrintable(name_),
+             int(sawMotion_), idleStreak_);
 
     updateActivity(busyWas, awaitingWas);
 }
@@ -192,6 +204,9 @@ void AxisState::updateActivity(bool busyWas, bool awaitingWas) {
 void AxisState::refreshStaleness() {
     if (stale_) return;
     if (sampleClock_.isValid() && sampleClock_.elapsed() < kStaleMs) return;
+
+    qWarning("AXISDBG stale %s after %lld ms, pending=%d", qPrintable(name_),
+             sampleClock_.isValid() ? sampleClock_.elapsed() : -1, int(commandPending_));
 
     stale_ = true;
     idleStreak_ = 0;

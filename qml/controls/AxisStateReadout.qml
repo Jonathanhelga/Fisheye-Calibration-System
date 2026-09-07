@@ -13,9 +13,7 @@ ColumnLayout {
 
     readonly property string value: axis ? axis.coordinate : "?"
     readonly property bool provisional: axis ? !axis.hasZero : true
-    readonly property string caption: axis && axis.unit.length > 0
-        ? label + " (" + axis.unit + ")"
-        : label
+    readonly property string caption: axis && axis.unit.length > 0 ? label + " (" + axis.unit + ")" : label
 
     spacing: Theme.labelSpacing
 

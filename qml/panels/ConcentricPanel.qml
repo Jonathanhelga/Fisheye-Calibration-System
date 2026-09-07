@@ -4,10 +4,12 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import FisheyeCaliJojo
+import "PatternConfig.js" as PatternConfig
 
 Rectangle {
     id: panel
 
+    readonly property string patternType: "concentric"
     readonly property int layerCount: 25
     readonly property alias layers: layerModel
 
@@ -25,16 +27,87 @@ Rectangle {
     signal importRequested()
     signal exportRequested()
     signal saveImageRequested()
-    signal updateRequested(string direction)
+    signal updateRequested()
+    signal showRequested(string direction)
+
+    function layerColorAt(index, positive) {
+        return String((index % 2 === 0) === positive ? panel.positiveColor : panel.negativeColor)
+    }
 
     function applyPositivePattern() {
         for (let i = 0; i < layerModel.count; i++)
-            layerModel.setProperty(i, "color", i % 2 === 0 ? panel.positiveColor : panel.negativeColor)
+            layerModel.setProperty(i, "color", panel.layerColorAt(i, true))
     }
 
     function applyNegativePattern() {
         for (let i = 0; i < layerModel.count; i++)
-            layerModel.setProperty(i, "color", i % 2 === 0 ? panel.negativeColor : panel.positiveColor)
+            layerModel.setProperty(i, "color", panel.layerColorAt(i, false))
+    }
+
+    function specJson() {
+        const doc = PatternConfig.specEnvelope(panel)
+        const layers = []
+
+        for (let i = 0; i < layerModel.count; i++) {
+            const row = layerModel.get(i)
+            const radius = Math.round(row.radius)
+            if (radius <= 0) continue
+
+            layers.push({
+                "shape": String(row.shape).toLowerCase(),
+                "radius": radius,
+                "cx": Math.round(row.cx),
+                "cy": Math.round(row.cy),
+                "rgb": PatternConfig.rgbArray(row.color)
+            })
+        }
+
+        doc.layers = layers
+        return doc
+    }
+
+    function configJson() {
+        const doc = PatternConfig.configEnvelope(panel)
+
+        for (let i = 0; i < layerModel.count; i++) {
+            const row = layerModel.get(i)
+            doc[String(i + 1)] = {
+                "shape": String(row.shape).toLowerCase(),
+                "radius": Math.round(row.radius),
+                "cx": Math.round(row.cx),
+                "cy": Math.round(row.cy),
+                "color": PatternConfig.rgbArray(row.color)
+            }
+        }
+
+        return doc
+    }
+
+    function loadConfig(doc) {
+        if (!PatternConfig.isConfigFor(doc, panel))
+            return false
+
+        PatternConfig.applyConfigEnvelope(doc, panel)
+        const derived = doc.pos_neg_color === true
+
+        for (let i = 0; i < layerModel.count; i++) {
+            const layer = doc[String(i + 1)]
+            if (!layer) {
+                layerModel.setProperty(i, "radius", 0)
+                continue
+            }
+
+            layerModel.setProperty(i, "shape",
+                                   String(layer.shape).toLowerCase() === "square" ? "Square" : "Circle")
+            layerModel.setProperty(i, "radius", PatternConfig.toInt(layer.radius, 0))
+            layerModel.setProperty(i, "cx", PatternConfig.toInt(layer.cx, 0))
+            layerModel.setProperty(i, "cy", PatternConfig.toInt(layer.cy, 0))
+            layerModel.setProperty(i, "color",
+                                   derived ? panel.layerColorAt(i, true)
+                                           : PatternConfig.toColor(layer.color, "#000000"))
+        }
+
+        return true
     }
 
     ListModel {
@@ -42,11 +115,15 @@ Rectangle {
 
         Component.onCompleted: {
             for (let i = 0; i < panel.layerCount; i++)
-                layerModel.append({ shape: "Circle", radius: 20, color: "black", cx: 0, cy: 0 })
+                layerModel.append({ shape: "Circle", radius: 60,
+                                    color: panel.layerColorAt(i, true), cx: 0, cy: 0 })
         }
     }
 
-    implicitWidth: content.implicitWidth + 2 * Theme.panelMargin
+    readonly property real minimumWidth:  content.Layout.minimumWidth  + 2 * Theme.panelMargin
+    readonly property real minimumHeight: content.Layout.minimumHeight + 2 * Theme.panelMargin
+
+    implicitWidth:  content.implicitWidth  + 2 * Theme.panelMargin
     implicitHeight: content.implicitHeight + 2 * Theme.panelMargin
 
     color: Theme.panelBackground
@@ -79,7 +156,17 @@ Rectangle {
             }
             SegmentedControl {
                 id: directionCombo
-                model: ["TOP", "North", "West", "South", "East"]
+                model: PatternConfig.directionLabels()
+            }
+
+            ActionButton {
+                text: qsTr("Show on Monitor")
+                tone: "accent"
+                onClicked: panel.showRequested(PatternConfig.wireDirection(directionCombo.currentIndex))
+
+                ToolTip.visible: hovered
+                ToolTip.delay: Theme.animSlow
+                ToolTip.text: qsTr("Put this pattern on the selected screen. The rig renders it at that screen's own resolution.")
             }
 
             Item { Layout.fillWidth: true }
@@ -91,7 +178,7 @@ Rectangle {
 
         Rectangle {
             Layout.fillWidth: true
-            height: 1
+            Layout.preferredHeight: 1
             color: Theme.panelBorder
         }
 
@@ -136,8 +223,8 @@ Rectangle {
 
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.minimumHeight: Theme.unit * 25
-                Layout.maximumHeight: Theme.unit * 30
+                Layout.minimumHeight: Theme.minPatternPreviewHeight
+                Layout.maximumHeight: Theme.maxPatternPreviewHeight
                 source: panel.previewSource
                 emptyText: qsTr("No preview yet")
                 hint: qsTr("%1 x %2").arg(panel.resolutionW).arg(panel.resolutionH)
@@ -218,7 +305,7 @@ Rectangle {
                     Layout.fillWidth: Math.round(Theme.charUnit * 20)
                     tone: "accent"
                     text: qsTr("Update")
-                    onClicked: panel.updateRequested(directionCombo.model[directionCombo.currentIndex])
+                    onClicked: panel.updateRequested()
                 }
                 Item { Layout.fillWidth: true }
             }
@@ -240,7 +327,7 @@ Rectangle {
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.minimumHeight: 0
+                Layout.minimumHeight: Theme.minPatternTableHeight
                 spacing: 0
 
                 RowLayout {
@@ -257,7 +344,7 @@ Rectangle {
 
                 Rectangle {
                     Layout.fillWidth: true
-                    height: 1
+                    Layout.preferredHeight: 1
                     color: Theme.panelBorder
                 }
 
@@ -274,6 +361,19 @@ Rectangle {
                     model: layerModel
                     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
+                    function moveFocus(index, column, delta) {
+                        const target = index + delta
+                        if (target < 0 || target >= table.count)
+                            return
+
+                        table.positionViewAtIndex(target, ListView.Contain)
+                        table.forceLayout()
+
+                        const item = table.itemAtIndex(target)
+                        if (item)
+                            item.focusColumn(column)
+                    }
+
                     delegate: Item {
                         id: cell
 
@@ -283,6 +383,10 @@ Rectangle {
                         required property color color
                         required property real cx
                         required property real cy
+
+                        function focusColumn(column) {
+                            layerRow.focusColumn(column)
+                        }
 
                         width: table.width
                         height: layerRow.implicitHeight + Theme.spaceXs
@@ -313,9 +417,10 @@ Rectangle {
 
                             onShapeEdited:  (value) => layerModel.setProperty(cell.index, "shape", value)
                             onRadiusEdited: (value) => layerModel.setProperty(cell.index, "radius", value)
-                            onColorEdited:  (value) => layerModel.setProperty(cell.index, "color", value)
+                            onColorEdited:  (value) => layerModel.setProperty(cell.index, "color", String(value))
                             onCxEdited:     (value) => layerModel.setProperty(cell.index, "cx", value)
                             onCyEdited:     (value) => layerModel.setProperty(cell.index, "cy", value)
+                            onMoveFocusRequested: (column, delta) => table.moveFocus(cell.index, column, delta)
                         }
                     }
                 }

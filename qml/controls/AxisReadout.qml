@@ -10,6 +10,7 @@ RowLayout {
     property alias value: box.value
     property alias validator: box.validator
     property alias editable: box.editable
+    property real fieldWidth: -1
 
     signal edited(string value)
 
@@ -23,7 +24,9 @@ RowLayout {
 
     ValueField {
         id: box
-        Layout.fillWidth: true
+        horizontalAlignment: Text.AlignHCenter
+        Layout.fillWidth: field.fieldWidth < 0
+        Layout.preferredWidth: field.fieldWidth < 0 ? implicitWidth : field.fieldWidth
         onEdited: (value) => field.edited(value)
     }
 }

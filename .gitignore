@@ -151,3 +151,6 @@ Server/*/deps.local.bat
 Server/*/server_env.bat
 # _st.bat dumps /system/status here.
 Server/*/st.txt
+
+# Written by the pattern panels' Export; the fixed Documents folder is code-side.
+pattern_json/

@@ -4,13 +4,15 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import FisheyeCaliJojo
+import "PatternConfig.js" as PatternConfig
 
-// Stripline pattern: parallel stripes. Usually shown on the side screens
+// Stripeline pattern: parallel stripes. Usually shown on the side screens
 // (N/W/S/E). Each row's Height is a step, the pixel thickness of that stripe
 // from the previous one, not an absolute position.
 Rectangle {
     id: panel
 
+    readonly property string patternType: "stripeline"
     readonly property int layerCount: 50
     readonly property alias layers: layerModel
 
@@ -28,16 +30,77 @@ Rectangle {
     signal importRequested()
     signal exportRequested()
     signal saveImageRequested()
-    signal updateRequested(string direction)
+    signal updateRequested()
+    signal showRequested(string direction)
+
+    function layerColorAt(index, positive) {
+        return String((index % 2 === 0) === positive ? panel.positiveColor : panel.negativeColor)
+    }
 
     function applyPositivePattern() {
         for (let i = 0; i < layerModel.count; i++)
-            layerModel.setProperty(i, "color", i % 2 === 0 ? panel.positiveColor : panel.negativeColor)
+            layerModel.setProperty(i, "color", panel.layerColorAt(i, true))
     }
 
     function applyNegativePattern() {
         for (let i = 0; i < layerModel.count; i++)
-            layerModel.setProperty(i, "color", i % 2 === 0 ? panel.negativeColor : panel.positiveColor)
+            layerModel.setProperty(i, "color", panel.layerColorAt(i, false))
+    }
+
+    function specJson() {
+        const doc = PatternConfig.specEnvelope(panel)
+        const layers = []
+
+        for (let i = 0; i < layerModel.count; i++) {
+            const row = layerModel.get(i)
+            const interval = Math.round(row.interval)
+            if (interval <= 0) continue
+
+            layers.push({
+                "interval": interval,
+                "rgb": PatternConfig.rgbArray(row.color)
+            })
+        }
+
+        doc.layers = layers
+        return doc
+    }
+
+    function configJson() {
+        const doc = PatternConfig.configEnvelope(panel)
+
+        for (let i = 0; i < layerModel.count; i++) {
+            const row = layerModel.get(i)
+            doc[String(i + 1)] = {
+                "interval": Math.round(row.interval),
+                "color": PatternConfig.rgbArray(row.color)
+            }
+        }
+
+        return doc
+    }
+
+    function loadConfig(doc) {
+        if (!PatternConfig.isConfigFor(doc, panel))
+            return false
+
+        PatternConfig.applyConfigEnvelope(doc, panel)
+        const derived = doc.pos_neg_color === true
+
+        for (let i = 0; i < layerModel.count; i++) {
+            const layer = doc[String(i + 1)]
+            if (!layer) {
+                layerModel.setProperty(i, "interval", 0)
+                continue
+            }
+
+            layerModel.setProperty(i, "interval", PatternConfig.toInt(layer.interval, 0))
+            layerModel.setProperty(i, "color",
+                                   derived ? panel.layerColorAt(i, true)
+                                           : PatternConfig.toColor(layer.color, "#ffffff"))
+        }
+
+        return true
     }
 
     ListModel {
@@ -45,11 +108,14 @@ Rectangle {
 
         Component.onCompleted: {
             for (let i = 0; i < panel.layerCount; i++)
-                layerModel.append({ interval: 20, color: "black" })
+                layerModel.append({ interval: 77, color: panel.layerColorAt(i, true) })
         }
     }
 
-    implicitWidth: content.implicitWidth + 2 * Theme.panelMargin
+    readonly property real minimumWidth:  content.Layout.minimumWidth  + 2 * Theme.panelMargin
+    readonly property real minimumHeight: content.Layout.minimumHeight + 2 * Theme.panelMargin
+
+    implicitWidth:  content.implicitWidth  + 2 * Theme.panelMargin
     implicitHeight: content.implicitHeight + 2 * Theme.panelMargin
 
     color: Theme.panelBackground
@@ -69,7 +135,7 @@ Rectangle {
             spacing: Theme.spaceXs
 
             Label {
-                text: qsTr("Stripline")
+                text: qsTr("Stripeline")
                 font.bold: true
                 font.pixelSize: Theme.fontTitle
                 color: Theme.accent
@@ -82,8 +148,18 @@ Rectangle {
             }
             SegmentedControl {
                 id: directionCombo
-                model: ["TOP", "North", "West", "South", "East"]
+                model: PatternConfig.directionLabels()
                 currentIndex: 2
+            }
+
+            ActionButton {
+                text: qsTr("Show on Monitor")
+                tone: "accent"
+                onClicked: panel.showRequested(PatternConfig.wireDirection(directionCombo.currentIndex))
+
+                ToolTip.visible: hovered
+                ToolTip.delay: Theme.animSlow
+                ToolTip.text: qsTr("Put this pattern on the selected screen. The rig renders it at that screen's own resolution.")
             }
 
             Item { Layout.fillWidth: true }
@@ -95,7 +171,7 @@ Rectangle {
 
         Rectangle {
             Layout.fillWidth: true
-            height: 1
+            Layout.preferredHeight: 1
             color: Theme.panelBorder
         }
 
@@ -140,8 +216,8 @@ Rectangle {
 
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.minimumHeight: Theme.unit * 25
-                Layout.maximumHeight: Theme.unit * 30
+                Layout.minimumHeight: Theme.minPatternPreviewHeight
+                Layout.maximumHeight: Theme.maxPatternPreviewHeight
 
                 source: panel.previewSource
                 emptyText: qsTr("No preview yet")
@@ -223,7 +299,7 @@ Rectangle {
                     Layout.fillWidth: Math.round(Theme.charUnit * 20)
                     tone: "accent"
                     text: qsTr("Update")
-                    onClicked: panel.updateRequested(directionCombo.model[directionCombo.currentIndex])
+                    onClicked: panel.updateRequested()
                 }
                 Item { Layout.fillWidth: true }
             }
@@ -235,14 +311,14 @@ Rectangle {
             QtObject {
                 id: tableColumns
                 readonly property int noWidth:     Math.round(Theme.charUnit * 2.5)
-                readonly property int heightWidth: Math.round(Theme.charUnit * 6)
+                readonly property int heightWidth: Math.round(Theme.charUnit * 15)
                 readonly property int colorWidth:  Math.round(Theme.controlHeight * 0.65)
             }
 
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.minimumHeight: 0
+                Layout.minimumHeight: Theme.minPatternTableHeight
                 spacing: 0
 
                 RowLayout {
@@ -256,7 +332,7 @@ Rectangle {
 
                 Rectangle {
                     Layout.fillWidth: true
-                    height: 1
+                    Layout.preferredHeight: 1
                     color: Theme.panelBorder
                 }
 
@@ -273,12 +349,29 @@ Rectangle {
                     model: layerModel
                     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
+                    function moveFocus(index, column, delta) {
+                        const target = index + delta
+                        if (target < 0 || target >= table.count)
+                            return
+
+                        table.positionViewAtIndex(target, ListView.Contain)
+                        table.forceLayout()
+
+                        const item = table.itemAtIndex(target)
+                        if (item)
+                            item.focusColumn(column)
+                    }
+
                     delegate: Item {
                         id: cell
 
                         required property int index
                         required property real interval
                         required property color color
+
+                        function focusColumn(column) {
+                            layerRow.focusColumn(column)
+                        }
 
                         width: table.width
                         height: layerRow.implicitHeight + Theme.spaceXs
@@ -302,7 +395,8 @@ Rectangle {
                             color: cell.color
 
                             onIntervalEdited: (value) => layerModel.setProperty(cell.index, "interval", value)
-                            onColorEdited:    (value) => layerModel.setProperty(cell.index, "color", value)
+                            onColorEdited:    (value) => layerModel.setProperty(cell.index, "color", String(value))
+                            onMoveFocusRequested: (column, delta) => table.moveFocus(cell.index, column, delta)
                         }
                     }
                 }

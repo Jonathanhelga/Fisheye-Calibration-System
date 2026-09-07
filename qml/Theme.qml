@@ -4,7 +4,7 @@ import QtQuick
 
 QtObject {
 
-    readonly property FontMetrics metrics: FontMetrics { font: Qt.application.font }
+    readonly property FontMetrics metrics: FontMetrics { }
     readonly property real unit: Math.round(metrics.height)
     readonly property real charUnit: Math.round(metrics.averageCharacterWidth)
     //spacing
@@ -42,6 +42,24 @@ QtObject {
 
     readonly property real ratioWorkRow:   0.50
     readonly property real ratioHistogram: 0.25
+
+    readonly property int minPatternColumn: Math.round(unit * 35)
+
+    readonly property int minPatternPreviewHeight: Math.round(unit * 23)
+    readonly property int maxPatternPreviewHeight: Math.round(unit * 24)
+    readonly property int minPatternTableHeight:   Math.round(unit * 10)
+    readonly property int minSingleRowPatternTableWidth:   Math.round(unit * 10)
+
+    readonly property int minMonitorPreviewWidth:  Math.round(unit * 9)
+    readonly property int minMonitorPreviewHeight: Math.round(unit * 7)
+    readonly property int minMonitorSlotWidth:     Math.round(unit * 21)
+    readonly property int minMonitorSlotHeight:    Math.round(unit * 15)
+    readonly property int minMonitorColumn: 3 * minMonitorSlotWidth + 2 * dpadSpacing + 2 * fieldPadding
+
+    readonly property real ratioPatternColumn: minPatternColumn / (minPatternColumn + minMonitorColumn)
+    readonly property real ratioMonitorColumn: 1 - ratioPatternColumn
+
+    readonly property real minCanvasScale: 0.6
 
 
     readonly property int animFast: 120

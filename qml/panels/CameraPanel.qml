@@ -17,10 +17,15 @@ Rectangle {
     property bool busy: false
     property string pendingMode: ""
 
+    property string imageLabel: ""
+    property string errorText: ""
+
     property int centerX: -1
     property int centerY: -1
     property int roiRadius: 0
     property bool centerLocked: false
+
+    property alias cameraFov: fovSpin.value
 
     readonly property bool hasPositive: positivePath !== ""
     readonly property bool hasNegative: negativePath !== ""
@@ -35,15 +40,16 @@ Rectangle {
                                                                         : singlePath
 
     readonly property url imageUrl: root.imagePath === "" ? ""
-                                 : root.imagePath.startsWith("qrc:") ? root.imagePath
-                                                                     : "file://" + root.imagePath
+                                 : root.imagePath.includes("://") ? root.imagePath
+                                                                  : "file://" + root.imagePath
 
-    readonly property string fileName:
-        imagePath.substring(imagePath.lastIndexOf("/") + 1)
+    readonly property string fileName: imageLabel !== "" ? imageLabel
+        : imagePath.substring(imagePath.lastIndexOf("/") + 1)
 
     readonly property string statusText: busy
         ? (pendingMode ? qsTr("Capturing %1 shot...").arg(pendingMode)
                        : qsTr("Capturing..."))
+        : errorText !== "" ? errorText
         : (imagePath ? qsTr("Showing %1").arg(fileName) : qsTr("Idle"))
 
     readonly property string pairText: hasPair
@@ -57,6 +63,7 @@ Rectangle {
     signal browseRequested()
     signal directionDiffRequested()
     signal centerPicked(string mode, int x, int y)
+    signal fovEdited(int value)
 
     function requestCapture(mode) {
         pendingMode = mode
@@ -96,6 +103,7 @@ Rectangle {
             StatusDot {
                 Layout.alignment: Qt.AlignVCenter
                 status: root.busy ? ProbeStatus.Checking
+                      : root.errorText !== "" ? ProbeStatus.Failed
                       : root.imagePath ? ProbeStatus.Ok
                                        : ProbeStatus.Unknown
             }
@@ -105,7 +113,8 @@ Rectangle {
                 Layout.minimumWidth: 0
                 Layout.preferredWidth: 0
                 text: root.statusText
-                color: root.busy ? Theme.textPrimary : Theme.textCaption
+                color: root.busy || root.errorText !== "" ? Theme.textPrimary
+                                                          : Theme.textCaption
                 font.pixelSize: Theme.captionFontSize
                 elide: Text.ElideRight
             }
@@ -147,7 +156,7 @@ Rectangle {
                     anchors.leftMargin: Theme.fieldPadding
                     anchors.rightMargin: Theme.fieldPadding
 
-                    text: root.imagePath ? root.imagePath : qsTr("No image loaded")
+                    text: root.fileName !== "" ? root.fileName : qsTr("No image loaded")
                     color: root.imagePath ? Theme.textPrimary : Theme.textCaption
                     font.bold: root.imagePath !== ""
                     verticalAlignment: Text.AlignVCenter
@@ -176,7 +185,7 @@ Rectangle {
             Layout.fillWidth: true
             spacing: Theme.rowSpacing
 
-            SegmentedControl {
+          SegmentedControl {
                 id: viewSelector
                 model: [qsTr("Single"), qsTr("Pos"), qsTr("Neg")]
                 currentIndex: 0
@@ -191,16 +200,34 @@ Rectangle {
                 font.pixelSize: Theme.captionFontSize
                 elide: Text.ElideRight
             }
+            
 
-            AxisReadout {
-                label: qsTr("Source")
-                value: preview.loaded
-                    ? preview.sourceWidth + "x" + preview.sourceHeight
-                    : "?"
+            ValueSpinBox {
+                id: fovSpin
+
+                label: qsTr("FOV")
+                from: 150
+                to: 300
+                value: 180
+
+                onEdited: (value) => root.fovEdited(value)
+
+                ToolTip.visible: hovered
+                ToolTip.delay: Theme.animSlow
+                ToolTip.text: qsTr("Camera field of view in degrees, used during calibration")
             }
 
             AxisReadout {
+                Layout.fillWidth: true;
+                label: qsTr("Resolution")
+                fieldWidth: Theme.charUnit * 15
+                value: preview.loaded ? preview.sourceWidth + "x" + preview.sourceHeight: "?"
+            }
+
+            AxisReadout {
+                Layout.fillWidth: true;
                 label: qsTr("Zoom")
+                fieldWidth: Theme.charUnit * 15
                 value: preview.loaded ? Math.round(preview.zoom * 100) + "%" : "?"
             }
         }
@@ -252,7 +279,7 @@ Rectangle {
                 enabled: !root.busy
                 onClicked: root.requestCapture("")
             }
-
+            
             ActionButton {
                 Layout.preferredWidth: Math.round(Theme.charUnit * 8)
                 text: qsTr("Pos")

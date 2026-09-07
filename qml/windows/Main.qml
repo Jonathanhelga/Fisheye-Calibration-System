@@ -58,6 +58,8 @@ ApplicationWindow {
                         onRosUpdateRequested: (domainId, axisNamespace, monitorNamespace, cameraTopic) => {
                             RosServerProbe.probeAll(domainId, axisNamespace, monitorNamespace, cameraTopic)
                             AxisController.connectTo(domainId, axisNamespace, true)
+                            CameraController.connectTo(domainId)
+                            PatternController.connectTo(domainId)
                         }
                     }
                     AxisControlPanel { Layout.fillWidth: true; Layout.fillHeight: true }
@@ -66,8 +68,16 @@ ApplicationWindow {
                 CameraPanel {
                     id: camera
 
-                    singlePath: "qrc:/qt/qml/FisheyeCaliJojo/assets/sample_shot.png"
-                    positivePath: "qrc:/qt/qml/FisheyeCaliJojo/assets/sample_shot.png"
+                    singlePath: CameraController.frameUrl
+                    imageLabel: CameraController.frameLabel
+                    errorText: CameraController.lastError
+                    busy: CameraController.busy
+
+                    onCaptureRequested: (mode) => {
+                        if (mode === "")
+                            CameraController.capture()
+                    }
+
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     Layout.preferredWidth: workRow.free * Theme.ratioCenter
@@ -98,8 +108,6 @@ ApplicationWindow {
 
                     LiveCameraPanel {
                         id: live
-
-                        framePath: camera.singlePath
 
                         Layout.fillWidth: true
                         Layout.fillHeight: true
