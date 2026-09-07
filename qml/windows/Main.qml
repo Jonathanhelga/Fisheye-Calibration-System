@@ -107,11 +107,17 @@ ApplicationWindow {
                     pendingMode: CameraController.pendingSlot
                     pairing: CameraController.pairing
 
-                    // The slot name travels through unchanged: "" is the plain
-                    // Capture button, "Positive" / "Negative" are the retakes.
-                    // The old handler dropped everything but "", which is why
-                    // Pos and Neg looked enabled and did nothing.
-                    onCaptureRequested: (mode) => CameraController.capture(mode)
+                    // "" is the plain Capture button: grab whatever is on the
+                    // glass. "Positive"/"Negative" are MEASUREMENTS -- they put
+                    // that prepared pattern up first and grab once the monitors
+                    // confirm, so a shot named after a polarity is actually of
+                    // that polarity.
+                    onCaptureRequested: (mode) => {
+                        if (mode === "")
+                            CameraController.capture()
+                        else
+                            CameraController.captureShot(mode)
+                    }
                     onPairRequested: CameraController.capturePair()
                     onBrowseRequested: openImageDialog.open()
                     onDirectionDiffRequested: window.runDirectionDiff()

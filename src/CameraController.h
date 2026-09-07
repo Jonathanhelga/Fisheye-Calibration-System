@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QUrl>
 #include <QtQml/qqmlregistration.h>
 
@@ -88,7 +89,7 @@ public:
     bool hasPair() const { return hasPositive() && hasNegative(); }
 
     QString pendingSlot() const { return pendingSlot_; }
-    bool pairing() const { return pairStage_ != 0; }
+    bool pairing() const { return !sequence_.isEmpty(); }
 
     bool streaming() const { return streaming_; }
     qreal fps() const { return fps_; }
@@ -99,12 +100,21 @@ public:
 
     Q_INVOKABLE void connectTo(int domainId);
 
-    // slot: "" for the plain Capture button, or "positive" / "negative".
+    // A bare grab of whatever is on the glass right now, into `slot`. It does
+    // NOT touch the monitors -- this is the plain Capture button.
     Q_INVOKABLE void capture(const QString &slot = QString());
 
-    // Positive then negative, swapping the prepared polarity on the glass in
-    // between. Needs MonitorController and a prepared pattern; says so rather
-    // than shooting the same picture twice if either is missing.
+    // A MEASUREMENT of one polarity: put that prepared pattern on the glass,
+    // wait for the monitors to confirm, then grab.
+    //
+    // Pos and Neg used to call capture() directly, which grabbed whatever was
+    // already showing and filed it under "positive" -- so pressing Pos after a
+    // negative shot stored the negative image as the positive one, and pressing
+    // it twice appeared to change nothing. A shot named after a polarity has to
+    // be taken against that polarity.
+    Q_INVOKABLE void captureShot(const QString &polarity);
+
+    // Positive then negative, swapping the prepared polarity in between.
     Q_INVOKABLE void capturePair();
 
     // Read a picture off disk into a slot, so an existing capture can be
@@ -141,8 +151,14 @@ private:
     // member would be visible in one place and invisible in the other.
     void setError(const QString &message);
 
-    void abortPair(const QString &reason);
-    void advancePair(const QString &justCaptured);
+    // One shot sequence: the polarities still to photograph, in order. Pos is
+    // ["positive"], Neg is ["negative"], Pair is both. Unified because all three
+    // are the same two steps -- show, then grab -- and three copies of that
+    // drifted apart the moment one of them was written first.
+    void beginSequence(const QStringList &polarities);
+    void advanceSequence();
+    void abortSequence(const QString &reason);
+    bool sequenceRunning() const { return !sequence_.isEmpty(); }
     void hookMonitor();
 
     ProbeStatus::Status status_ = ProbeStatus::Unknown;
@@ -164,9 +180,11 @@ private:
 
     int fov_ = 180;
 
-    // 0 idle, 1 showing positive, 2 capturing positive,
-    // 3 showing negative, 4 capturing negative.
-    int pairStage_ = 0;
+    // Polarities left to shoot. Empty when idle; the head is the one currently
+    // being shown or grabbed.
+    QStringList sequence_;
+    bool awaitingGlass_ = false;   // shown asked for, not yet confirmed
+    int sequenceTotal_ = 0;
     bool monitorHooked_ = false;
 
     quint64 captureToken_ = 0;

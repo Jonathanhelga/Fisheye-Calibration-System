@@ -186,9 +186,10 @@ void CameraController::applyLink(int status, const QString &message, quint64 gen
     if (status_ != ProbeStatus::Ok) {
         busy_ = false;
         pendingSlot_.clear();
-        if (pairStage_ != 0) {
-            pairStage_ = 0;
-            emit pairFailed(tr("the camera link went away mid-pair"));
+        if (sequenceRunning()) {
+            sequence_.clear();
+            awaitingGlass_ = false;
+            emit pairFailed(tr("the camera link went away mid-shot"));
         }
         if (streaming_) {
             // The subscription is gone with the context; saying otherwise leaves
@@ -213,7 +214,7 @@ void CameraController::applyCapture(const QString &slot, bool ok, int width, int
 
     if (!ok) {
         setError(message.isEmpty() ? tr("the capture failed") : message);
-        if (pairStage_ != 0) abortPair(lastError_);
+        if (sequenceRunning()) abortSequence(lastError_);
         return;
     }
 
@@ -234,7 +235,7 @@ void CameraController::applyCapture(const QString &slot, bool ok, int width, int
     emit changed();
     emit captured(slot, width, height);
 
-    if (pairStage_ != 0) advancePair(slot);
+    if (sequenceRunning()) advanceSequence();
 }
 
 void CameraController::applyLiveFrame(int width, int height, quint64 generation) {
@@ -263,7 +264,8 @@ void CameraController::connectTo(int domainId) {
     pendingSlot_.clear();
     lastError_.clear();
     ++captureToken_;
-    if (pairStage_ != 0) pairStage_ = 0;
+    sequence_.clear();
+    awaitingGlass_ = false;
     streaming_ = false;
     fps_ = 0;
     lastFrameMs_ = 0;
@@ -401,7 +403,7 @@ void CameraController::capture(const QString &slot) {
     if (busy_) return;
     if (status_ != ProbeStatus::Ok) {
         setError(tr("not connected to the camera node, press Update in the Server panel"));
-        if (pairStage_ != 0) abortPair(lastError_);
+        if (sequenceRunning()) abortSequence(lastError_);
         return;
     }
 
@@ -477,7 +479,7 @@ void CameraController::capture(const QString &slot) {
         setError(tr("no reply from %1 within %2 s")
                      .arg(QString::fromLatin1(kCaptureService))
                      .arg(kCaptureTimeoutMs / 1000));
-        if (pairStage_ != 0) abortPair(lastError_);
+        if (sequenceRunning()) abortSequence(lastError_);
     });
 #endif
 }
@@ -500,27 +502,25 @@ void CameraController::hookMonitor() {
     MonitorController *monitor = MonitorController::instance();
     if (!monitor) return;
 
+    // The glass is now showing the polarity we asked for -- grab it.
     connect(monitor, &MonitorController::preparedShown, this,
             [this](const QString &polarity, const QStringList &) {
-                if (pairStage_ == 1 && polarity == kSlotPositive) {
-                    pairStage_ = 2;
-                    capture(kSlotPositive);
-                } else if (pairStage_ == 3 && polarity == kSlotNegative) {
-                    pairStage_ = 4;
-                    capture(kSlotNegative);
-                }
+                if (!awaitingGlass_ || sequence_.isEmpty()) return;
+                if (polarity != sequence_.first()) return;
+                awaitingGlass_ = false;
+                capture(sequence_.first());
             });
 
     connect(monitor, &MonitorController::preparedFailed, this,
             [this](const QString &, const QString &message) {
-                if (pairStage_ != 0) abortPair(message);
+                if (sequenceRunning()) abortSequence(message);
             });
 
     monitorHooked_ = true;
 }
 
-void CameraController::capturePair() {
-    if (busy_ || pairStage_ != 0) return;
+void CameraController::beginSequence(const QStringList &polarities) {
+    if (busy_ || sequenceRunning() || polarities.isEmpty()) return;
 
     // Null until QML has touched MonitorController, which the Server panel's
     // Update does. Worth saying plainly: "no monitor" and "never connected" look
@@ -534,41 +534,55 @@ void CameraController::capturePair() {
 
     hookMonitor();
 
-    pairStage_ = 1;
+    sequence_ = polarities;
+    sequenceTotal_ = static_cast<int>(polarities.size());
+    awaitingGlass_ = true;
     emit changed();
-    emit notice(tr("Pair shot: showing the positive pattern"));
-    monitor->showPrepared(kSlotPositive);
+    emit notice(tr("Showing the %1 pattern").arg(sequence_.first()));
+    monitor->showPrepared(sequence_.first());
 }
 
-void CameraController::advancePair(const QString &justCaptured) {
-    MonitorController *monitor = MonitorController::instance();
+void CameraController::advanceSequence() {
+    if (sequence_.isEmpty()) return;
 
-    if (pairStage_ == 2 && justCaptured == kSlotPositive) {
-        if (!monitor) {
-            abortPair(tr("the monitor link went away mid-pair"));
-            return;
-        }
-        pairStage_ = 3;
+    const QString done = sequence_.takeFirst();
+
+    if (sequence_.isEmpty()) {
         emit changed();
-        emit notice(tr("Pair shot: showing the negative pattern"));
-        monitor->showPrepared(kSlotNegative);
+        if (sequenceTotal_ > 1) {
+            emit pairComplete();
+            emit notice(tr("Pair complete -- positive and negative are both in hand"));
+        } else {
+            emit notice(tr("%1 shot taken against the %1 pattern").arg(done));
+        }
         return;
     }
 
-    if (pairStage_ == 4 && justCaptured == kSlotNegative) {
-        pairStage_ = 0;
-        emit changed();
-        emit pairComplete();
-        emit notice(tr("Pair complete -- positive and negative are both in hand"));
+    MonitorController *monitor = MonitorController::instance();
+    if (!monitor) {
+        abortSequence(tr("the monitor link went away mid-sequence"));
+        return;
     }
+
+    awaitingGlass_ = true;
+    emit changed();
+    emit notice(tr("Showing the %1 pattern").arg(sequence_.first()));
+    monitor->showPrepared(sequence_.first());
 }
 
-void CameraController::abortPair(const QString &reason) {
-    if (pairStage_ == 0) return;
-    pairStage_ = 0;
+void CameraController::abortSequence(const QString &reason) {
+    if (sequence_.isEmpty()) return;
+    sequence_.clear();
+    awaitingGlass_ = false;
     emit changed();
     emit pairFailed(reason);
 }
+
+void CameraController::captureShot(const QString &polarity) {
+    beginSequence({normalisedSlot(polarity)});
+}
+
+void CameraController::capturePair() { beginSequence({kSlotPositive, kSlotNegative}); }
 
 // ---- disk, and the live preview --------------------------------------------
 
