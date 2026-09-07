@@ -170,14 +170,15 @@ void PatternController::applyPreview(const QString &patternType, bool ok, const 
 }
 
 void PatternController::applyShow(const QString &direction, bool ok, const QString &message,
-                                  int width, int height, quint64 token, quint64 generation) {
+                                  int width, int height, const QString &imagePath, quint64 token,
+                                  quint64 generation) {
     if (generation != d_->generation.load() || token != showTokens_.value(direction)) return;
 
     ++showTokens_[direction];
 
     if (ok) {
         setLastError(QString());
-        emit patternShown(direction, width, height);
+        emit patternShown(direction, width, height, imagePath);
         refreshDirection(direction);
     } else {
         setLastError(message.isEmpty() ? tr("the rig refused to show the pattern") : message);
@@ -494,8 +495,8 @@ void PatternController::showOnMonitor(const QString &direction, const QString &s
             QMetaObject::invokeMethod(this, "applyShow", Qt::QueuedConnection,
                                       Q_ARG(QString, direction), Q_ARG(bool, ok),
                                       Q_ARG(QString, message), Q_ARG(int, width),
-                                      Q_ARG(int, height), Q_ARG(quint64, token),
-                                      Q_ARG(quint64, generation));
+                                      Q_ARG(int, height), Q_ARG(QString, QString()),
+                                      Q_ARG(quint64, token), Q_ARG(quint64, generation));
         });
 
     QTimer::singleShot(kShowTimeoutMs, this, [this, generation, token, direction] {
@@ -564,8 +565,8 @@ void PatternController::showImageOnMonitor(const QString &direction, const QStri
     request->image.data.assign(first, first + bytes.size());
 
     client->async_send_request(
-        request, [this, generation, token,
-                  direction](rclcpp::Client<moil_interfaces::srv::ShowPattern>::SharedFuture future) {
+        request, [this, generation, token, direction,
+                  imagePath](rclcpp::Client<moil_interfaces::srv::ShowPattern>::SharedFuture future) {
             const auto response = future.get();
 
             if (generation != d_->generation.load()) return;
@@ -579,7 +580,8 @@ void PatternController::showImageOnMonitor(const QString &direction, const QStri
             QMetaObject::invokeMethod(this, "applyShow", Qt::QueuedConnection,
                                       Q_ARG(QString, direction), Q_ARG(bool, ok),
                                       Q_ARG(QString, message), Q_ARG(int, 0), Q_ARG(int, 0),
-                                      Q_ARG(quint64, token), Q_ARG(quint64, generation));
+                                      Q_ARG(QString, imagePath), Q_ARG(quint64, token),
+                                      Q_ARG(quint64, generation));
         });
 
     QTimer::singleShot(kShowTimeoutMs, this, [this, generation, token, direction] {

@@ -51,7 +51,7 @@ signals:
     void lastErrorChanged();
     void errorRaised(const QString &message);
     void previewChanged();
-    void patternShown(const QString &direction, int width, int height);
+    void patternShown(const QString &direction, int width, int height, const QString &imagePath);
     void monitorClosed(const QString &direction);
     void brightnessApplied(const QString &direction, double brightness);
 
@@ -60,7 +60,8 @@ private:
     Q_INVOKABLE void applyPreview(const QString &patternType, bool ok, const QString &message,
                                   quint64 token, quint64 generation);
     Q_INVOKABLE void applyShow(const QString &direction, bool ok, const QString &message, int width,
-                               int height, quint64 token, quint64 generation);
+                               int height, const QString &imagePath, quint64 token,
+                               quint64 generation);
     Q_INVOKABLE void applyClose(const QString &direction, bool ok, const QString &message,
                                 quint64 token, quint64 generation);
     Q_INVOKABLE void applyBrightness(const QString &direction, double brightness, bool ok,

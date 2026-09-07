@@ -47,9 +47,10 @@ Rectangle {
             root.appliedImagePath = ""
         }
 
-        function onPatternShown(direction) {
+        function onPatternShown(direction, width, height, imagePath) {
             if (direction !== root.direction) return
-            root.appliedImagePath = root.imagePath
+            root.imagePath = imagePath
+            root.appliedImagePath = imagePath
             root.on = true
         }
 
@@ -98,8 +99,8 @@ Rectangle {
             StatusDot {
                 Layout.alignment: Qt.AlignVCenter
                 status: !root.on ? ProbeStatus.Failed
-                      : (root.livePreview || root.imagePath) ? ProbeStatus.Ok
-                                                             : ProbeStatus.Unknown
+                      : (root.livePreview || root.appliedImagePath) ? ProbeStatus.Ok
+                                                                    : ProbeStatus.Unknown
             }
         }
 
@@ -112,8 +113,8 @@ Rectangle {
             Layout.minimumHeight: Theme.minMonitorPreviewHeight
 
             source: root.livePreview ? root.livePreview
-                  : root.imagePath ? "file://" + root.imagePath
-                                   : ""
+                  : root.appliedImagePath ? "file://" + root.appliedImagePath
+                                          : ""
             emptyText: root.on ? qsTr("No image") : qsTr("Off")
             pickEnabled: false
             opacity: root.on ? 1 : 0.35
