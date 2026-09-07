@@ -5,9 +5,8 @@ import FisheyeCaliJojo
 
 // One projector/camera slot in the Monitor Viewer window: preview, image
 // path, and brightness controls for a single direction (TOP, N, W, S, E).
-// Port of monitor_viewer.ui / ControllerMonitor: Update pushes the current
-// image + brightness to that screen; Turn off pushes a black frame at 0%
-// brightness through the same path, so it snaps brightness to 0 too.
+// Update pushes the current image + brightness to that screen; Turn off asks
+// the rig to close the pattern on it, so the panel returns to its desktop.
 Rectangle {
     id: root
 
@@ -27,9 +26,15 @@ Rectangle {
     signal turnOffRequested()
 
     function turnOff() {
-        root.brightness = 0
-        root.on = false
         root.turnOffRequested()
+    }
+
+    Connections {
+        target: PatternController
+
+        function onMonitorClosed(direction) {
+            if (direction === root.direction || direction === "all") root.on = false
+        }
     }
 
     readonly property real minimumWidth:  content.Layout.minimumWidth  + 2 * Theme.panelMargin

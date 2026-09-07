@@ -19,6 +19,7 @@
 
 #include <rclcpp/rclcpp.hpp>
 
+#include "moil_interfaces/srv/close_pattern.hpp"
 #include "moil_interfaces/srv/render_for_direction.hpp"
 #include "moil_interfaces/srv/render_pattern.hpp"
 #include "moil_interfaces/srv/show_pattern_spec.hpp"
@@ -31,6 +32,7 @@ constexpr char kRenderType[] = "moil_interfaces/srv/RenderPattern";
 
 constexpr char kShowService[] = "/monitor/show_pattern_spec";
 constexpr char kDirectionService[] = "/monitor/render_for_direction";
+constexpr char kCloseService[] = "/monitor/close_pattern";
 
 constexpr int kSlotPreviewMaxSide = 640;
 
@@ -89,6 +91,7 @@ struct PatternController::Impl {
     rclcpp::Client<moil_interfaces::srv::RenderPattern>::SharedPtr renderClient;
     rclcpp::Client<moil_interfaces::srv::ShowPatternSpec>::SharedPtr showClient;
     rclcpp::Client<moil_interfaces::srv::RenderForDirection>::SharedPtr directionClient;
+    rclcpp::Client<moil_interfaces::srv::ClosePattern>::SharedPtr closeClient;
 #endif
 };
 
@@ -173,6 +176,24 @@ void PatternController::applyShow(const QString &direction, bool ok, const QStri
     }
 }
 
+void PatternController::applyClose(const QString &direction, bool ok, const QString &message,
+                                   quint64 token, quint64 generation) {
+    if (generation != d_->generation.load() || token != closeTokens_.value(direction)) return;
+
+    ++closeTokens_[direction];
+
+    if (!ok) {
+        setLastError(message.isEmpty() ? tr("the rig refused to close %1").arg(direction.toUpper())
+                                       : message);
+        return;
+    }
+
+    lastSpecs_.remove(direction);
+    if (previewUrls_.remove(direction) > 0) emit previewChanged();
+    setLastError(QString());
+    emit monitorClosed(direction);
+}
+
 void PatternController::connectTo(int domainId) {
     stopWorker();
 
@@ -228,6 +249,7 @@ void PatternController::connectTo(int domainId) {
             auto client = node->create_client<moil_interfaces::srv::RenderPattern>(kRenderService);
             auto show = node->create_client<moil_interfaces::srv::ShowPatternSpec>(kShowService);
             auto perDirection = node->create_client<moil_interfaces::srv::RenderForDirection>(kDirectionService);
+            auto close = node->create_client<moil_interfaces::srv::ClosePattern>(kCloseService);
 
             const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(kServiceWaitMs);
             bool ready = false;
@@ -246,6 +268,7 @@ void PatternController::connectTo(int domainId) {
                     d_->renderClient = client;
                     d_->showClient = show;
                     d_->directionClient = perDirection;
+                    d_->closeClient = close;
                 }
                 post(ProbeStatus::Ok, QString());
 
@@ -255,6 +278,7 @@ void PatternController::connectTo(int domainId) {
                 d_->renderClient.reset();
                 d_->showClient.reset();
                 d_->directionClient.reset();
+                d_->closeClient.reset();
             }
         } catch (const std::exception &error) {
             post(ProbeStatus::Failed, QString::fromUtf8(error.what()));
@@ -449,6 +473,69 @@ void PatternController::showOnMonitor(const QString &direction, const QString &s
         ++showToken_;
         setLastError(tr("no reply from %1 within %2 s")
                          .arg(QString::fromLatin1(kShowService))
+                         .arg(kShowTimeoutMs / 1000));
+    });
+#endif
+}
+
+void PatternController::closeMonitor(const QString &direction) {
+    if (status_ != ProbeStatus::Ok) {
+        setLastError(tr("not connected to the rig, press ROS Update first"));
+        return;
+    }
+
+#ifndef FISHEYE_ROS_ENABLED
+    Q_UNUSED(direction)
+    setLastError(tr("this build has no ROS 2 support"));
+#else
+    rclcpp::Client<moil_interfaces::srv::ClosePattern>::SharedPtr client;
+    {
+        std::lock_guard<std::mutex> lock(d_->clientMutex);
+        client = d_->closeClient;
+    }
+    if (!client) {
+        setLastError(tr("the pattern link is up but the client is gone"));
+        return;
+    }
+    if (!client->service_is_ready()) {
+        setLastError(tr("nothing is serving %1 on domain %2 "
+                        "(wrong domain, wrong subnet, or the monitor node is not running)")
+                         .arg(QString::fromLatin1(kCloseService), QString::number(domainId_)));
+        return;
+    }
+
+    setLastError(QString());
+
+    const quint64 generation = d_->generation.load();
+    const quint64 token = ++closeTokens_[direction];
+
+    auto request = std::make_shared<moil_interfaces::srv::ClosePattern::Request>();
+    request->direction = direction.toStdString();
+
+    client->async_send_request(
+        request,
+        [this, generation, token,
+         direction](rclcpp::Client<moil_interfaces::srv::ClosePattern>::SharedFuture future) {
+            const auto response = future.get();
+
+            if (generation != d_->generation.load()) return;
+
+            QString message = QString::fromStdString(response->message);
+            if (!response->success && message.isEmpty())
+                message = tr("%1 refused to close %2")
+                              .arg(QString::fromLatin1(kCloseService), direction.toUpper());
+
+            QMetaObject::invokeMethod(this, "applyClose", Qt::QueuedConnection,
+                                      Q_ARG(QString, direction), Q_ARG(bool, response->success),
+                                      Q_ARG(QString, message), Q_ARG(quint64, token),
+                                      Q_ARG(quint64, generation));
+        });
+
+    QTimer::singleShot(kShowTimeoutMs, this, [this, generation, token, direction] {
+        if (generation != d_->generation.load() || token != closeTokens_.value(direction)) return;
+        ++closeTokens_[direction];
+        setLastError(tr("no reply from %1 within %2 s")
+                         .arg(QString::fromLatin1(kCloseService))
                          .arg(kShowTimeoutMs / 1000));
     });
 #endif

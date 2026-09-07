@@ -41,6 +41,7 @@ public:
     Q_INVOKABLE bool savePreview(const QString &patternType, const QUrl &fileUrl);
     Q_INVOKABLE void showOnMonitor(const QString &direction, const QString &specJson);
     Q_INVOKABLE void refreshDirection(const QString &direction);
+    Q_INVOKABLE void closeMonitor(const QString &direction);
 
 signals:
     void statusChanged();
@@ -49,6 +50,7 @@ signals:
     void errorRaised(const QString &message);
     void previewChanged();
     void patternShown(const QString &direction, int width, int height);
+    void monitorClosed(const QString &direction);
 
 private:
     Q_INVOKABLE void applyLink(int status, const QString &message, quint64 generation);
@@ -56,6 +58,8 @@ private:
                                   quint64 token, quint64 generation);
     Q_INVOKABLE void applyShow(const QString &direction, bool ok, const QString &message, int width,
                                int height, quint64 token, quint64 generation);
+    Q_INVOKABLE void applyClose(const QString &direction, bool ok, const QString &message,
+                                quint64 token, quint64 generation);
 
     void setStatus(ProbeStatus::Status status);
     void setLastError(const QString &message);
@@ -70,6 +74,7 @@ private:
     QHash<QString, int> revisions_;
     QHash<QString, quint64> renderTokens_;
     QHash<QString, QString> lastSpecs_;
+    QHash<QString, quint64> closeTokens_;
     QSet<QString> pending_;
     int domainId_ = 0;
     quint64 showToken_ = 0;

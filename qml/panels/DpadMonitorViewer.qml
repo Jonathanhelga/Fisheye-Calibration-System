@@ -46,7 +46,7 @@ GridLayout {
 
         onBrowseRequested: console.log("[Pattern And Monitor] N: Browse requested")
         onUpdateRequested: (brightness) => console.log("[Pattern And Monitor] N: Update requested, brightness=" + brightness)
-        onTurnOffRequested: console.log("[Pattern And Monitor] N: Turn off requested")
+        onTurnOffRequested: PatternController.closeMonitor(northSlot.direction)
     }
 
     Item {}
@@ -62,7 +62,7 @@ GridLayout {
 
         onBrowseRequested: console.log("[Pattern And Monitor] W: Browse requested")
         onUpdateRequested: (brightness) => console.log("[Pattern And Monitor] W: Update requested, brightness=" + brightness)
-        onTurnOffRequested: console.log("[Pattern And Monitor] W: Turn off requested")
+        onTurnOffRequested: PatternController.closeMonitor(westSlot.direction)
     }
 
     MonitorSlotPanel {
@@ -76,7 +76,7 @@ GridLayout {
 
         onBrowseRequested: console.log("[Pattern And Monitor] TOP: Browse requested")
         onUpdateRequested: (brightness) => console.log("[Pattern And Monitor] TOP: Update requested, brightness=" + brightness)
-        onTurnOffRequested: console.log("[Pattern And Monitor] TOP: Turn off requested")
+        onTurnOffRequested: PatternController.closeMonitor(topSlot.direction)
     }
 
     MonitorSlotPanel {
@@ -90,7 +90,7 @@ GridLayout {
 
         onBrowseRequested: console.log("[Pattern And Monitor] E: Browse requested")
         onUpdateRequested: (brightness) => console.log("[Pattern And Monitor] E: Update requested, brightness=" + brightness)
-        onTurnOffRequested: console.log("[Pattern And Monitor] E: Turn off requested")
+        onTurnOffRequested: PatternController.closeMonitor(eastSlot.direction)
     }
 
     Item {}
@@ -106,7 +106,7 @@ GridLayout {
 
         onBrowseRequested: console.log("[Pattern And Monitor] S: Browse requested")
         onUpdateRequested: (brightness) => console.log("[Pattern And Monitor] S: Update requested, brightness=" + brightness)
-        onTurnOffRequested: console.log("[Pattern And Monitor] S: Turn off requested")
+        onTurnOffRequested: PatternController.closeMonitor(southSlot.direction)
     }
 
     Item {}
