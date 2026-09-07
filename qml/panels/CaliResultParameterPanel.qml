@@ -36,8 +36,14 @@ Rectangle {
     readonly property string iCx: posCenter && posCenter.ok ? String(posCenter.x) : ""
     readonly property string iCy: posCenter && posCenter.ok ? String(posCenter.y) : ""
 
-    readonly property string distancePerRound:
-        CalibrationController.fields["lineedit_dis_per_round"] || ""
+    readonly property string distancePerRound: panel.field("lineedit_dis_per_round")
+
+    // Table fields read back as text. Blank rather than "undefined" when the
+    // field has never been set, so an empty box means "not set" and not "broken".
+    function field(name) {
+        const value = CalibrationController.fields[name]
+        return value === undefined ? "" : value
+    }
 
     // Straight from alpha_polynomial. An operator may still type over a slot, but
     // the next fit wins -- see the Connections below.
@@ -577,6 +583,63 @@ Rectangle {
                                                                                  : Theme.textDisabled
                                     value: panel.coefficients[coefficientField.index]
                                     onEdited: (value) => panel.setCoefficient(coefficientField.index, value)
+                                }
+                            }
+                        }
+
+                        // The rig profile the Calibration System combo writes.
+                        // Shown because the operator is told to CONFIRM these
+                        // before computing, and a value you cannot see is one
+                        // you cannot confirm. Editable because a rig can differ
+                        // from its profile.
+                        SectionFrame {
+                            Layout.fillWidth: true
+
+                            SectionTitle { text: qsTr("Calibration system") }
+
+                            ParamField {
+                                caption: qsTr("Pixel size (top)")
+                                unit: qsTr("mm")
+                                value: panel.field("lineedit_pixel_size_top")
+                                onEdited: (value) =>
+                                    CalibrationController.setField("lineedit_pixel_size_top", value)
+                            }
+                            ParamField {
+                                caption: qsTr("Pixel size (side)")
+                                unit: qsTr("mm")
+                                value: panel.field("lineedit_pixel_size_side")
+                                onEdited: (value) =>
+                                    CalibrationController.setField("lineedit_pixel_size_side", value)
+                            }
+
+                            Repeater {
+                                model: [{ key: "n", label: qsTr("N") },
+                                        { key: "s", label: qsTr("S") },
+                                        { key: "w", label: qsTr("W") },
+                                        { key: "e", label: qsTr("E") }]
+
+                                RowLayout {
+                                    id: gapRow
+
+                                    required property var modelData
+
+                                    Layout.fillWidth: true
+                                    spacing: Theme.labelSpacing
+
+                                    ParamField {
+                                        caption: qsTr("H gap %1").arg(gapRow.modelData.label)
+                                        unit: qsTr("mm")
+                                        value: panel.field("lineedit_h_gap_" + gapRow.modelData.key)
+                                        onEdited: (value) => CalibrationController.setField(
+                                                      "lineedit_h_gap_" + gapRow.modelData.key, value)
+                                    }
+                                    ParamField {
+                                        caption: qsTr("V gap %1").arg(gapRow.modelData.label)
+                                        unit: qsTr("mm")
+                                        value: panel.field("lineedit_v_gap_" + gapRow.modelData.key)
+                                        onEdited: (value) => CalibrationController.setField(
+                                                      "lineedit_v_gap_" + gapRow.modelData.key, value)
+                                    }
                                 }
                             }
                         }

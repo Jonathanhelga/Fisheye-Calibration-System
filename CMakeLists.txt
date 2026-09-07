@@ -146,6 +146,10 @@ qt_add_qml_module(moil_fisheye_cali
         qml/panels/MonitorSlotPanel.qml
         qml/panels/CaliResultDataPanel.qml
         qml/panels/CaliResultParameterPanel.qml
+        qml/panels/CaliResultOverlapPanel.qml
+        qml/panels/CaliResultAggregationPanel.qml
+        qml/panels/CaliResultGraphsPanel.qml
+        qml/panels/CaliSystems.js
 
         qml/controls/ScaledCanvas.qml
         qml/controls/ActionButton.qml

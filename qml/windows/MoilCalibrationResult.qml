@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Dialogs
 import QtQuick.Layouts
 import FisheyeCaliJojo
+import "../panels/CaliSystems.js" as CaliSystems
 
 Window {
     id: root
@@ -92,6 +93,25 @@ Window {
             "base_distance": CalibrationController.baseDistance,
             "single_distance": CalibrationController.singleDistance
         }
+    }
+
+    // Push a rig profile into the table fields the pipeline actually reads.
+    // Every value goes through CalibrationController.setField, so it travels
+    // with the table on the next op rather than living in a QML property the
+    // server never sees.
+    function applyCaliSystem(index) {
+        const fields = CaliSystems.fieldsFor(index)
+        if (!fields) {
+            toast.show(qsTr("No profile for that system"), true)
+            return
+        }
+        for (const name in fields)
+            CalibrationController.setField(name, fields[name])
+
+        const system = CaliSystems.at(index)
+        toast.show(qsTr("%1 applied: pixel %2 / %3, gaps from %4")
+                   .arg(system.name).arg(system.pixel_top).arg(system.pixel_side)
+                   .arg(system.file), false)
     }
 
     function writeJson(fileUrl, document, label) {
@@ -206,13 +226,24 @@ Window {
 
                     ComboBox {
                         id: caliSystemCombo
+
                         Layout.preferredWidth: Theme.controlWidth
                         Layout.preferredHeight: Theme.controlHeight
                         font.pixelSize: Theme.captionFontSize
-                        model: ["Yuanman - SIDE (EV2785)",
-                                "Yuanman - SIDE (EV2730Q)",
-                                "Yinda",
-                                "Broland C++"]
+                        model: CaliSystems.names()
+
+                        // Picking a system applies that rig's pixel sizes and
+                        // screen gaps to the table. Only `activated` -- which
+                        // fires on an operator choice, not on the model loading
+                        // or a programmatic index change -- so opening the
+                        // window never silently overwrites fields that came out
+                        // of a loaded Excel file.
+                        onActivated: (index) => root.applyCaliSystem(index)
+
+                        ToolTip.visible: hovered
+                        ToolTip.delay: Theme.animSlow
+                        ToolTip.text: qsTr("Applies this rig's pixel sizes and H/V gaps. "
+                                         + "Check them in the Parameter tab before computing.")
                     }
                 }
             }
@@ -399,23 +430,22 @@ Window {
                 }
             }
 
-            Rectangle {
+            CaliResultOverlapPanel {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                visible: root.view !== root.viewData && root.view !== root.viewParameter
+                visible: root.view === root.viewOverlap
+            }
 
-                color: Theme.panelBackground
-                border.color: Theme.panelBorder
-                radius: Theme.radius
+            CaliResultAggregationPanel {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                visible: root.view === root.viewAggregation
+            }
 
-                Label {
-                    anchors.centerIn: parent
-                    color: Theme.textCaption
-                    font.pixelSize: Theme.captionFontSize
-                    text: root.view === root.viewOverlap ? qsTr("Overlap plot goes here.")
-                        : root.view === root.viewAggregation ? qsTr("Aggregation by distance and IH range goes here.")
-                                                             : qsTr("IH-alpha and IH-ZFL graphs go here.")
-                }
+            CaliResultGraphsPanel {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                visible: root.view === root.viewGraphs
             }
         }
     }
