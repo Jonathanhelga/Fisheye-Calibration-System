@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Dialogs
 import QtQuick.Layouts
 import FisheyeCaliJojo
@@ -17,6 +16,9 @@ GridLayout {
     property alias southSlot: southSlot
     property alias eastSlot:  eastSlot
 
+    signal patternFileChosen(var slot, url fileUrl)
+    signal patternPushRequested(var slot)
+
     readonly property real slotMinimumWidth:  Math.max(Theme.minMonitorSlotWidth,  topSlot.minimumWidth)
     readonly property real slotMinimumHeight: Math.max(Theme.minMonitorSlotHeight, topSlot.minimumHeight)
 
@@ -28,8 +30,8 @@ GridLayout {
     }
 
     function pushSlot(slot, brightness) {
-        if (slot.imagePath && slot.imagePath !== slot.appliedImagePath)
-            PatternController.showImageOnMonitor(slot.direction, slot.imagePath)
+        if (slot.patternType && slot.configUrl !== slot.appliedConfigUrl)
+            root.patternPushRequested(slot)
 
         if (slot.brightnessSupported && brightness !== slot.appliedBrightness)
             PatternController.setMonitorBrightness(slot.direction, brightness)
@@ -40,9 +42,10 @@ GridLayout {
         browseDialog.open()
     }
 
-    function applyImageToFourSides(path) {
+    function applyPatternToFourSides(fileUrl, patternType) {
         for (const slot of [northSlot, westSlot, southSlot, eastSlot]) {
-            slot.imagePath = path
+            slot.configUrl = fileUrl
+            slot.patternType = patternType
             root.pushSlot(slot, slot.brightness)
         }
     }
@@ -134,18 +137,16 @@ GridLayout {
 
         property var target: null
 
-        title: browseDialog.target ? qsTr("Choose pattern image for %1").arg(browseDialog.target.label)
-                                   : qsTr("Choose pattern image")
+        title: browseDialog.target ? qsTr("Choose pattern JSON for %1").arg(browseDialog.target.label)
+                                   : qsTr("Choose pattern JSON")
         fileMode: FileDialog.OpenFile
-        nameFilters: [qsTr("Images (*.png *.jpg *.jpeg *.bmp)"), qsTr("All files (*)")]
+        nameFilters: [qsTr("Pattern JSON (*.json)"), qsTr("All files (*)")]
 
-        Component.onCompleted: browseDialog.currentFolder = PatternIo.defaultImageDirectory
+        Component.onCompleted: browseDialog.currentFolder = PatternIo.defaultDirectory
 
         onAccepted: {
-            const path = PatternIo.localPath(browseDialog.selectedFile)
-            if (!browseDialog.target || !path) return
-
-            browseDialog.target.imagePath = path
+            if (!browseDialog.target) return
+            root.patternFileChosen(browseDialog.target, browseDialog.selectedFile)
         }
     }
 }

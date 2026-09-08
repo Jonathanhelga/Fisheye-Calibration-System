@@ -3,27 +3,31 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import FisheyeCaliJojo
 
-// One projector/camera slot in the Monitor Viewer window: preview, image
-// path, and brightness controls for a single direction (TOP, N, W, S, E).
-// Update pushes the current image + brightness to that screen; Turn off asks
+// One projector/camera slot in the Monitor Viewer window: preview, pattern
+// file, and brightness controls for a single direction (TOP, N, W, S, E).
+// Browse loads a pattern JSON into the panel that owns that pattern type;
+// Update pushes that panel's spec plus brightness to this screen; Turn off asks
 // the rig to close the pattern on it, so the panel returns to its desktop.
 Rectangle {
     id: root
 
     property string label: ""
     property string direction: ""
-    property string imagePath: ""
+    property url configUrl
+    property string patternType: ""
     property alias brightness: brightnessField.value
     property bool brightnessSupported: true
     property bool on: false
 
-    property string appliedImagePath: ""
+    property url appliedConfigUrl
     property real appliedBrightness: 5
 
+    readonly property string configPath: PatternIo.localPath(root.configUrl)
+
     readonly property bool pendingChanges: PatternController.status === ProbeStatus.Ok
-                                        && root.on
-                                        && (root.imagePath !== root.appliedImagePath
-                                         || (root.brightnessSupported
+                                        && (root.configUrl !== root.appliedConfigUrl
+                                         || (root.on
+                                             && root.brightnessSupported
                                              && root.brightness !== root.appliedBrightness))
 
     readonly property string livePreview:
@@ -45,14 +49,14 @@ Rectangle {
         function onMonitorClosed(direction) {
             if (direction !== root.direction && direction !== "all") return
             root.on = false
-            root.imagePath = ""
-            root.appliedImagePath = ""
+            root.configUrl = ""
+            root.appliedConfigUrl = ""
+            root.patternType = ""
         }
 
         function onPatternShown(direction, width, height, imagePath) {
             if (direction !== root.direction) return
-            root.imagePath = imagePath
-            root.appliedImagePath = imagePath
+            root.appliedConfigUrl = root.configUrl
             root.on = true
         }
 
@@ -101,8 +105,8 @@ Rectangle {
             StatusDot {
                 Layout.alignment: Qt.AlignVCenter
                 status: !root.on ? ProbeStatus.Failed
-                      : (root.livePreview || root.appliedImagePath) ? ProbeStatus.Ok
-                                                                    : ProbeStatus.Unknown
+                      : root.livePreview ? ProbeStatus.Ok
+                                         : ProbeStatus.Unknown
             }
         }
 
@@ -114,9 +118,7 @@ Rectangle {
             Layout.minimumWidth:  Theme.minMonitorPreviewWidth
             Layout.minimumHeight: Theme.minMonitorPreviewHeight
 
-            source: root.livePreview ? root.livePreview
-                  : root.appliedImagePath ? "file://" + root.appliedImagePath
-                                          : ""
+            source: root.livePreview
             emptyText: root.on ? qsTr("No image") : qsTr("Off")
             pickEnabled: false
             opacity: root.on ? 1 : 0.35
@@ -130,7 +132,7 @@ Rectangle {
             spacing: Theme.labelSpacing
 
             Label {
-                text: qsTr("Img path")
+                text: qsTr("Pattern")
                 color: Theme.textCaption
                 font.pixelSize: Theme.captionFontSize
             }
@@ -139,12 +141,17 @@ Rectangle {
                 id: pathField
 
                 Layout.fillWidth: true
-                text: root.imagePath
+                readOnly: true
+                text: root.configPath
+                placeholderText: qsTr("No pattern file loaded")
                 color: Theme.textPrimary
+                placeholderTextColor: Theme.textDisabled
                 font.pixelSize: Theme.captionFontSize
                 selectByMouse: true
 
-                onEditingFinished: root.imagePath = text
+                ToolTip.visible: hovered && root.configPath.length > 0
+                ToolTip.delay: Theme.animSlow
+                ToolTip.text: root.configPath
 
                 background: Rectangle {
                     implicitHeight: Theme.controlHeight
@@ -157,6 +164,10 @@ Rectangle {
             ActionButton {
                 text: qsTr("Browse...")
                 onClicked: root.browseRequested()
+
+                ToolTip.visible: hovered
+                ToolTip.delay: Theme.animSlow
+                ToolTip.text: qsTr("Load a pattern JSON. The rig renders it at this panel's own resolution, and keeps the layers so a Negative shot can be produced from them.")
             }
         }
 

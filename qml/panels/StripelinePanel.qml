@@ -334,10 +334,7 @@ Rectangle {
                 Item { Layout.fillWidth: true }
             }
 
-            // ---- table ----
-            // Single source of truth for column widths: both the header row below
-            // and every StripelineLayerRow delegate bind to these same values, so
-            // they can never drift apart.
+            // table, single source of truth for column widths: both the header row below and every StripelineLayerRow delegate bind to these same values.
             QtObject {
                 id: tableColumns
                 readonly property int noWidth:     Math.round(Theme.charUnit * 2.5)

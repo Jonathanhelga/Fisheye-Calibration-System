@@ -32,6 +32,9 @@ Window {
     property alias stripeline:  stripelinePanel
     property alias chessboard: chessboardPanel
 
+    property url fourSideUrl
+    property string fourSideType: ""
+
     readonly property real patternPanelWidth: Math.max(concentricPanel.minimumWidth,
                                                        stripelinePanel.minimumWidth,
                                                        chessboardPanel.minimumWidth)
@@ -61,6 +64,46 @@ Window {
         PatternController.showOnMonitor(direction, JSON.stringify(target.specJson()))
     }
 
+    function readPatternDoc(fileUrl) {
+        const name = decodeURIComponent(String(fileUrl).split("/").pop())
+
+        const text = PatternIo.readText(fileUrl)
+        if (text.length === 0) {
+            toast.show(qsTr("Load failed: %1").arg(PatternIo.lastError), true)
+            return null
+        }
+
+        try {
+            return JSON.parse(text)
+        } catch (error) {
+            toast.show(qsTr("Load failed: %1 is not valid JSON").arg(name), true)
+            return null
+        }
+    }
+
+    function panelForType(patternType) {
+        if (patternType === concentricPanel.patternType) return concentricPanel
+        if (patternType === stripelinePanel.patternType) return stripelinePanel
+        return null
+    }
+
+    function loadPatternFile(fileUrl) {
+        const name = decodeURIComponent(String(fileUrl).split("/").pop())
+
+        const doc = root.readPatternDoc(fileUrl)
+        if (!doc) return null
+
+        const panel = root.panelForType(String(doc["pattern type"]))
+        if (!panel || !panel.loadConfig(doc)) {
+            toast.show(qsTr("%1 is not a concentric or stripeline pattern file").arg(name), true)
+            return null
+        }
+
+        root.mode = panel === concentricPanel ? root.concentricMode : root.stripelineMode
+        toast.show(qsTr("Loaded %1").arg(name), false)
+        return panel
+    }
+
     function saveImage(target) {
         saveImageDialog.target = target
         saveImageDialog.selectedFile = target.patternType + ".png"
@@ -71,8 +114,13 @@ Window {
         monitorViewer.turnOffFourSides()
     }
 
-    function applyImageToFourSides() {
-        monitorViewer.applyImageToFourSides(fourSidePathField.text)
+    function applyPatternToFourSides() {
+        if (!root.fourSideType) {
+            toast.show(qsTr("Browse a pattern JSON for N / W / S / E first"), true)
+            return
+        }
+
+        monitorViewer.applyPatternToFourSides(root.fourSideUrl, root.fourSideType)
     }
 
     ScaledCanvas {
@@ -246,7 +294,7 @@ Window {
                             spacing: Theme.labelSpacing
 
                             Label {
-                                text: qsTr("Apply image to N/W/S/E:")
+                                text: qsTr("Apply pattern to N/W/S/E:")
                                 color: Theme.textCaption
                                 font.pixelSize: Theme.captionFontSize
                             }
@@ -254,7 +302,11 @@ Window {
                             TextField {
                                 id: fourSidePathField
                                 Layout.fillWidth: true
+                                readOnly: true
+                                text: PatternIo.localPath(root.fourSideUrl)
+                                placeholderText: qsTr("No pattern file loaded")
                                 color: Theme.textPrimary
+                                placeholderTextColor: Theme.textDisabled
                                 font.pixelSize: Theme.captionFontSize
                                 selectByMouse: true
 
@@ -268,13 +320,13 @@ Window {
 
                             ActionButton {
                                 text: qsTr("Browse...")
-                                onClicked: fourSideImageDialog.open()
+                                onClicked: fourSidePatternDialog.open()
                             }
 
                             ActionButton {
                                 text: qsTr("Apply to 4 Sides")
                                 tone: "accent"
-                                onClicked: root.applyImageToFourSides()
+                                onClicked: root.applyPatternToFourSides()
                             }
                         }
 
@@ -282,6 +334,19 @@ Window {
                             id: monitorViewer
                             Layout.fillWidth: true
                             Layout.fillHeight: true
+
+                            onPatternFileChosen: (slot, fileUrl) => {
+                                const panel = root.loadPatternFile(fileUrl)
+                                if (!panel) return
+
+                                slot.configUrl = fileUrl
+                                slot.patternType = panel.patternType
+                            }
+
+                            onPatternPushRequested: (slot) => {
+                                const panel = root.panelForType(slot.patternType)
+                                if (panel) root.showOnMonitor(panel, slot.direction)
+                            }
                         }
                     }
                 }
@@ -312,19 +377,8 @@ Window {
             const source = importDialog.selectedFile
             const name = decodeURIComponent(String(source).split("/").pop())
 
-            const text = PatternIo.readText(source)
-            if (text.length === 0) {
-                toast.show(qsTr("Import failed: %1").arg(PatternIo.lastError), true)
-                return
-            }
-
-            let doc = null
-            try {
-                doc = JSON.parse(text)
-            } catch (error) {
-                toast.show(qsTr("Import failed: %1 is not valid JSON").arg(name), true)
-                return
-            }
+            const doc = root.readPatternDoc(source)
+            if (!doc) return
 
             if (!importDialog.target.loadConfig(doc)) {
                 toast.show(qsTr("Import failed: %1 is not a %2 pattern file")
@@ -391,20 +445,21 @@ Window {
     }
 
     FileDialog {
-        id: fourSideImageDialog
+        id: fourSidePatternDialog
 
-        title: qsTr("Choose pattern image for N / W / S / E")
+        title: qsTr("Choose pattern JSON for N / W / S / E")
         fileMode: FileDialog.OpenFile
-        nameFilters: [qsTr("Images (*.png *.jpg *.jpeg *.bmp)"), qsTr("All files (*)")]
+        nameFilters: [qsTr("Pattern JSON (*.json)"), qsTr("All files (*)")]
 
-        Component.onCompleted: fourSideImageDialog.currentFolder = PatternIo.defaultImageDirectory
+        Component.onCompleted: fourSidePatternDialog.currentFolder = PatternIo.defaultDirectory
 
         onAccepted: {
-            const path = PatternIo.localPath(fourSideImageDialog.selectedFile)
-            if (!path) return
+            const panel = root.loadPatternFile(fourSidePatternDialog.selectedFile)
+            if (!panel) return
 
-            console.log("[Pattern And Monitor] 4-Side image picked " + path)
-            fourSidePathField.text = path
+            root.fourSideUrl = fourSidePatternDialog.selectedFile
+            root.fourSideType = panel.patternType
+            console.log("[Pattern And Monitor] 4-Side pattern picked " + root.fourSideUrl)
         }
     }
 
