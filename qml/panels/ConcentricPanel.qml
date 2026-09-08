@@ -145,6 +145,13 @@ Rectangle {
         if (!PatternConfig.isConfigFor(doc, panel))
             return false
 
+        // Held at "custom" while the envelope's colours land, so the
+        // positiveColor/negativeColor changes it makes do not fire
+        // refreshPattern() and repaint rows the loop below is about to rewrite.
+        // Without this an import repaints the whole table once for nothing and
+        // bumps layerRevision an extra time, firing a spurious auto-render.
+        panel.colorPolarity = "custom"
+
         PatternConfig.applyConfigEnvelope(doc, panel)
         const derived = doc.pos_neg_color === true
 
@@ -349,11 +356,16 @@ Rectangle {
                 ActionButton {
                     Layout.fillWidth: true
                     text: qsTr("( + ) Positive Pattern")
+                    // Lit while the table still holds that generated
+                    // alternation, so which polarity is loaded is visible
+                    // rather than something you have to remember.
+                    checked: panel.colorPolarity === "positive"
                     onClicked: panel.applyPositivePattern()
                 }
                 ActionButton {
                     Layout.fillWidth: true
                     text: qsTr("( - ) Negative Pattern")
+                    checked: panel.colorPolarity === "negative"
                     onClicked: panel.applyNegativePattern()
                 }
             }

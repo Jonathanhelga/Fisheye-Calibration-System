@@ -350,6 +350,11 @@ Window {
                             ActionButton {
                                 text: qsTr("Apply to 4 Sides")
                                 tone: "accent"
+                                // Nothing to push without a path, and nowhere to
+                                // push it without a link -- pressing it in either
+                                // state did nothing and said nothing.
+                                enabled: fourSidePathField.text.length > 0
+                                         && MonitorController.status === ProbeStatus.Ok
                                 onClicked: root.applyImageToFourSides()
                             }
                         }

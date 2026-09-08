@@ -322,12 +322,14 @@ Rectangle {
                 spacing: Theme.rowSpacing
                 ActionButton {
                     Layout.fillWidth: true
-                    text: qsTr("Positive ( + ) Pattern")
+                    text: qsTr("( + ) Positive Pattern")
+                    checked: panel.colorPolarity === "positive"
                     onClicked: panel.applyPositivePattern()
                 }
                 ActionButton {
                     Layout.fillWidth: true
-                    text: qsTr("Negative ( - ) Pattern")
+                    text: qsTr("( - ) Negative Pattern")
+                    checked: panel.colorPolarity === "negative"
                     onClicked: panel.applyNegativePattern()
                 }
             }
