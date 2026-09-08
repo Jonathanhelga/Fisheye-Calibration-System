@@ -69,7 +69,6 @@ Rectangle {
 
     signal captureRequested(string mode)
     signal pairRequested()
-    signal browseRequested()
     signal directionDiffRequested()
     signal centerPicked(string mode, int x, int y)
     signal fovEdited(int value)
@@ -213,12 +212,6 @@ Rectangle {
                     ToolTip.delay: Theme.animSlow
                 }
             }
-
-            ActionButton {
-                text: qsTr("Open Img")
-                enabled: !root.busy
-                onClicked: root.browseRequested()
-            }
         }
 
         RowLayout {
@@ -257,13 +250,13 @@ Rectangle {
                 value: preview.loaded ? Math.round(preview.zoom * 100) + "%" : "?"
             }
 
-            LabeledField {
-                Layout.fillWidth: false
-                Layout.preferredWidth: Theme.charUnit * 12
-                Layout.maximumWidth: Theme.charUnit * 12
+            AxisReadout {
+                Layout.fillWidth: true
                 visible: root.checkMode
                 label: qsTr("Check Radius")
-                text: root.checkRadius
+                fieldWidth: Theme.charUnit * 12
+                editable: true
+                value: root.checkRadius
                 validator: IntValidator { bottom: 8; top: 9999 }
                 onEdited: (value) => root.checkRadius = parseInt(value)
             }

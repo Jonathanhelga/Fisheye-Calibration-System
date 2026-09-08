@@ -73,6 +73,7 @@ ApplicationWindow {
                                                                                        : "single"
 
                     property string awaitingPolarity: ""
+                    property string pairStage: ""
                     property string patternError: ""
 
                     readonly property var frameSize: CameraController.frameSizes[camera.slotKey]
@@ -105,9 +106,16 @@ ApplicationWindow {
                     onCenterYChanged: camera.refreshFold()
                     onSlotKeyChanged: camera.refreshFold()
 
+                    onPairRequested: {
+                        camera.pairStage = "positive"
+                        camera.requestCapture("Positive")
+                    }
+
                     onCaptureRequested: (mode) => {
                         camera.patternError = ""
                         patternSettle.stop()
+                        if (camera.pairStage !== "" && mode.toLowerCase() !== camera.pairStage)
+                            camera.pairStage = ""
                         if (mode === "") {
                             camera.awaitingPolarity = ""
                             CameraController.capture("")
@@ -140,6 +148,7 @@ ApplicationWindow {
                             } else {
                                 camera.patternError = message
                                 camera.awaitingPolarity = ""
+                                camera.pairStage = ""
                             }
                         }
                     }
@@ -148,11 +157,21 @@ ApplicationWindow {
                         target: CameraController
 
                         function onCaptured(slot, ok, message) {
-                            if (!ok) return
+                            if (!ok) {
+                                camera.pairStage = ""
+                                return
+                            }
                             const stamp = Qt.formatTime(new Date(), "HH:mm:ss")
                             if (slot === "positive") camera.positiveTime = stamp
                             else if (slot === "negative") camera.negativeTime = stamp
                             camera.refreshFold()
+                            if (camera.pairStage !== slot) return
+                            if (slot === "positive") {
+                                camera.pairStage = "negative"
+                                camera.requestCapture("Negative")
+                            } else {
+                                camera.pairStage = ""
+                            }
                         }
                     }
 
