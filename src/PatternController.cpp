@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <mutex>
 #include <thread>
+#include <vector>
 
 #ifdef FISHEYE_ROS_ENABLED
 #include <chrono>
@@ -23,12 +24,14 @@
 
 #include "moil_interfaces/srv/close_pattern.hpp"
 #include "moil_interfaces/srv/monitor_command.hpp"
+#include "moil_interfaces/srv/prepare_patterns.hpp"
 #include "moil_interfaces/srv/render_for_direction.hpp"
 #include "moil_interfaces/srv/set_brightness.hpp"
 #include "moil_interfaces/srv/set_display_direction.hpp"
 #include "moil_interfaces/srv/render_pattern.hpp"
 #include "moil_interfaces/srv/show_pattern.hpp"
 #include "moil_interfaces/srv/show_pattern_spec.hpp"
+#include "moil_interfaces/srv/show_prepared.hpp"
 #endif
 
 namespace {
@@ -43,6 +46,8 @@ constexpr char kCloseService[] = "/monitor/close_pattern";
 constexpr char kBrightnessService[] = "/monitor/set_brightness";
 constexpr char kMonitorCommandService[] = "/monitor/command";
 constexpr char kSetDirectionService[] = "/monitor/set_display_direction";
+constexpr char kPrepareService[] = "/monitor/prepare_patterns";
+constexpr char kShowPreparedService[] = "/monitor/show_prepared";
 
 constexpr int kSlotPreviewMaxSide = 640;
 
@@ -52,6 +57,9 @@ constexpr int kSpinSliceMs = 100;
 constexpr int kRenderTimeoutMs = 15000;
 constexpr int kShowTimeoutMs = 15000;
 constexpr int kDisplaySetupTimeoutMs = 30000;
+constexpr int kPrepareTimeoutMs = 60000;
+
+QString prepareKey() { return QStringLiteral("prepare"); }
 
 QMutex previewMutex;
 QHash<QString, QImage> previewImages;
@@ -70,6 +78,12 @@ public:
 };
 
 #ifdef FISHEYE_ROS_ENABLED
+std::vector<std::int32_t> rgbOf(const QColor &color) {
+    if (!color.isValid()) return {};
+    return {static_cast<std::int32_t>(color.red()), static_cast<std::int32_t>(color.green()),
+            static_cast<std::int32_t>(color.blue())};
+}
+
 QString describeMissingService(rclcpp::Node &node, int domainId) {
     const QString name = QString::fromLatin1(kRenderService);
     const auto services = node.get_service_names_and_types();
@@ -107,6 +121,8 @@ struct PatternController::Impl {
     rclcpp::Client<moil_interfaces::srv::SetBrightness>::SharedPtr brightnessClient;
     rclcpp::Client<moil_interfaces::srv::MonitorCommand>::SharedPtr commandClient;
     rclcpp::Client<moil_interfaces::srv::SetDisplayDirection>::SharedPtr directionMapClient;
+    rclcpp::Client<moil_interfaces::srv::PreparePatterns>::SharedPtr prepareClient;
+    rclcpp::Client<moil_interfaces::srv::ShowPrepared>::SharedPtr showPreparedClient;
 #endif
 };
 
@@ -237,6 +253,29 @@ void PatternController::applyDisplaySetup(bool ok, const QString &message, quint
     emit displaySetupReplied(ok, message);
 }
 
+void PatternController::applyPrepare(bool ok, const QStringList &prepared, const QString &directory,
+                                     const QString &message, quint64 token, quint64 generation) {
+    if (generation != d_->generation.load() || token != prepareToken_) return;
+
+    ++prepareToken_;
+    pending_.remove(prepareKey());
+    updateBusy();
+
+    setLastError(ok ? QString() : message);
+    emit patternsPrepared(ok, prepared, directory, message);
+}
+
+void PatternController::applyShowPrepared(const QString &polarity, bool ok,
+                                          const QStringList &shown, const QString &message,
+                                          quint64 token, quint64 generation) {
+    if (generation != d_->generation.load() || token != showPreparedToken_) return;
+
+    ++showPreparedToken_;
+
+    setLastError(ok ? QString() : message);
+    emit preparedShown(ok, polarity, shown, message);
+}
+
 void PatternController::connectTo(int domainId) {
     stopWorker();
 
@@ -296,6 +335,8 @@ void PatternController::connectTo(int domainId) {
             auto brightness = node->create_client<moil_interfaces::srv::SetBrightness>(kBrightnessService);
             auto command = node->create_client<moil_interfaces::srv::MonitorCommand>(kMonitorCommandService);
             auto directionMap = node->create_client<moil_interfaces::srv::SetDisplayDirection>(kSetDirectionService);
+            auto prepare = node->create_client<moil_interfaces::srv::PreparePatterns>(kPrepareService);
+            auto showPrepared = node->create_client<moil_interfaces::srv::ShowPrepared>(kShowPreparedService);
 
             const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(kServiceWaitMs);
             bool ready = false;
@@ -319,6 +360,8 @@ void PatternController::connectTo(int domainId) {
                     d_->brightnessClient = brightness;
                     d_->commandClient = command;
                     d_->directionMapClient = directionMap;
+                    d_->prepareClient = prepare;
+                    d_->showPreparedClient = showPrepared;
                 }
                 post(ProbeStatus::Ok, QString());
 
@@ -333,6 +376,8 @@ void PatternController::connectTo(int domainId) {
                 d_->brightnessClient.reset();
                 d_->commandClient.reset();
                 d_->directionMapClient.reset();
+                d_->prepareClient.reset();
+                d_->showPreparedClient.reset();
             }
         } catch (const std::exception &error) {
             post(ProbeStatus::Failed, QString::fromUtf8(error.what()));
@@ -612,6 +657,163 @@ void PatternController::showImageOnMonitor(const QString &direction, const QStri
         ++showTokens_[direction];
         setLastError(tr("no reply from %1 within %2 s")
                          .arg(QString::fromLatin1(kShowImageService))
+                         .arg(kShowTimeoutMs / 1000));
+    });
+#endif
+}
+
+void PatternController::preparePatterns(const QString &specConcentric,
+                                        const QString &specStripeline, const QColor &positive,
+                                        const QColor &negative) {
+    if (status_ != ProbeStatus::Ok) {
+        setLastError(tr("not connected to the rig, press ROS Update first"));
+        return;
+    }
+    if (specConcentric.trimmed().isEmpty() && specStripeline.trimmed().isEmpty()) {
+        setLastError(tr("there is no pattern to prepare"));
+        return;
+    }
+
+#ifndef FISHEYE_ROS_ENABLED
+    Q_UNUSED(positive)
+    Q_UNUSED(negative)
+    setLastError(tr("this build has no ROS 2 support"));
+#else
+    rclcpp::Client<moil_interfaces::srv::PreparePatterns>::SharedPtr client;
+    {
+        std::lock_guard<std::mutex> lock(d_->clientMutex);
+        client = d_->prepareClient;
+    }
+    if (!client) {
+        setLastError(tr("the pattern link is up but the client is gone"));
+        return;
+    }
+    if (!client->service_is_ready()) {
+        setLastError(tr("nothing is serving %1 on domain %2 "
+                        "(wrong domain, wrong subnet, or the monitor node is not running)")
+                         .arg(QString::fromLatin1(kPrepareService), QString::number(domainId_)));
+        return;
+    }
+
+    setLastError(QString());
+
+    const quint64 generation = d_->generation.load();
+    const quint64 token = ++prepareToken_;
+    pending_.insert(prepareKey());
+    updateBusy();
+
+    auto request = std::make_shared<moil_interfaces::srv::PreparePatterns::Request>();
+    request->spec_concentric = specConcentric.toStdString();
+    request->spec_stripeline = specStripeline.toStdString();
+    const std::vector<std::int32_t> positiveRgb = rgbOf(positive);
+    const std::vector<std::int32_t> negativeRgb = rgbOf(negative);
+    request->positive_rgb.assign(positiveRgb.begin(), positiveRgb.end());
+    request->negative_rgb.assign(negativeRgb.begin(), negativeRgb.end());
+
+    client->async_send_request(
+        request,
+        [this, generation,
+         token](rclcpp::Client<moil_interfaces::srv::PreparePatterns>::SharedFuture future) {
+            const auto response = future.get();
+
+            if (generation != d_->generation.load()) return;
+
+            QStringList prepared;
+            for (const std::string &name : response->prepared)
+                prepared.append(QString::fromStdString(name));
+
+            QString message = QString::fromStdString(response->message);
+            if (!response->success && message.isEmpty())
+                message = tr("%1 refused to prepare the patterns")
+                              .arg(QString::fromLatin1(kPrepareService));
+
+            QMetaObject::invokeMethod(this, "applyPrepare", Qt::QueuedConnection,
+                                      Q_ARG(bool, response->success),
+                                      Q_ARG(QStringList, prepared),
+                                      Q_ARG(QString, QString::fromStdString(response->directory)),
+                                      Q_ARG(QString, message), Q_ARG(quint64, token),
+                                      Q_ARG(quint64, generation));
+        });
+
+    QTimer::singleShot(kPrepareTimeoutMs, this, [this, generation, token] {
+        if (generation != d_->generation.load() || token != prepareToken_) return;
+        ++prepareToken_;
+        pending_.remove(prepareKey());
+        updateBusy();
+        setLastError(tr("no reply from %1 within %2 s")
+                         .arg(QString::fromLatin1(kPrepareService))
+                         .arg(kPrepareTimeoutMs / 1000));
+    });
+#endif
+}
+
+void PatternController::showPrepared(const QString &polarity) {
+    const QString wanted = polarity.trimmed().toLower();
+    if (wanted != QLatin1String("positive") && wanted != QLatin1String("negative")) {
+        setLastError(tr("polarity must be \"positive\" or \"negative\", not \"%1\"").arg(polarity));
+        return;
+    }
+    if (status_ != ProbeStatus::Ok) {
+        setLastError(tr("not connected to the rig, press ROS Update first"));
+        return;
+    }
+
+#ifndef FISHEYE_ROS_ENABLED
+    setLastError(tr("this build has no ROS 2 support"));
+#else
+    rclcpp::Client<moil_interfaces::srv::ShowPrepared>::SharedPtr client;
+    {
+        std::lock_guard<std::mutex> lock(d_->clientMutex);
+        client = d_->showPreparedClient;
+    }
+    if (!client) {
+        setLastError(tr("the pattern link is up but the client is gone"));
+        return;
+    }
+    if (!client->service_is_ready()) {
+        setLastError(tr("nothing is serving %1 on domain %2 "
+                        "(wrong domain, wrong subnet, or the monitor node is not running)")
+                         .arg(QString::fromLatin1(kShowPreparedService),
+                              QString::number(domainId_)));
+        return;
+    }
+
+    setLastError(QString());
+
+    const quint64 generation = d_->generation.load();
+    const quint64 token = ++showPreparedToken_;
+
+    auto request = std::make_shared<moil_interfaces::srv::ShowPrepared::Request>();
+    request->polarity = wanted.toStdString();
+
+    client->async_send_request(
+        request,
+        [this, generation, token,
+         wanted](rclcpp::Client<moil_interfaces::srv::ShowPrepared>::SharedFuture future) {
+            const auto response = future.get();
+
+            if (generation != d_->generation.load()) return;
+
+            QStringList shown;
+            for (const std::string &direction : response->shown)
+                shown.append(QString::fromStdString(direction));
+
+            QString message = QString::fromStdString(response->message);
+            if (!response->success && message.isEmpty())
+                message = tr("%1 has no prepared %2 pattern, press Update to Monitor first")
+                              .arg(QString::fromLatin1(kShowPreparedService), wanted);
+
+            QMetaObject::invokeMethod(this, "applyShowPrepared", Qt::QueuedConnection,
+                                      Q_ARG(QString, wanted), Q_ARG(bool, response->success),
+                                      Q_ARG(QStringList, shown), Q_ARG(QString, message),
+                                      Q_ARG(quint64, token), Q_ARG(quint64, generation));
+        });
+
+    QTimer::singleShot(kShowTimeoutMs, this, [this, generation, token] {
+        if (generation != d_->generation.load() || token != showPreparedToken_) return;
+        ++showPreparedToken_;
+        setLastError(tr("no reply from %1 within %2 s")
+                         .arg(QString::fromLatin1(kShowPreparedService))
                          .arg(kShowTimeoutMs / 1000));
     });
 #endif

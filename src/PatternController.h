@@ -1,9 +1,11 @@
 #pragma once
 
+#include <QColor>
 #include <QHash>
 #include <QObject>
 #include <QSet>
 #include <QString>
+#include <QStringList>
 #include <QUrl>
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
@@ -41,6 +43,9 @@ public:
     Q_INVOKABLE bool savePreview(const QString &patternType, const QUrl &fileUrl);
     Q_INVOKABLE void showOnMonitor(const QString &direction, const QString &specJson);
     Q_INVOKABLE void showImageOnMonitor(const QString &direction, const QString &imagePath);
+    Q_INVOKABLE void preparePatterns(const QString &specConcentric, const QString &specStripeline,
+                                     const QColor &positive, const QColor &negative);
+    Q_INVOKABLE void showPrepared(const QString &polarity);
     Q_INVOKABLE void refreshDirection(const QString &direction);
     Q_INVOKABLE void closeMonitor(const QString &direction);
     Q_INVOKABLE void setMonitorBrightness(const QString &direction, double brightness);
@@ -57,6 +62,10 @@ signals:
     void monitorClosed(const QString &direction);
     void brightnessApplied(const QString &direction, double brightness);
     void displaySetupReplied(bool ok, const QString &message);
+    void patternsPrepared(bool ok, const QStringList &prepared, const QString &directory,
+                          const QString &message);
+    void preparedShown(bool ok, const QString &polarity, const QStringList &shown,
+                       const QString &message);
 
 private:
     Q_INVOKABLE void applyLink(int status, const QString &message, quint64 generation);
@@ -71,6 +80,10 @@ private:
                                      const QString &message, quint64 token, quint64 generation);
     Q_INVOKABLE void applyDisplaySetup(bool ok, const QString &message, quint64 token,
                                        quint64 generation);
+    Q_INVOKABLE void applyPrepare(bool ok, const QStringList &prepared, const QString &directory,
+                                  const QString &message, quint64 token, quint64 generation);
+    Q_INVOKABLE void applyShowPrepared(const QString &polarity, bool ok, const QStringList &shown,
+                                       const QString &message, quint64 token, quint64 generation);
 
     void setStatus(ProbeStatus::Status status);
     void setLastError(const QString &message);
@@ -89,6 +102,8 @@ private:
     QHash<QString, quint64> closeTokens_;
     QHash<QString, quint64> brightnessTokens_;
     quint64 displaySetupToken_ = 0;
+    quint64 prepareToken_ = 0;
+    quint64 showPreparedToken_ = 0;
     QSet<QString> pending_;
     int domainId_ = 0;
 

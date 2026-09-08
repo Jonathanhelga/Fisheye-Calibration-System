@@ -35,6 +35,8 @@ Window {
     property url fourSideUrl
     property string fourSideType: ""
 
+    property var preparedSpecs: ({})
+
     readonly property real patternPanelWidth: Math.max(concentricPanel.minimumWidth,
                                                        stripelinePanel.minimumWidth,
                                                        chessboardPanel.minimumWidth)
@@ -60,7 +62,26 @@ Window {
                                         target.resolutionH)
     }
 
+    function preparePattern(target) {
+        const concentric = target === concentricPanel
+        if (!concentric && target !== stripelinePanel) return
+
+        const spec = target.specJson()
+        if (!spec.layers || spec.layers.length === 0) return
+
+        const specText = JSON.stringify(spec)
+        const payload = [specText, String(target.positiveColor), String(target.negativeColor)].join("|")
+        if (root.preparedSpecs[target.patternType] === payload) return
+
+        root.preparedSpecs[target.patternType] = payload
+        PatternController.preparePatterns(concentric ? specText : "",
+                                          concentric ? "" : specText,
+                                          target.positiveColor,
+                                          target.negativeColor)
+    }
+
     function showOnMonitor(target, direction) {
+        root.preparePattern(target)
         PatternController.showOnMonitor(direction, JSON.stringify(target.specJson()))
     }
 
@@ -468,6 +489,17 @@ Window {
 
         function onErrorRaised(message) {
             toast.show(message, true)
+        }
+
+        function onStatusChanged() {
+            root.preparedSpecs = ({})
+        }
+
+        function onPatternsPrepared(ok, prepared, directory, message) {
+            if (ok) return
+
+            root.preparedSpecs = ({})
+            toast.show(qsTr("Pos Shot and Neg Shot will refuse to fire: %1").arg(message), true)
         }
 
         function onPatternShown(direction, width, height) {
