@@ -24,6 +24,15 @@ Rectangle {
     property int centerY: -1
     property int roiRadius: 0
     property bool centerLocked: false
+    property bool manualCenter: false
+
+    property bool checkMode: false
+    property int checkRadius: 400
+    property string foldPath: ""
+    property real foldScore: -1
+
+    property int frameWidth: 0
+    property int frameHeight: 0
 
     property alias cameraFov: fovSpin.value
 
@@ -121,6 +130,34 @@ Rectangle {
                 font.pixelSize: Theme.captionFontSize
                 elide: Text.ElideRight
             }
+            
+            ValueSpinBox {
+                id: fovSpin
+
+                label: qsTr("FOV")
+                enabled: false
+                from: 150
+                to: 300
+                value: 180
+
+                onEdited: (value) => root.fovEdited(value)
+
+                ToolTip.visible: hovered
+                ToolTip.delay: Theme.animSlow
+                ToolTip.text: qsTr("Camera field of view in degrees, used during calibration")
+            }
+
+            ActionButton {
+                text: qsTr("Check")
+                enabled: root.imagePath !== "" && root.centerX >= 0
+                checked: root.checkMode
+                onClicked: root.checkMode = !root.checkMode
+
+                ToolTip.visible: hovered
+                ToolTip.delay: Theme.animSlow
+                ToolTip.text: qsTr("Fold the image through the center and subtract. "
+                                 + "Black means centered. Concentric patterns only.")
+            }
 
             ActionButton {
                 text: qsTr("Magnify")
@@ -205,33 +242,36 @@ Rectangle {
             }
             
 
-            ValueSpinBox {
-                id: fovSpin
-
-                label: qsTr("FOV")
-                from: 150
-                to: 300
-                value: 180
-
-                onEdited: (value) => root.fovEdited(value)
-
-                ToolTip.visible: hovered
-                ToolTip.delay: Theme.animSlow
-                ToolTip.text: qsTr("Camera field of view in degrees, used during calibration")
-            }
-
             AxisReadout {
                 Layout.fillWidth: true;
                 label: qsTr("Resolution")
-                fieldWidth: Theme.charUnit * 15
-                value: preview.loaded ? preview.sourceWidth + "x" + preview.sourceHeight: "?"
+                fieldWidth: Theme.charUnit * 12
+                value: preview.loaded ? preview.coordWidth + "x" + preview.coordHeight : "?"
             }
 
             AxisReadout {
                 Layout.fillWidth: true;
+                visible: !root.checkMode
                 label: qsTr("Zoom")
-                fieldWidth: Theme.charUnit * 15
+                fieldWidth: Theme.charUnit * 12
                 value: preview.loaded ? Math.round(preview.zoom * 100) + "%" : "?"
+            }
+
+            LabeledField {
+                Layout.fillWidth: true
+                visible: root.checkMode
+                label: qsTr("Check Radius")
+                text: root.checkRadius
+                validator: IntValidator { bottom: 8; top: 9999 }
+                onEdited: (value) => root.checkRadius = parseInt(value)
+            }
+
+            AxisReadout {
+                Layout.fillWidth: true;
+                visible: root.checkMode
+                label: qsTr("Fold")
+                fieldWidth: Theme.charUnit * 12
+                value: root.foldScore >= 0 ? root.foldScore.toFixed(1) : "?"
             }
         }
 
@@ -242,18 +282,23 @@ Rectangle {
             Layout.fillHeight: true
             Layout.minimumHeight: Theme.unit * 12
 
-            source: root.imageUrl
+            source: root.checkMode && root.foldPath !== "" ? root.foldPath : root.imageUrl
             emptyText: root.patternMode
                 ? qsTr("No %1 shot yet").arg(root.patternMode.toLowerCase())
                 : qsTr("No image. Press Capture.")
 
-            pickEnabled: root.patternMode !== "" && !root.centerLocked
-            hint: pickEnabled ? qsTr("Click to set the %1 center").arg(root.patternMode.toLowerCase())
+            pickEnabled: root.patternMode !== "" && root.manualCenter && !root.checkMode
+            hint: root.checkMode ? qsTr("Fold view. Black means centered.")
+                : pickEnabled ? qsTr("Click to set the %1 center").arg(root.patternMode.toLowerCase())
+                : root.patternMode === "" ? qsTr("Preview only. Switch to Pos or Neg to set the center.")
                 : root.centerLocked ? qsTr("Center is locked. Unlock it in the Centering panel.")
-                                    : qsTr("Preview only. Switch to Pos or Neg to set the center.")
+                                    : qsTr("Set Centering to Manual to click a center.")
 
-            centerX: root.centerX
-            centerY: root.centerY
+            frameWidth: root.checkMode ? 0 : root.frameWidth
+            frameHeight: root.checkMode ? 0 : root.frameHeight
+
+            centerX: root.checkMode ? -1 : root.centerX
+            centerY: root.checkMode ? -1 : root.centerY
             roiRadius: root.roiRadius
 
             onPicked: (x, y) => root.centerPicked(root.patternMode, x, y)
@@ -340,6 +385,9 @@ Rectangle {
 
             pickEnabled: preview.pickEnabled
             hint: preview.hint
+
+            frameWidth: root.frameWidth
+            frameHeight: root.frameHeight
 
             centerX: root.centerX
             centerY: root.centerY

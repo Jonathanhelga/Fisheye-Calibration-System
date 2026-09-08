@@ -21,6 +21,14 @@ Rectangle {
     readonly property bool loaded: image.status === Image.Ready && sourceWidth > 0
     readonly property real zoom: loaded ? image.paintedWidth / sourceWidth : 0
 
+    property int frameWidth: 0
+    property int frameHeight: 0
+
+    readonly property int coordWidth: frameWidth > 0 ? frameWidth : sourceWidth
+    readonly property int coordHeight: frameHeight > 0 ? frameHeight : sourceHeight
+    readonly property real coordScale: loaded && coordWidth > 0 ? image.paintedWidth / coordWidth : 0
+    readonly property real coordToSource: coordWidth > 0 ? sourceWidth / coordWidth : 1
+
     readonly property real padLeft: (width - image.paintedWidth) / 2
     readonly property real padTop: (height - image.paintedHeight) / 2
 
@@ -80,12 +88,12 @@ Rectangle {
         hoverEnabled: true
         cursorShape: root.pickEnabled ? Qt.CrossCursor : Qt.ArrowCursor
 
-        function toSourceX(px) { return Math.floor(px / image.paintedWidth * root.sourceWidth) }
-        function toSourceY(py) { return Math.floor(py / image.paintedHeight * root.sourceHeight) }
+        function toFrameX(px) { return Math.floor(px / image.paintedWidth * root.coordWidth) }
+        function toFrameY(py) { return Math.floor(py / image.paintedHeight * root.coordHeight) }
 
         onPositionChanged: (mouse) => {
-            root.hoverX = toSourceX(mouse.x)
-            root.hoverY = toSourceY(mouse.y)
+            root.hoverX = toFrameX(mouse.x)
+            root.hoverY = toFrameY(mouse.y)
         }
 
         onExited: {
@@ -95,7 +103,7 @@ Rectangle {
 
         onClicked: (mouse) => {
             if (root.pickEnabled)
-                root.picked(toSourceX(mouse.x), toSourceY(mouse.y))
+                root.picked(toFrameX(mouse.x), toFrameY(mouse.y))
         }
     }
 
@@ -153,12 +161,12 @@ Rectangle {
     Item {
         id: roi
 
-        readonly property real half: root.roiRadius * root.zoom
+        readonly property real half: root.roiRadius * root.coordScale
 
         visible: root.hasCenter
 
-        x: root.padLeft + (root.centerX + 0.5) * root.zoom - half
-        y: root.padTop + (root.centerY + 0.5) * root.zoom - half
+        x: root.padLeft + (root.centerX + 0.5) * root.coordScale - half
+        y: root.padTop + (root.centerY + 0.5) * root.coordScale - half
         width: 2 * half
         height: 2 * half
 
@@ -224,8 +232,8 @@ Rectangle {
             transformOrigin: Item.TopLeft
             scale: loupe.pixelScale
 
-            x: loupe.width / 2 - root.hoverX * loupe.pixelScale
-            y: loupe.height / 2 - root.hoverY * loupe.pixelScale
+            x: loupe.width / 2 - root.hoverX * root.coordToSource * loupe.pixelScale
+            y: loupe.height / 2 - root.hoverY * root.coordToSource * loupe.pixelScale
         }
     }
 

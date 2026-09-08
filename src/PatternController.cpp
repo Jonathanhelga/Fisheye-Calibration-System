@@ -749,17 +749,23 @@ void PatternController::preparePatterns(const QString &specConcentric,
 
 void PatternController::showPrepared(const QString &polarity) {
     const QString wanted = polarity.trimmed().toLower();
+
+    auto fail = [this, wanted](const QString &message) {
+        setLastError(message);
+        emit preparedShown(false, wanted, QStringList(), message);
+    };
+
     if (wanted != QLatin1String("positive") && wanted != QLatin1String("negative")) {
-        setLastError(tr("polarity must be \"positive\" or \"negative\", not \"%1\"").arg(polarity));
+        fail(tr("polarity must be \"positive\" or \"negative\", not \"%1\"").arg(polarity));
         return;
     }
     if (status_ != ProbeStatus::Ok) {
-        setLastError(tr("not connected to the rig, press ROS Update first"));
+        fail(tr("not connected to the rig, press ROS Update first"));
         return;
     }
 
 #ifndef FISHEYE_ROS_ENABLED
-    setLastError(tr("this build has no ROS 2 support"));
+    fail(tr("this build has no ROS 2 support"));
 #else
     rclcpp::Client<moil_interfaces::srv::ShowPrepared>::SharedPtr client;
     {
@@ -767,14 +773,13 @@ void PatternController::showPrepared(const QString &polarity) {
         client = d_->showPreparedClient;
     }
     if (!client) {
-        setLastError(tr("the pattern link is up but the client is gone"));
+        fail(tr("the pattern link is up but the client is gone"));
         return;
     }
     if (!client->service_is_ready()) {
-        setLastError(tr("nothing is serving %1 on domain %2 "
-                        "(wrong domain, wrong subnet, or the monitor node is not running)")
-                         .arg(QString::fromLatin1(kShowPreparedService),
-                              QString::number(domainId_)));
+        fail(tr("nothing is serving %1 on domain %2 "
+                "(wrong domain, wrong subnet, or the monitor node is not running)")
+                 .arg(QString::fromLatin1(kShowPreparedService), QString::number(domainId_)));
         return;
     }
 
@@ -809,12 +814,14 @@ void PatternController::showPrepared(const QString &polarity) {
                                       Q_ARG(quint64, token), Q_ARG(quint64, generation));
         });
 
-    QTimer::singleShot(kShowTimeoutMs, this, [this, generation, token] {
+    QTimer::singleShot(kShowTimeoutMs, this, [this, generation, token, wanted] {
         if (generation != d_->generation.load() || token != showPreparedToken_) return;
         ++showPreparedToken_;
-        setLastError(tr("no reply from %1 within %2 s")
-                         .arg(QString::fromLatin1(kShowPreparedService))
-                         .arg(kShowTimeoutMs / 1000));
+        const QString message = tr("no reply from %1 within %2 s")
+                                    .arg(QString::fromLatin1(kShowPreparedService))
+                                    .arg(kShowTimeoutMs / 1000);
+        setLastError(message);
+        emit preparedShown(false, wanted, QStringList(), message);
     });
 #endif
 }

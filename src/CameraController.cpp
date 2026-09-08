@@ -4,6 +4,7 @@
 #include <QImage>
 #include <QMutex>
 #include <QQuickImageProvider>
+#include <QSize>
 #include <QTime>
 #include <QTimer>
 
@@ -29,6 +30,7 @@ constexpr int kServiceWaitMs = 5000;
 constexpr int kWaitSliceMs = 200;
 constexpr int kSpinSliceMs = 100;
 constexpr int kCaptureTimeoutMs = 20000;
+constexpr int kMinFoldRadius = 8;
 
 QMutex frameMutex;
 QHash<QString, QImage> frameImages;
@@ -105,7 +107,8 @@ void CameraController::applyLink(int status, const QString &message, quint64 gen
 }
 
 void CameraController::applyCapture(const QString &slot, bool ok, int width, int height,
-                                    const QString &message, quint64 token, quint64 generation) {
+                                    int frameWidth, int frameHeight, const QString &message,
+                                    quint64 token, quint64 generation) {
     if (generation != d_->generation.load() || token != captureToken_) return;
 
     busy_ = false;
@@ -114,6 +117,9 @@ void CameraController::applyCapture(const QString &slot, bool ok, int width, int
         revisions_.insert(slot, revision);
         frameUrls_.insert(slot,
                           QStringLiteral("image://moilcamera/%1/%2").arg(slot).arg(revision));
+        frameSizes_.insert(slot, frameWidth > 0 && frameHeight > 0
+                                     ? QSize(frameWidth, frameHeight)
+                                     : QSize(width, height));
 
         QString label = tr("capture %1  %2x%3")
                             .arg(QTime::currentTime().toString(QStringLiteral("HH:mm:ss")))
@@ -127,6 +133,87 @@ void CameraController::applyCapture(const QString &slot, bool ok, int width, int
     }
     emit changed();
     emit captured(slot, ok, ok ? QString() : lastError_);
+}
+
+void CameraController::foldCheck(const QString &slot, int cx, int cy, int radius, int gain) {
+    const QString key = slotKey(slot);
+    const QString foldKey = key + QStringLiteral("_fold");
+
+    auto clear = [&] {
+        foldUrls_.remove(key);
+        foldScores_.insert(key, -1.0);
+        emit changed();
+    };
+
+    QImage source;
+    {
+        QMutexLocker locker(&frameMutex);
+        source = frameImages.value(key);
+    }
+    if (source.isNull() || radius <= 0 || cx < 0 || cy < 0) {
+        clear();
+        return;
+    }
+
+    const QSize frame = frameSizes_.value(key).toSize();
+    const double scale =
+        frame.width() > 0 ? double(source.width()) / double(frame.width()) : 1.0;
+
+    const int sx = qRound(cx * scale);
+    const int sy = qRound(cy * scale);
+    if (sx < 0 || sy < 0 || sx >= source.width() || sy >= source.height()) {
+        clear();
+        return;
+    }
+
+    int r = qRound(radius * scale);
+    r = qMin(r, qMin(sx, source.width() - 1 - sx));
+    r = qMin(r, qMin(sy, source.height() - 1 - sy));
+    if (r < kMinFoldRadius) {
+        clear();
+        return;
+    }
+
+    const int n = 2 * r + 1;
+    const QImage patch =
+        source.copy(sx - r, sy - r, n, n).convertToFormat(QImage::Format_Grayscale8);
+    QImage fold(n, n, QImage::Format_Grayscale8);
+
+    const qint64 rr = qint64(r) * r;
+    const int amplify = qMax(1, gain);
+    qint64 sum = 0;
+    qint64 count = 0;
+
+    for (int y = 0; y < n; ++y) {
+        const uchar *row = patch.constScanLine(y);
+        const uchar *mirror = patch.constScanLine(n - 1 - y);
+        uchar *out = fold.scanLine(y);
+        const qint64 dy = qint64(y) - r;
+
+        for (int x = 0; x < n; ++x) {
+            const qint64 dx = qint64(x) - r;
+            if (dx * dx + dy * dy > rr) {
+                out[x] = 0;
+                continue;
+            }
+            const int difference = qAbs(int(row[x]) - int(mirror[n - 1 - x]));
+            out[x] = uchar(qMin(255, difference * amplify));
+            sum += difference;
+            ++count;
+        }
+    }
+
+    {
+        QMutexLocker locker(&frameMutex);
+        frameImages.insert(foldKey, fold);
+    }
+
+    const int revision = revisions_.value(foldKey) + 1;
+    revisions_.insert(foldKey, revision);
+    foldUrls_.insert(key,
+                     QStringLiteral("image://moilcamera/%1/%2").arg(foldKey).arg(revision));
+    foldScores_.insert(key, count > 0 ? double(sum) / double(count) : -1.0);
+    emit changed();
 }
 
 void CameraController::connectTo(int domainId) {
@@ -281,6 +368,7 @@ void CameraController::capture(const QString &slot) {
                                       Q_ARG(QString, key), Q_ARG(bool, ok),
                                       Q_ARG(int, ok ? image.width() : 0),
                                       Q_ARG(int, ok ? image.height() : 0),
+                                      Q_ARG(int, response->width), Q_ARG(int, response->height),
                                       Q_ARG(QString, message), Q_ARG(quint64, token),
                                       Q_ARG(quint64, generation));
         });

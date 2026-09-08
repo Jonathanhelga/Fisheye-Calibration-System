@@ -21,6 +21,9 @@ class CameraController : public QObject {
     Q_PROPERTY(bool busy READ busy NOTIFY changed)
     Q_PROPERTY(QVariantMap frameUrls READ frameUrls NOTIFY changed)
     Q_PROPERTY(QVariantMap frameLabels READ frameLabels NOTIFY changed)
+    Q_PROPERTY(QVariantMap frameSizes READ frameSizes NOTIFY changed)
+    Q_PROPERTY(QVariantMap foldUrls READ foldUrls NOTIFY changed)
+    Q_PROPERTY(QVariantMap foldScores READ foldScores NOTIFY changed)
     Q_PROPERTY(QString lastError READ lastError NOTIFY changed)
 
 public:
@@ -33,10 +36,14 @@ public:
     bool busy() const { return busy_; }
     QVariantMap frameUrls() const { return frameUrls_; }
     QVariantMap frameLabels() const { return frameLabels_; }
+    QVariantMap frameSizes() const { return frameSizes_; }
+    QVariantMap foldUrls() const { return foldUrls_; }
+    QVariantMap foldScores() const { return foldScores_; }
     QString lastError() const { return lastError_; }
 
     Q_INVOKABLE void connectTo(int domainId);
     Q_INVOKABLE void capture(const QString &slot = QString());
+    Q_INVOKABLE void foldCheck(const QString &slot, int cx, int cy, int radius, int gain = 4);
 
 signals:
     void changed();
@@ -45,7 +52,8 @@ signals:
 private:
     Q_INVOKABLE void applyLink(int status, const QString &message, quint64 generation);
     Q_INVOKABLE void applyCapture(const QString &slot, bool ok, int width, int height,
-                                  const QString &message, quint64 token, quint64 generation);
+                                  int frameWidth, int frameHeight, const QString &message,
+                                  quint64 token, quint64 generation);
 
     void stopWorker();
 
@@ -54,6 +62,9 @@ private:
     QHash<QString, int> revisions_;
     QVariantMap frameUrls_;
     QVariantMap frameLabels_;
+    QVariantMap frameSizes_;
+    QVariantMap foldUrls_;
+    QVariantMap foldScores_;
     QString lastError_;
     quint64 captureToken_ = 0;
 

@@ -72,15 +72,59 @@ ApplicationWindow {
                                                    : camera.patternMode === "Negative" ? "negative"
                                                                                        : "single"
 
+                    property string awaitingPolarity: ""
+                    property string patternError: ""
+
+                    readonly property var frameSize: CameraController.frameSizes[camera.slotKey]
+
+                    frameWidth: camera.frameSize ? camera.frameSize.width : 0
+                    frameHeight: camera.frameSize ? camera.frameSize.height : 0
+
                     singlePath:   CameraController.frameUrls["single"]   || ""
                     positivePath: CameraController.frameUrls["positive"] || ""
                     negativePath: CameraController.frameUrls["negative"] || ""
 
                     imageLabel: CameraController.frameLabels[camera.slotKey] || ""
-                    errorText: CameraController.lastError
-                    busy: CameraController.busy
+                    errorText: camera.patternError !== "" ? camera.patternError
+                                                          : CameraController.lastError
+                    busy: CameraController.busy || camera.awaitingPolarity !== ""
 
-                    onCaptureRequested: (mode) => CameraController.capture(mode)
+                    foldPath: CameraController.foldUrls[camera.slotKey] || ""
+                    foldScore: CameraController.foldScores[camera.slotKey] !== undefined
+                             ? CameraController.foldScores[camera.slotKey] : -1
+
+                    function refreshFold() {
+                        if (!camera.checkMode) return
+                        CameraController.foldCheck(camera.slotKey, camera.centerX,
+                                                   camera.centerY, camera.checkRadius)
+                    }
+
+                    onCheckModeChanged: camera.refreshFold()
+                    onCheckRadiusChanged: camera.refreshFold()
+                    onCenterXChanged: camera.refreshFold()
+                    onCenterYChanged: camera.refreshFold()
+                    onSlotKeyChanged: camera.refreshFold()
+
+                    onCaptureRequested: (mode) => {
+                        camera.patternError = ""
+                        if (mode === "") {
+                            CameraController.capture("")
+                            return
+                        }
+                        camera.awaitingPolarity = mode.toLowerCase()
+                        PatternController.showPrepared(camera.awaitingPolarity)
+                    }
+
+                    Connections {
+                        target: PatternController
+
+                        function onPreparedShown(ok, polarity, shown, message) {
+                            if (camera.awaitingPolarity !== polarity) return
+                            if (ok) CameraController.capture(polarity)
+                            else camera.patternError = message
+                            camera.awaitingPolarity = ""
+                        }
+                    }
 
                     Connections {
                         target: CameraController
@@ -90,6 +134,7 @@ ApplicationWindow {
                             const stamp = Qt.formatTime(new Date(), "HH:mm:ss")
                             if (slot === "positive") camera.positiveTime = stamp
                             else if (slot === "negative") camera.negativeTime = stamp
+                            camera.refreshFold()
                         }
                     }
 
@@ -100,6 +145,7 @@ ApplicationWindow {
 
                     roiRadius: centering.centerRoi
                     centerLocked: centering.locked
+                    manualCenter: centering.mode === centering.modeManual
                     centerX: camera.patternMode === "Positive" ? centering.positiveCpx
                            : camera.patternMode === "Negative" ? centering.negativeCpx
                                                                : -1
