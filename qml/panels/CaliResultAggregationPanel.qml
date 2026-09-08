@@ -141,7 +141,7 @@ Rectangle {
                 ActionButton {
                     text: qsTr("Find Min (this round)")
                     tone: "accent"
-                    enabled: !panel.running
+                    enabled: !panel.running && CalibrationController.hasRawIct
                     onClicked: CalibrationController.findMinForRound(
                                    panel.round + 1,
                                    parseFloat(distMin.value), parseFloat(distMax.value))
@@ -149,6 +149,33 @@ Rectangle {
                     ToolTip.visible: hovered
                     ToolTip.delay: Theme.animSlow
                     ToolTip.text: qsTr("Ternary search over one round's distance range.")
+                }
+
+                Item { Layout.fillWidth: true }
+
+                // Scores every ENABLED round together at the base distance. The
+                // per-round number says how tight one round is with itself; this
+                // is the one you judge a whole run on.
+                Label {
+                    text: qsTr("All rounds: %1").arg(CalibrationController.aggregationText !== ""
+                                                     ? CalibrationController.aggregationText
+                                                     : qsTr("-"))
+                    color: Theme.textCaption
+                    font.pixelSize: Theme.captionFontSize
+                }
+
+                ActionButton {
+                    text: qsTr("Aggregate All Rounds")
+                    enabled: !panel.running && !CalibrationController.busy
+                             && CalibrationController.hasRawIct
+                    onClicked: CalibrationController.aggregationAllRounds(
+                                   useWindow.checked,
+                                   parseFloat(xLo.value), parseFloat(xHi.value))
+
+                    ToolTip.visible: hovered
+                    ToolTip.delay: Theme.animSlow
+                    ToolTip.text: qsTr("Scores every enabled round at the base distance, "
+                                     + "honouring the ICT window below.")
                 }
             }
         }

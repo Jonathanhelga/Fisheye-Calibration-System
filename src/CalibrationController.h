@@ -82,6 +82,8 @@ class CalibrationController : public QObject {
 
     // ---- extra plot series --------------------------------------------------
     Q_PROPERTY(QVariantList globalIctAlpha READ globalIctAlpha NOTIFY seriesChanged)
+    Q_PROPERTY(QVariantList roundPoints READ roundPoints NOTIFY roundPointsChanged)
+    Q_PROPERTY(int roundPointsRound READ roundPointsRound NOTIFY roundPointsChanged)
 
     Q_PROPERTY(bool singleDistance READ singleDistance WRITE setSingleDistance NOTIFY optionsChanged)
     Q_PROPERTY(double baseDistance READ baseDistance WRITE setBaseDistance NOTIFY optionsChanged)
@@ -130,6 +132,8 @@ public:
     QVariantList searchSamples() const { return searchSamples_; }
 
     QVariantList globalIctAlpha() const { return globalIctAlpha_; }
+    QVariantList roundPoints() const { return roundPoints_; }
+    int roundPointsRound() const { return roundPointsRound_; }
 
     bool singleDistance() const { return singleDistance_; }
     void setSingleDistance(bool on);
@@ -158,6 +162,11 @@ public:
     Q_INVOKABLE void computeAll();
     Q_INVOKABLE void calculateRound(int round);
     Q_INVOKABLE void aggregationForRound(int round);
+
+    // Every ENABLED round scored together at one distance -- the number you judge
+    // a whole run on, as opposed to how tight a single round is with itself.
+    Q_INVOKABLE void aggregationAllRounds(bool useRange, double xLo, double xHi);
+
     Q_INVOKABLE void cleanNoise(int round);
 
     // Fill a round's ICT columns from the crossings ComputeController just found.
@@ -165,6 +174,10 @@ public:
 
     // ---- the graphs --------------------------------------------------------
     Q_INVOKABLE void updateSeries();
+
+    // One round's ZFL curve on its own, IGNORING its enabled flag -- which is
+    // exactly what you need when deciding whether to disable it.
+    Q_INVOKABLE void fetchRoundPoints(int round);
 
     // ---- the distance searches ---------------------------------------------
     // Ternary search over one round.
@@ -198,6 +211,7 @@ signals:
     void folderChanged();
     void optionsChanged();
     void searchChanged();
+    void roundPointsChanged();
 
 private:
     Q_INVOKABLE void applyLink(int status, const QString &message, quint64 generation);
@@ -310,6 +324,8 @@ private:
     QVariantList searchSamples_;
 
     QVariantList globalIctAlpha_;
+    QVariantList roundPoints_;
+    int roundPointsRound_ = 0;
 
     QSet<quint64> liveTokens_;
     quint64 nextToken_ = 0;

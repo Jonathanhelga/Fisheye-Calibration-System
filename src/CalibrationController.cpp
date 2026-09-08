@@ -586,6 +586,7 @@ void CalibrationController::clearAllTables() {
     alphaFit_.clear();
     zflRounds_.clear();
     globalIctAlpha_.clear();
+    roundPoints_.clear();
     searchSamples_.clear();
     searchSummary_.clear();
     maxIct_ = 0;
@@ -797,6 +798,18 @@ void CalibrationController::sendNextBand() {
                tr("removing noise band %1 of %2").arg(index).arg(bandsFound_));
 }
 
+void CalibrationController::aggregationAllRounds(bool useRange, double xLo, double xHi) {
+    QJsonObject extra;
+    extra[QStringLiteral("base_distance")] = baseDistance_;
+    extra[QStringLiteral("use_range")] = useRange;
+    extra[QStringLiteral("x_lo")] = xLo;
+    extra[QStringLiteral("x_hi")] = xHi;
+    // round is meaningless here -- the op reads round_enabled instead, which
+    // paramsJson always sends.
+    sendCaliOp(QStringLiteral("aggregation_all_rounds_by_distance"), 0, extra,
+               tr("aggregating every enabled round"));
+}
+
 void CalibrationController::cleanNoise(int round) {
     // Two steps on purpose: detect first, then remove each band the detector was
     // confident about. The removal is destructive, so the bands it acts on are
@@ -918,6 +931,9 @@ void CalibrationController::applySeries(const QString &kind, bool ok, const QStr
         alphaFit_ = pointsToVariant(r.value(QStringLiteral("pts")).toArray());
     } else if (kind == QLatin1String("global_ict_alpha")) {
         globalIctAlpha_ = pointsToVariant(r.value(QStringLiteral("pts")).toArray());
+    } else if (kind == QLatin1String("ict_zfl_points")) {
+        roundPoints_ = pointsToVariant(r.value(QStringLiteral("pts")).toArray());
+        emit roundPointsChanged();
     } else if (kind == QLatin1String("alpha_polynomial")) {
         QVariantList coefficients;
         for (const QJsonValue &v : r.value(QStringLiteral("coeffs")).toArray())
@@ -945,6 +961,17 @@ void CalibrationController::updateSeries() {
     sendSeries(QStringLiteral("alpha_polynomial"), {});
     // Every enabled round's (ict, alpha) pooled -- what the Overlap tab draws.
     sendSeries(QStringLiteral("global_ict_alpha"), {});
+}
+
+void CalibrationController::fetchRoundPoints(int round) {
+    if (!ready()) return;
+
+    roundPointsRound_ = round;
+    emit roundPointsChanged();
+
+    QJsonObject extra;
+    extra[QStringLiteral("round")] = round;
+    sendSeries(QStringLiteral("ict_zfl_points"), extra);
 }
 
 // ---- the distance searches (CaliJob) ---------------------------------------

@@ -211,6 +211,37 @@ Rectangle {
                 font.pixelSize: Theme.captionFontSize
             }
 
+            // Which rounds count. round_enabled ships with every request and the
+            // server uses it for the aggregations, the regression fit and the
+            // pooled Overlap -- so without these it silently means "all of them",
+            // including a round you know is bad.
+            Label {
+                Layout.leftMargin: Theme.spaceMd
+                text: qsTr("Use:")
+                color: Theme.textCaption
+                font.pixelSize: Theme.captionFontSize
+            }
+
+            Repeater {
+                model: 10
+
+                CheckBox {
+                    id: roundBox
+
+                    required property int index
+
+                    text: String(roundBox.index + 1)
+                    font.pixelSize: Theme.captionFontSize
+                    checked: CalibrationController.roundEnabled[roundBox.index] !== false
+                    onToggled: CalibrationController.setRoundEnabled(roundBox.index + 1, checked)
+
+                    ToolTip.visible: hovered
+                    ToolTip.delay: Theme.animSlow
+                    ToolTip.text: qsTr("Include round %1 in the aggregations, the regression "
+                                     + "fit and the Overlap plot.").arg(roundBox.index + 1)
+                }
+            }
+
             Item { Layout.fillWidth: true }
 
             ToolField {
@@ -335,7 +366,10 @@ Rectangle {
             ActionButton {
                 text: qsTr("Calculate Result")
                 tone: "accent"
-                enabled: !CalibrationController.busy
+                // hasRawIct is the engine's own "is there anything worth
+                // computing yet". Running the pipeline over an empty table
+                // produced a table of blanks and no explanation.
+                enabled: !CalibrationController.busy && CalibrationController.hasRawIct
                 onClicked: panel.calculateRequested(panel.round)
 
                 ToolTip.visible: hovered

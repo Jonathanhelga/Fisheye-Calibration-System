@@ -27,10 +27,19 @@ Rectangle {
         return given ? given : Theme.curvePalette[index % Theme.curvePalette.length]
     }
 
+    // One round on its own, fetched with ict_zfl_points. That op ignores the
+    // round's enabled flag on purpose -- you need to see a round you have
+    // switched OFF in order to decide whether switching it off was right.
+    readonly property var inspected: CalibrationController.roundPoints
+
     readonly property var curves: {
         const out = []
         for (let r = 0; r < panel.rounds.length; ++r)
             out.push({ color: panel.roundColor(r), points: panel.rounds[r], style: "scatter" })
+        // Drawn last and in the marker colour so it reads on top of the rest
+        // rather than becoming one more indistinguishable scatter.
+        if (panel.inspected.length > 0)
+            out.push({ color: Theme.previewMarker, points: panel.inspected, style: "scatter" })
         return out
     }
 
@@ -94,6 +103,34 @@ Rectangle {
                 text: qsTr("stale -- the table changed")
                 color: Theme.statusPartial
                 font.pixelSize: Theme.captionFontSize
+            }
+
+            Label {
+                text: qsTr("Inspect:")
+                color: Theme.textCaption
+                font.pixelSize: Theme.captionFontSize
+            }
+
+            SegmentedControl {
+                id: inspectRound
+                model: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+            }
+
+            ActionButton {
+                text: qsTr("Show Alone")
+                enabled: !CalibrationController.busy
+                onClicked: CalibrationController.fetchRoundPoints(inspectRound.currentIndex + 1)
+
+                ToolTip.visible: hovered
+                ToolTip.delay: Theme.animSlow
+                ToolTip.text: qsTr("Draw this round on top, in red, even if it is switched off "
+                                 + "-- which is how you tell whether switching it off was right.")
+            }
+
+            ActionButton {
+                text: qsTr("Clear")
+                visible: panel.inspected.length > 0
+                onClicked: CalibrationController.fetchRoundPoints(0)
             }
 
             ActionButton {
