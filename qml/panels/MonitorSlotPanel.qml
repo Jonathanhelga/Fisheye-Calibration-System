@@ -3,36 +3,33 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import FisheyeCaliJojo
 
-// One projector/camera slot in the Monitor Viewer window: preview, image
-// path, and brightness controls for a single direction (TOP, N, W, S, E).
-//
-// Update pushes the current image + brightness to that screen; Turn off asks the
-// rig to close the pattern on it, so the panel returns to its desktop. Turn off
-// deliberately does NOT zero the brightness: brightness is a monitor hardware
-// setting, closing a pattern is a window operation, and conflating them left the
-// screen black afterwards with no way to tell which of the two had happened.
+// One projector/camera slot in the Monitor Viewer window: preview, pattern
+// file, and brightness controls for a single direction (TOP, N, W, S, E).
+// Browse loads a pattern JSON into the panel that owns that pattern type;
+// Update pushes that panel's spec plus brightness to this screen; Turn off asks
+// the rig to close the pattern on it, so the panel returns to its desktop.
 Rectangle {
     id: root
 
     property string label: ""
     property string direction: ""
-    property string imagePath: ""
+    property url configUrl
+    property string patternType: ""
     property alias brightness: brightnessField.value
+    property bool brightnessSupported: true
     property bool on: false
 
-    // What the RIG has, as opposed to what is typed in the boxes. The two drift
-    // apart the moment someone edits a path or a brightness and does not press
-    // Update, and without this the panel looks identical either way -- so an
-    // un-pushed edit reads as a pushed one and the operator shoots against the
-    // wrong screen contents.
-    property string appliedImagePath: ""
+    property url appliedConfigUrl
     property real appliedBrightness: 5
 
-    // Only meaningful while something is actually on the screen. An OFF slot has
-    // nothing applied to differ from, so it advertised unsaved changes forever.
-    readonly property bool pendingChanges: root.on
-        && (root.imagePath !== root.appliedImagePath
-            || root.brightness !== root.appliedBrightness)
+    // toLocalPath, not localPath -- this branch's PatternIo spells it that way.
+    readonly property string configPath: PatternIo.toLocalPath(root.configUrl)
+
+    readonly property bool pendingChanges: PatternController.status === ProbeStatus.Ok
+                                        && (root.configUrl !== root.appliedConfigUrl
+                                         || (root.on
+                                             && root.brightnessSupported
+                                             && root.brightness !== root.appliedBrightness))
 
     readonly property string livePreview:
         root.direction ? (PatternController.previewUrls[root.direction] || "") : ""
@@ -47,48 +44,25 @@ Rectangle {
         root.turnOffRequested()
     }
 
-    // The ON badge follows the rig, not the button press. An Update that the
-    // monitor node refused used to leave the slot reading ON with nothing on the
-    // glass, which is the failure mode this whole panel exists to make visible.
-    //
-    // The brightness is left alone on close -- see the note at the top.
-    Connections {
-        target: MonitorController
-
-        function onImageShown(direction) {
-            if (direction !== root.direction && direction !== "all") return
-            root.on = true
-            root.appliedImagePath = root.imagePath
-        }
-
-        function onPatternClosed(direction) {
-            if (direction !== root.direction && direction !== "all") return
-            root.on = false
-            // Nothing is on the glass any more, so nothing is applied and there
-            // is nothing left to push -- clearing both keeps the panel from
-            // describing a screen it just emptied.
-            root.imagePath = ""
-            root.appliedImagePath = ""
-        }
-
-        function onBrightnessRead(direction, brightness) {
-            if (direction === root.direction) root.appliedBrightness = brightness
-        }
-    }
-
-    // A pattern that reached this screen from the spec editor also changes what
-    // is on the glass, so the slot follows it -- otherwise pushing a pattern and
-    // then looking at the slot shows a stale path with no hint that it is stale.
     Connections {
         target: PatternController
 
+        function onMonitorClosed(direction) {
+            if (direction !== root.direction && direction !== "all") return
+            root.on = false
+            root.configUrl = ""
+            root.appliedConfigUrl = ""
+            root.patternType = ""
+        }
+
         function onPatternShown(direction, width, height, imagePath) {
             if (direction !== root.direction) return
+            root.appliedConfigUrl = root.configUrl
             root.on = true
-            if (imagePath !== "") {
-                root.imagePath = imagePath
-                root.appliedImagePath = imagePath
-            }
+        }
+
+        function onBrightnessApplied(direction, brightness) {
+            if (direction === root.direction) root.appliedBrightness = brightness
         }
     }
 
@@ -114,19 +88,26 @@ Rectangle {
             spacing: Theme.rowSpacing
 
             Label {
-                Layout.fillWidth: true
                 text: root.label
                 font.bold: true
                 font.pixelSize: Theme.fontTitle
                 color: Theme.accent
+            }
+
+            Label {
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignRight
+                text: root.pendingChanges ? qsTr("Press Update") : ""
+                color: Theme.statusPartial
+                font.pixelSize: Theme.captionFontSize
                 elide: Text.ElideRight
             }
 
             StatusDot {
                 Layout.alignment: Qt.AlignVCenter
                 status: !root.on ? ProbeStatus.Failed
-                      : (root.livePreview || root.imagePath) ? ProbeStatus.Ok
-                                                             : ProbeStatus.Unknown
+                      : root.livePreview ? ProbeStatus.Ok
+                                         : ProbeStatus.Unknown
             }
         }
 
@@ -138,11 +119,7 @@ Rectangle {
             Layout.minimumWidth:  Theme.minMonitorPreviewWidth
             Layout.minimumHeight: Theme.minMonitorPreviewHeight
 
-            // PatternIo does the path->URL conversion. "file://" + path is wrong
-            // on Windows -- the drive letter becomes the host and the image just
-            // silently does not load.
-            source: root.livePreview ? root.livePreview
-                                     : PatternIo.toFileUrl(root.imagePath)
+            source: root.livePreview
             emptyText: root.on ? qsTr("No image") : qsTr("Off")
             pickEnabled: false
             opacity: root.on ? 1 : 0.35
@@ -156,7 +133,7 @@ Rectangle {
             spacing: Theme.labelSpacing
 
             Label {
-                text: qsTr("Img path")
+                text: qsTr("Pattern")
                 color: Theme.textCaption
                 font.pixelSize: Theme.captionFontSize
             }
@@ -165,12 +142,17 @@ Rectangle {
                 id: pathField
 
                 Layout.fillWidth: true
-                text: root.imagePath
+                readOnly: true
+                text: root.configPath
+                placeholderText: qsTr("No pattern file loaded")
                 color: Theme.textPrimary
+                placeholderTextColor: Theme.textDisabled
                 font.pixelSize: Theme.captionFontSize
                 selectByMouse: true
 
-                onEditingFinished: root.imagePath = text
+                ToolTip.visible: hovered && root.configPath.length > 0
+                ToolTip.delay: Theme.animSlow
+                ToolTip.text: root.configPath
 
                 background: Rectangle {
                     implicitHeight: Theme.controlHeight
@@ -183,6 +165,10 @@ Rectangle {
             ActionButton {
                 text: qsTr("Browse...")
                 onClicked: root.browseRequested()
+
+                ToolTip.visible: hovered
+                ToolTip.delay: Theme.animSlow
+                ToolTip.text: qsTr("Load a pattern JSON. The rig renders it at this panel's own resolution, and keeps the layers so a Negative shot can be produced from them.")
             }
         }
 
@@ -193,35 +179,29 @@ Rectangle {
             ValueSpinBox {
                 id: brightnessField
 
-                // The spin box carries its own caption, so there is no separate
-                // Label here any more.
                 label: qsTr("Brightness")
                 from: 0
                 to: 100
                 value: 5
+                enabled: root.brightnessSupported
+
+                ToolTip.visible: hovered && !root.brightnessSupported
+                ToolTip.delay: Theme.animSlow
+                ToolTip.text: qsTr("Only the TOP panel accepts DDC/CI brightness on this rig.")
             }
 
             Label {
                 text: "%"
-                color: Theme.textCaption
+                color: root.brightnessSupported ? Theme.textCaption : Theme.textDisabled
                 font.pixelSize: Theme.captionFontSize
             }
 
             Item { Layout.fillWidth: true }
 
             ActionButton {
-                // Marked while the boxes differ from what the rig has, so an
-                // edit that was never pushed is visible rather than silent.
-                text: root.pendingChanges ? qsTr("Update *") : qsTr("Update")
-                tone: root.pendingChanges ? "danger" : "accent"
-                enabled: root.imagePath !== "" && !MonitorController.busy
+                text: qsTr("Update")
+                tone: "accent"
                 onClicked: root.updateRequested(root.brightness)
-
-                ToolTip.visible: hovered
-                ToolTip.delay: Theme.animSlow
-                ToolTip.text: root.pendingChanges
-                    ? qsTr("This slot's image or brightness differs from what is on the rig.")
-                    : qsTr("Push this image and brightness to the screen.")
             }
 
             ActionButton {

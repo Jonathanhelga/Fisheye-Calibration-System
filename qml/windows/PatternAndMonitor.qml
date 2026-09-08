@@ -32,16 +32,17 @@ Window {
     property alias stripeline:  stripelinePanel
     property alias chessboard: chessboardPanel
 
+    property url fourSideUrl
+    property string fourSideType: ""
+
+    property var preparedSpecs: ({})
+
     readonly property real patternPanelWidth: Math.max(concentricPanel.minimumWidth,
                                                        stripelinePanel.minimumWidth,
                                                        chessboardPanel.minimumWidth)
     readonly property real patternPanelHeight: Math.max(concentricPanel.minimumHeight,
                                                         stripelinePanel.minimumHeight,
                                                         chessboardPanel.minimumHeight)
-
-    signal fourSideBrowseRequested()
-    signal showNumbersRequested()
-    signal applyMappingRequested(int top, int north, int west, int south, int east)
 
     function importPattern(target) {
         importDialog.target = target
@@ -61,13 +62,67 @@ Window {
                                         target.resolutionH)
     }
 
-    // Auto Update lives in each panel, as an AutoRefresh -- see that control. It
-    // is not driven from here: the panel owns the fingerprint of its own spec,
-    // and a window-level scheduler would have to reach into three different
-    // panels to build one.
+    function preparePattern(target) {
+        const concentric = target === concentricPanel
+        if (!concentric && target !== stripelinePanel) return
+
+        const spec = target.specJson()
+        if (!spec.layers || spec.layers.length === 0) return
+
+        const specText = JSON.stringify(spec)
+        const payload = [specText, String(target.positiveColor), String(target.negativeColor)].join("|")
+        if (root.preparedSpecs[target.patternType] === payload) return
+
+        root.preparedSpecs[target.patternType] = payload
+        PatternController.preparePatterns(concentric ? specText : "",
+                                          concentric ? "" : specText,
+                                          target.positiveColor,
+                                          target.negativeColor)
+    }
 
     function showOnMonitor(target, direction) {
+        root.preparePattern(target)
         PatternController.showOnMonitor(direction, JSON.stringify(target.specJson()))
+    }
+
+    function readPatternDoc(fileUrl) {
+        const name = decodeURIComponent(String(fileUrl).split("/").pop())
+
+        const text = PatternIo.readText(fileUrl)
+        if (text.length === 0) {
+            toast.show(qsTr("Load failed: %1").arg(PatternIo.lastError), true)
+            return null
+        }
+
+        try {
+            return JSON.parse(text)
+        } catch (error) {
+            toast.show(qsTr("Load failed: %1 is not valid JSON").arg(name), true)
+            return null
+        }
+    }
+
+    function panelForType(patternType) {
+        if (patternType === concentricPanel.patternType) return concentricPanel
+        if (patternType === stripelinePanel.patternType) return stripelinePanel
+        return null
+    }
+
+    function loadPatternFile(fileUrl) {
+        const name = decodeURIComponent(String(fileUrl).split("/").pop())
+
+        const doc = root.readPatternDoc(fileUrl)
+        if (!doc) return null
+
+        const panel = root.panelForType(String(doc["pattern type"]))
+        if (!panel || !panel.loadConfig(doc)) {
+            toast.show(qsTr("%1 is not a concentric or stripeline pattern file").arg(name), true)
+            return null
+        }
+
+        root.mode = panel === concentricPanel ? root.concentricMode : root.stripelineMode
+        toast.show(qsTr("Loaded %1").arg(name), false)
+        return panel
     }
 
     function saveImage(target) {
@@ -80,24 +135,13 @@ Window {
         monitorViewer.turnOffFourSides()
     }
 
-    function applyImageToFourSides() {
-        monitorViewer.applyImageToFourSides(fourSidePathField.text)
-    }
+    function applyPatternToFourSides() {
+        if (!root.fourSideType) {
+            toast.show(qsTr("Browse a pattern JSON for N / W / S / E first"), true)
+            return
+        }
 
-    // Render both polarities once and keep them on the rig, which is what makes a
-    // Pos/Neg/Pair shot a lookup and a blit instead of five re-renders per shot.
-    //
-    // The polarity swap is NOT done here. It is the rule that odd layers take the
-    // positive colour and even layers the negative one -- arithmetic over the
-    // operator's design, and therefore the server's job. Sending the two colours
-    // and letting it invert them is what keeps there from being a second
-    // implementation of that rule.
-    function preparePatterns() {
-        MonitorController.preparePatterns(
-            JSON.stringify(concentricPanel.specJson()),
-            JSON.stringify(stripelinePanel.specJson()),
-            concentricPanel.positiveRgb(),
-            concentricPanel.negativeRgb())
+        monitorViewer.applyPatternToFourSides(root.fourSideUrl, root.fourSideType)
     }
 
     ScaledCanvas {
@@ -228,49 +272,11 @@ Window {
                         Layout.fillWidth: true
                         spacing: Theme.rowSpacing
 
-                        StatusDot {
-                            Layout.alignment: Qt.AlignVCenter
-                            status: MonitorController.status
-                        }
-
-                        Label {
-                            Layout.fillWidth: true
-                            Layout.minimumWidth: 0
-                            Layout.preferredWidth: 0
-                            text: MonitorController.lastError !== "" ? MonitorController.lastError
-                                : MonitorController.screensSummary !== ""
-                                    ? MonitorController.screensSummary
-                                    : qsTr("Monitor node not queried yet")
-                            color: MonitorController.lastError !== "" ? Theme.danger
-                                                                     : Theme.textCaption
-                            font.pixelSize: Theme.captionFontSize
-                            elide: Text.ElideRight
-                        }
-
-                        ActionButton {
-                            text: qsTr("Prepare Patterns")
-                            tone: MonitorController.preparedReady ? "accent" : "danger"
-                            enabled: MonitorController.status === ProbeStatus.Ok
-                                     && !MonitorController.busy
-                            onClicked: root.preparePatterns()
-
-                            ToolTip.visible: hovered
-                            ToolTip.delay: Theme.animSlow
-                            ToolTip.text: MonitorController.preparedReady
-                                ? qsTr("Re-render both polarities on the rig. Do this after any "
-                                     + "pattern edit -- a shot taken against a stale prepared "
-                                     + "pattern looks exactly like a good one.")
-                                : qsTr("Required before Pos / Neg / Pair Shot will work. Renders "
-                                     + "the positive and negative patterns once and keeps them "
-                                     + "on the rig.")
-                        }
+                        Item { Layout.fillWidth: true }
 
                         ActionButton {
                             text: qsTr("Setup Monitor Direction")
-                            onClicked: {
-                                MonitorController.describeScreens()
-                                directionDialog.open()
-                            }
+                            onClicked: directionDialog.open()
 
                             ToolTip.visible: hovered
                             ToolTip.delay: Theme.animSlow
@@ -287,20 +293,7 @@ Window {
                             ToolTip.text: qsTr("Turns off North, West, South, and East together. TOP is left as is.")
                         }
 
-                        ActionButton {
-                            text: qsTr("Reconnect")
-                            // describeScreens runs itself once the link comes
-                            // up (see MonitorController::applyLink), so asking
-                            // for it here would only be answered by an early
-                            // return while the status is still Checking.
-                            onClicked: MonitorController.reconnect()
-
-                            ToolTip.visible: hovered
-                            ToolTip.delay: Theme.animSlow
-                            ToolTip.text: qsTr("Tear down and re-open the monitor link on the "
-                                             + "same domain, then re-read which screens the "
-                                             + "server can see.")
-                        }
+                        Item { Layout.fillWidth: true }
                     }
 
                     SectionFrame {
@@ -322,7 +315,7 @@ Window {
                             spacing: Theme.labelSpacing
 
                             Label {
-                                text: qsTr("Apply image to N/W/S/E:")
+                                text: qsTr("Apply pattern to N/W/S/E:")
                                 color: Theme.textCaption
                                 font.pixelSize: Theme.captionFontSize
                             }
@@ -330,7 +323,14 @@ Window {
                             TextField {
                                 id: fourSidePathField
                                 Layout.fillWidth: true
+                                readOnly: true
+                                // toLocalPath, not localPath: this branch's PatternIo
+                                // spells it that way and also carries toFileUrl, which
+                                // the pattern panels need. Same function, one name.
+                                text: PatternIo.toLocalPath(root.fourSideUrl)
+                                placeholderText: qsTr("No pattern file loaded")
                                 color: Theme.textPrimary
+                                placeholderTextColor: Theme.textDisabled
                                 font.pixelSize: Theme.captionFontSize
                                 selectByMouse: true
 
@@ -344,18 +344,13 @@ Window {
 
                             ActionButton {
                                 text: qsTr("Browse...")
-                                onClicked: fourSideDialog.open()
+                                onClicked: fourSidePatternDialog.open()
                             }
 
                             ActionButton {
                                 text: qsTr("Apply to 4 Sides")
                                 tone: "accent"
-                                // Nothing to push without a path, and nowhere to
-                                // push it without a link -- pressing it in either
-                                // state did nothing and said nothing.
-                                enabled: fourSidePathField.text.length > 0
-                                         && MonitorController.status === ProbeStatus.Ok
-                                onClicked: root.applyImageToFourSides()
+                                onClicked: root.applyPatternToFourSides()
                             }
                         }
 
@@ -363,6 +358,19 @@ Window {
                             id: monitorViewer
                             Layout.fillWidth: true
                             Layout.fillHeight: true
+
+                            onPatternFileChosen: (slot, fileUrl) => {
+                                const panel = root.loadPatternFile(fileUrl)
+                                if (!panel) return
+
+                                slot.configUrl = fileUrl
+                                slot.patternType = panel.patternType
+                            }
+
+                            onPatternPushRequested: (slot) => {
+                                const panel = root.panelForType(slot.patternType)
+                                if (panel) root.showOnMonitor(panel, slot.direction)
+                            }
                         }
                     }
                 }
@@ -372,6 +380,7 @@ Window {
 
     StatusToast {
         id: toast
+
 
         anchors.centerIn: parent
         z: 100
@@ -392,19 +401,8 @@ Window {
             const source = importDialog.selectedFile
             const name = decodeURIComponent(String(source).split("/").pop())
 
-            const text = PatternIo.readText(source)
-            if (text.length === 0) {
-                toast.show(qsTr("Import failed: %1").arg(PatternIo.lastError), true)
-                return
-            }
-
-            let doc = null
-            try {
-                doc = JSON.parse(text)
-            } catch (error) {
-                toast.show(qsTr("Import failed: %1 is not valid JSON").arg(name), true)
-                return
-            }
+            const doc = root.readPatternDoc(source)
+            if (!doc) return
 
             if (!importDialog.target.loadConfig(doc)) {
                 toast.show(qsTr("Import failed: %1 is not a %2 pattern file")
@@ -471,29 +469,21 @@ Window {
     }
 
     FileDialog {
-        id: fourSideDialog
+        id: fourSidePatternDialog
 
-        title: qsTr("Image for N / W / S / E")
+        title: qsTr("Choose pattern JSON for N / W / S / E")
         fileMode: FileDialog.OpenFile
-        nameFilters: [qsTr("Images (*.png *.jpg *.jpeg *.bmp)"), qsTr("All files (*)")]
+        nameFilters: [qsTr("Pattern JSON (*.json)"), qsTr("All files (*)")]
 
-        Component.onCompleted: fourSideDialog.currentFolder = PatternIo.defaultImageDirectory
+        Component.onCompleted: fourSidePatternDialog.currentFolder = PatternIo.defaultDirectory
 
         onAccepted: {
-            fourSidePathField.text = PatternIo.toLocalPath(fourSideDialog.selectedFile)
-            root.fourSideBrowseRequested()
-        }
-    }
+            const panel = root.loadPatternFile(fourSidePatternDialog.selectedFile)
+            if (!panel) return
 
-    Connections {
-        target: MonitorController
-
-        function onErrorRaised(message) {
-            toast.show(message, true)
-        }
-
-        function onNotice(message) {
-            toast.show(message, false)
+            root.fourSideUrl = fourSidePatternDialog.selectedFile
+            root.fourSideType = panel.patternType
+            console.log("[Pattern And Monitor] 4-Side pattern picked " + root.fourSideUrl)
         }
     }
 
@@ -504,11 +494,23 @@ Window {
             toast.show(message, true)
         }
 
-        function onPatternShown(direction, width, height, imagePath) {
+        function onStatusChanged() {
+            root.preparedSpecs = ({})
+        }
+
+        function onPatternsPrepared(ok, prepared, directory, message) {
+            console.log("[Pattern And Monitor] prepared " + prepared.join(", ") + " in " + directory)
+            if (ok) return
+
+            root.preparedSpecs = ({})
+            toast.show(qsTr("Pos Shot and Neg Shot will refuse to fire: %1").arg(message), true)
+        }
+
+        function onPatternShown(direction, width, height) {
             toast.show(width > 0 && height > 0
-                       ? qsTr("Pattern shown on %1 at %2 x %3")
+                       ? qsTr("Image sent to %1 at %2 x %3")
                              .arg(direction.toUpperCase()).arg(width).arg(height)
-                       : qsTr("Pattern shown on %1").arg(direction.toUpperCase()),
+                       : qsTr("Image sent to %1").arg(direction.toUpperCase()),
                        false)
         }
     }
@@ -516,21 +518,5 @@ Window {
     MonitorDirectionDialog {
         id: directionDialog
         anchors.centerIn: parent
-
-        // What the SERVER thinks it has, which is the question this dialog
-        // exists to answer -- the operator's own machine's screens are a
-        // different set entirely.
-        statusText: MonitorController.screensSummary
-
-        onShowNumbersRequested: {
-            MonitorController.showDisplayNumbers()
-            root.showNumbersRequested()
-        }
-        // The display numbers travel as TEXT, as the old HTTP API spelled them.
-        onApplyMappingRequested: (top, north, west, south, east) => {
-            MonitorController.setDisplayDirection(String(top), String(north), String(west),
-                                                  String(south), String(east))
-            root.applyMappingRequested(top, north, west, south, east)
-        }
     }
 }

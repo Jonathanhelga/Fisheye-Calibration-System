@@ -1,9 +1,11 @@
 #pragma once
 
+#include <QColor>
 #include <QHash>
 #include <QObject>
 #include <QSet>
 #include <QString>
+#include <QStringList>
 #include <QUrl>
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
@@ -41,7 +43,14 @@ public:
     Q_INVOKABLE bool savePreview(const QString &patternType, const QUrl &fileUrl);
     Q_INVOKABLE void showOnMonitor(const QString &direction, const QString &specJson);
     Q_INVOKABLE void showImageOnMonitor(const QString &direction, const QString &imagePath);
+    Q_INVOKABLE void preparePatterns(const QString &specConcentric, const QString &specStripeline,
+                                     const QColor &positive, const QColor &negative);
+    Q_INVOKABLE void showPrepared(const QString &polarity);
     Q_INVOKABLE void refreshDirection(const QString &direction);
+    Q_INVOKABLE void closeMonitor(const QString &direction);
+    Q_INVOKABLE void setMonitorBrightness(const QString &direction, double brightness);
+    Q_INVOKABLE void showDisplayNumbers();
+    Q_INVOKABLE void applyDisplayDirection(int top, int north, int west, int south, int east);
 
 signals:
     void statusChanged();
@@ -49,14 +58,14 @@ signals:
     void lastErrorChanged();
     void errorRaised(const QString &message);
     void previewChanged();
-    // imagePath is set when the thing shown came from a FILE rather than from a
-    // rendered spec, so a monitor slot can report what is actually on its glass
-    // instead of what was last typed into it. Empty for a spec render.
-    //
-    // monitorClosed and brightnessApplied are deliberately NOT here: closing a
-    // panel and setting its brightness are device operations and live on
-    // MonitorController, which owns the monitor node's device services.
     void patternShown(const QString &direction, int width, int height, const QString &imagePath);
+    void monitorClosed(const QString &direction);
+    void brightnessApplied(const QString &direction, double brightness);
+    void displaySetupReplied(bool ok, const QString &message);
+    void patternsPrepared(bool ok, const QStringList &prepared, const QString &directory,
+                          const QString &message);
+    void preparedShown(bool ok, const QString &polarity, const QStringList &shown,
+                       const QString &message);
 
 private:
     Q_INVOKABLE void applyLink(int status, const QString &message, quint64 generation);
@@ -65,6 +74,16 @@ private:
     Q_INVOKABLE void applyShow(const QString &direction, bool ok, const QString &message, int width,
                                int height, const QString &imagePath, quint64 token,
                                quint64 generation);
+    Q_INVOKABLE void applyClose(const QString &direction, bool ok, const QString &message,
+                                quint64 token, quint64 generation);
+    Q_INVOKABLE void applyBrightness(const QString &direction, double brightness, bool ok,
+                                     const QString &message, quint64 token, quint64 generation);
+    Q_INVOKABLE void applyDisplaySetup(bool ok, const QString &message, quint64 token,
+                                       quint64 generation);
+    Q_INVOKABLE void applyPrepare(bool ok, const QStringList &prepared, const QString &directory,
+                                  const QString &message, quint64 token, quint64 generation);
+    Q_INVOKABLE void applyShowPrepared(const QString &polarity, bool ok, const QStringList &shown,
+                                       const QString &message, quint64 token, quint64 generation);
 
     void setStatus(ProbeStatus::Status status);
     void setLastError(const QString &message);
@@ -79,13 +98,12 @@ private:
     QHash<QString, int> revisions_;
     QHash<QString, quint64> renderTokens_;
     QHash<QString, QString> lastSpecs_;
-    // Per DIRECTION, not one token for the whole controller.
-    //
-    // With a single showToken_, showing a pattern on TOP and then on N dropped
-    // the first reply -- so refreshDirection(TOP) never ran and the TOP slot's
-    // preview kept showing the previous picture while the glass showed the new
-    // one. Two shots in quick succession is the normal way this panel is used.
     QHash<QString, quint64> showTokens_;
+    QHash<QString, quint64> closeTokens_;
+    QHash<QString, quint64> brightnessTokens_;
+    quint64 displaySetupToken_ = 0;
+    quint64 prepareToken_ = 0;
+    quint64 showPreparedToken_ = 0;
     QSet<QString> pending_;
     int domainId_ = 0;
 

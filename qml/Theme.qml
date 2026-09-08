@@ -66,6 +66,7 @@ QtObject {
     readonly property int animSlow: 450
     readonly property int noticeTimeout: 6000
     readonly property int autoUpdateDelay: 1000
+    readonly property int patternSettleDelay: 800
 
     readonly property int panelGap: spaceMd
     readonly property int panelMargin: spaceSm

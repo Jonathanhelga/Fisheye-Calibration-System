@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Dialogs
 import QtQuick.Layouts
 import QtQuick.Window
 import FisheyeCaliJojo
@@ -19,24 +18,6 @@ ApplicationWindow {
     Component.onCompleted: {
         width  = Math.min(Theme.designWidth,  Screen.desktopAvailableWidth)
         height = Math.min(Theme.designHeight, Screen.desktopAvailableHeight)
-        camera.cameraFov = CameraController.fov
-    }
-
-    // Both histogram panels and the ICT extraction need the two centres. They are
-    // taken from the Centering panel, which is where they were established --
-    // either by the auto_center cascade or by hand.
-    function runDirectionDiff() {
-        if (!centering.hasPositiveCenter || !centering.hasNegativeCenter) {
-            toast.show(qsTr("Set both centres first -- press Find in the Centering panel, "
-                          + "or click each shot in Manual mode."), true)
-            return
-        }
-        ComputeController.histogram8Dir(centering.positiveCpx, centering.positiveCpy,
-                                        centering.negativeCpx, centering.negativeCpy,
-                                        centering.noiseCleaning)
-        ComputeController.nodes8Dir(centering.positiveCpx, centering.positiveCpy,
-                                    centering.negativeCpx, centering.negativeCpy,
-                                    centering.noiseCleaning)
     }
 
     ScaledCanvas {
@@ -74,11 +55,12 @@ ApplicationWindow {
 
                     ServerConfigPanel {
                         Layout.fillWidth: true
-                        // One press opens every link. They are separate contexts
-                        // and separate nodes on purpose -- a slow camera capture
-                        // must not block a stop command -- but they all live or
-                        // die with the same Update, so the operator never has a
-                        // half-connected rig to reason about.
+                        // Every controller that owns a ROS context gets connected
+                        // here, and only here -- the app deliberately does not
+                        // connect on startup, so pressing Update is what creates
+                        // them. A controller missing from this list does not fail;
+                        // it sits idle for ever with no message, which reads as a
+                        // dead rig rather than an unwired button.
                         onRosUpdateRequested: (domainId, axisNamespace, monitorNamespace, cameraTopic) => {
                             RosServerProbe.probeAll(domainId, axisNamespace, monitorNamespace, cameraTopic)
                             AxisController.connectTo(domainId, axisNamespace, true)
@@ -95,33 +77,112 @@ ApplicationWindow {
                 CameraPanel {
                     id: camera
 
-                    singlePath:   CameraController.frameUrl
-                    positivePath: CameraController.positiveUrl
-                    negativePath: CameraController.negativeUrl
-                    positiveTime: CameraController.positiveTime
-                    negativeTime: CameraController.negativeTime
+                    readonly property string slotKey: camera.patternMode === "Positive" ? "positive"
+                                                   : camera.patternMode === "Negative" ? "negative"
+                                                                                       : "single"
 
-                    imageLabel: CameraController.frameLabel
-                    errorText: CameraController.lastError
-                    busy: CameraController.busy || CameraController.pairing
-                    pendingMode: CameraController.pendingSlot
-                    pairing: CameraController.pairing
+                    property string awaitingPolarity: ""
+                    property string pairStage: ""
+                    property string patternError: ""
 
-                    // "" is the plain Capture button: grab whatever is on the
-                    // glass. "Positive"/"Negative" are MEASUREMENTS -- they put
-                    // that prepared pattern up first and grab once the monitors
-                    // confirm, so a shot named after a polarity is actually of
-                    // that polarity.
-                    onCaptureRequested: (mode) => {
-                        if (mode === "")
-                            CameraController.capture()
-                        else
-                            CameraController.captureShot(mode)
+                    readonly property var frameSize: CameraController.frameSizes[camera.slotKey]
+
+                    frameWidth: camera.frameSize ? camera.frameSize.width : 0
+                    frameHeight: camera.frameSize ? camera.frameSize.height : 0
+
+                    singlePath:   CameraController.frameUrls["single"]   || ""
+                    positivePath: CameraController.frameUrls["positive"] || ""
+                    negativePath: CameraController.frameUrls["negative"] || ""
+
+                    imageLabel: CameraController.frameLabels[camera.slotKey] || ""
+                    errorText: camera.patternError !== "" ? camera.patternError
+                                                          : CameraController.lastError
+                    busy: CameraController.busy || camera.awaitingPolarity !== ""
+
+                    foldPath: CameraController.foldUrls[camera.slotKey] || ""
+                    foldScore: CameraController.foldScores[camera.slotKey] !== undefined
+                             ? CameraController.foldScores[camera.slotKey] : -1
+
+                    function refreshFold() {
+                        if (!camera.checkMode) return
+                        CameraController.foldCheck(camera.slotKey, camera.centerX,
+                                                   camera.centerY, camera.checkRadius)
                     }
-                    onPairRequested: CameraController.capturePair()
-                    onBrowseRequested: openImageDialog.open()
-                    onDirectionDiffRequested: window.runDirectionDiff()
-                    onFovEdited: (value) => CameraController.fov = value
+
+                    onCheckModeChanged: camera.refreshFold()
+                    onCheckRadiusChanged: camera.refreshFold()
+                    onCenterXChanged: camera.refreshFold()
+                    onCenterYChanged: camera.refreshFold()
+                    onSlotKeyChanged: camera.refreshFold()
+
+                    onPairRequested: {
+                        camera.pairStage = "positive"
+                        camera.requestCapture("Positive")
+                    }
+
+                    onCaptureRequested: (mode) => {
+                        camera.patternError = ""
+                        patternSettle.stop()
+                        if (camera.pairStage !== "" && mode.toLowerCase() !== camera.pairStage)
+                            camera.pairStage = ""
+                        if (mode === "") {
+                            camera.awaitingPolarity = ""
+                            CameraController.capture("")
+                            return
+                        }
+                        camera.awaitingPolarity = mode.toLowerCase()
+                        PatternController.showPrepared(camera.awaitingPolarity)
+                    }
+
+                    Timer {
+                        id: patternSettle
+
+                        interval: Theme.patternSettleDelay
+                        repeat: false
+
+                        onTriggered: {
+                            const polarity = camera.awaitingPolarity
+                            camera.awaitingPolarity = ""
+                            CameraController.capture(polarity)
+                        }
+                    }
+
+                    Connections {
+                        target: PatternController
+
+                        function onPreparedShown(ok, polarity, shown, message) {
+                            if (camera.awaitingPolarity !== polarity) return
+                            if (ok) {
+                                patternSettle.restart()
+                            } else {
+                                camera.patternError = message
+                                camera.awaitingPolarity = ""
+                                camera.pairStage = ""
+                            }
+                        }
+                    }
+
+                    Connections {
+                        target: CameraController
+
+                        function onCaptured(slot, ok, message) {
+                            if (!ok) {
+                                camera.pairStage = ""
+                                return
+                            }
+                            const stamp = Qt.formatTime(new Date(), "HH:mm:ss")
+                            if (slot === "positive") camera.positiveTime = stamp
+                            else if (slot === "negative") camera.negativeTime = stamp
+                            camera.refreshFold()
+                            if (camera.pairStage !== slot) return
+                            if (slot === "positive") {
+                                camera.pairStage = "negative"
+                                camera.requestCapture("Negative")
+                            } else {
+                                camera.pairStage = ""
+                            }
+                        }
+                    }
 
                     Layout.fillWidth: true
                     Layout.fillHeight: true
@@ -130,6 +191,7 @@ ApplicationWindow {
 
                     roiRadius: centering.centerRoi
                     centerLocked: centering.locked
+                    manualCenter: centering.mode === centering.modeManual
                     centerX: camera.patternMode === "Positive" ? centering.positiveCpx
                            : camera.patternMode === "Negative" ? centering.negativeCpx
                                                                : -1
@@ -137,14 +199,37 @@ ApplicationWindow {
                            : camera.patternMode === "Negative" ? centering.negativeCpy
                                                                : -1
 
-                    // The edge ring follows whichever polarity the view is on, so
-                    // the positive radius is never drawn over a negative shot.
-                    edgeVisible: centering.edgeShown(camera.patternMode)
-                    edgeRadius: centering.edgeRadius(camera.patternMode)
-                    edgeThickness: centering.edgeThickness(camera.patternMode)
-                    edgeColor: centering.edgeColor(camera.patternMode)
-
                     onCenterPicked: (mode, x, y) => centering.setCenter(mode, x, y)
+
+                    // Direction Diff: the two 8-direction ops, against the two
+                    // centres. Both histogram panels and the ICT extraction need
+                    // those centres, and they are taken from the Centering panel
+                    // because that is where they were established -- either by the
+                    // auto_center cascade or by hand in Manual mode.
+                    //
+                    // Refused rather than defaulted when a centre is missing. A
+                    // centre of (-1,-1) is what "no centre" looks like here, and
+                    // running the detection against it returns curves measured
+                    // from the image corner -- plausible-looking numbers that are
+                    // not a measurement of anything.
+                    //
+                    // Reported through patternError, which the panel already shows
+                    // as errorText; this window has no toast.
+                    onDirectionDiffRequested: {
+                        if (!centering.hasPositiveCenter || !centering.hasNegativeCenter) {
+                            camera.patternError =
+                                qsTr("Set both centres first -- press Find in the Centering "
+                                   + "panel, or click each shot in Manual mode.")
+                            return
+                        }
+                        camera.patternError = ""
+                        ComputeController.histogram8Dir(centering.positiveCpx, centering.positiveCpy,
+                                                        centering.negativeCpx, centering.negativeCpy,
+                                                        centering.noiseCleaning)
+                        ComputeController.nodes8Dir(centering.positiveCpx, centering.positiveCpy,
+                                                    centering.negativeCpx, centering.negativeCpy,
+                                                    centering.noiseCleaning)
+                    }
                 }
 
                 ColumnLayout {
@@ -164,33 +249,11 @@ ApplicationWindow {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
 
-                        framePath:  CameraController.liveUrl
-                        streaming:  CameraController.streaming
-                        receiving:  CameraController.receiving
-                        fps:        CameraController.fps
-                        linkStatus: CameraController.status
-
-                        onStartRequested: CameraController.startStream()
-                        onStopRequested: CameraController.stopStream()
-                        // A preview frame kept as the Camera panel image. It came
-                        // off a BEST_EFFORT topic and is labelled as such, so it
-                        // is never mistaken for a measurement.
-                        onSnapshotRequested: CameraController.snapshot()
-
                         roiRadius: centering.centerRoi
                         centerX: centering.hasPositiveCenter ? centering.positiveCpx
                                                              : centering.negativeCpx
                         centerY: centering.hasPositiveCenter ? centering.positiveCpy
                                                              : centering.negativeCpy
-
-                        // Matched to the centre being drawn, positive preferred,
-                        // so the ring and the cross always describe one polarity.
-                        readonly property string edgeSide: centering.hasPositiveCenter
-                                                             ? "Positive" : "Negative"
-                        edgeVisible: centering.edgeShown(live.edgeSide)
-                        edgeRadius: centering.edgeRadius(live.edgeSide)
-                        edgeThickness: centering.edgeThickness(live.edgeSide)
-                        edgeColor: centering.edgeColor(live.edgeSide)
                     }
 
                     CenteringPanel {
@@ -302,59 +365,5 @@ ApplicationWindow {
 
     PatternAndMonitor {
         id: patternAndMonitor
-
-        // The mapping itself is applied inside that window, which owns the
-        // monitor link. This is the record for anything in the main window that
-        // needs to know the screens were remapped.
-        onApplyMappingRequested: (top, north, west, south, east) => {
-            toast.show(qsTr("Display mapping sent: TOP=%1 N=%2 W=%3 S=%4 E=%5")
-                       .arg(top).arg(north).arg(west).arg(south).arg(east), false)
-        }
-    }
-
-    StatusToast {
-        id: toast
-
-        anchors.centerIn: parent
-        z: 100
-    }
-
-    FileDialog {
-        id: openImageDialog
-
-        title: qsTr("Open an image into the %1 slot")
-                   .arg(camera.patternMode === "" ? qsTr("single") : camera.patternMode.toLowerCase())
-        fileMode: FileDialog.OpenFile
-        nameFilters: [qsTr("Images (*.png *.jpg *.jpeg *.bmp)"), qsTr("All files (*)")]
-
-        Component.onCompleted: openImageDialog.currentFolder = PatternIo.defaultImageDirectory
-
-        // The file lands in whichever slot the view is showing, so an existing
-        // pair can be re-analysed with no rig attached.
-        onAccepted: CameraController.openImage(openImageDialog.selectedFile, camera.patternMode)
-    }
-
-    Connections {
-        target: CameraController
-
-        function onErrorRaised(message) { toast.show(message, true) }
-        function onNotice(message) { toast.show(message, false) }
-        function onPairFailed(reason) { toast.show(qsTr("Pair shot: %1").arg(reason), true) }
-
-        // A finished pair is the moment both centres can be established, so the
-        // fits are offered straight away rather than waiting to be asked.
-        function onPairComplete() {
-            if (centering.mode !== centering.modeLocked) {
-                centering.findCenter("Positive")
-                centering.findCenter("Negative")
-            }
-        }
-    }
-
-    Connections {
-        target: ComputeController
-
-        function onErrorRaised(message) { toast.show(message, true) }
-        function onNotice(message) { toast.show(message, false) }
     }
 }
