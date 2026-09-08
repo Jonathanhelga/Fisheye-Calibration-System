@@ -496,6 +496,7 @@ Window {
         }
 
         function onPatternsPrepared(ok, prepared, directory, message) {
+            console.log("[Pattern And Monitor] prepared " + prepared.join(", ") + " in " + directory)
             if (ok) return
 
             root.preparedSpecs = ({})

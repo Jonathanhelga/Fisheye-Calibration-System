@@ -65,8 +65,11 @@ Rectangle {
     signal centerPicked(string mode, int x, int y)
     signal fovEdited(int value)
 
+    onBusyChanged: if (!root.busy) root.pendingMode = ""
+
     function requestCapture(mode) {
         pendingMode = mode
+        showView(mode)
         captureRequested(mode)
     }
 

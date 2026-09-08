@@ -31,18 +31,24 @@ constexpr int kSpinSliceMs = 100;
 constexpr int kCaptureTimeoutMs = 20000;
 
 QMutex frameMutex;
-QImage frameImage;
+QHash<QString, QImage> frameImages;
 
 class FrameProvider : public QQuickImageProvider {
 public:
     FrameProvider() : QQuickImageProvider(QQuickImageProvider::Image) {}
 
-    QImage requestImage(const QString &, QSize *size, const QSize &) override {
+    QImage requestImage(const QString &id, QSize *size, const QSize &) override {
         QMutexLocker locker(&frameMutex);
-        if (size) *size = frameImage.size();
-        return frameImage;
+        const QImage image = frameImages.value(id.section(QLatin1Char('/'), 0, 0));
+        if (size) *size = image.size();
+        return image;
     }
 };
+
+QString slotKey(const QString &slot) {
+    const QString trimmed = slot.trimmed().toLower();
+    return trimmed.isEmpty() ? QStringLiteral("single") : trimmed;
+}
 
 #ifdef FISHEYE_ROS_ENABLED
 QString describeMissingService(rclcpp::Node &node, int domainId) {
@@ -89,10 +95,6 @@ void CameraController::stopWorker() {
     if (d_->worker.joinable()) d_->worker.join();
 }
 
-QString CameraController::frameUrl() const {
-    return revision_ > 0 ? QStringLiteral("image://moilcamera/%1").arg(revision_) : QString();
-}
-
 void CameraController::applyLink(int status, const QString &message, quint64 generation) {
     if (generation != d_->generation.load()) return;
 
@@ -102,23 +104,29 @@ void CameraController::applyLink(int status, const QString &message, quint64 gen
     emit changed();
 }
 
-void CameraController::applyCapture(bool ok, int width, int height, const QString &message,
-                                    quint64 token, quint64 generation) {
+void CameraController::applyCapture(const QString &slot, bool ok, int width, int height,
+                                    const QString &message, quint64 token, quint64 generation) {
     if (generation != d_->generation.load() || token != captureToken_) return;
 
     busy_ = false;
     if (ok) {
-        ++revision_;
-        frameLabel_ = tr("capture %1  %2x%3")
-                          .arg(QTime::currentTime().toString(QStringLiteral("HH:mm:ss")))
-                          .arg(width)
-                          .arg(height);
-        if (!message.isEmpty()) frameLabel_ += QStringLiteral("  ") + message;
+        const int revision = revisions_.value(slot) + 1;
+        revisions_.insert(slot, revision);
+        frameUrls_.insert(slot,
+                          QStringLiteral("image://moilcamera/%1/%2").arg(slot).arg(revision));
+
+        QString label = tr("capture %1  %2x%3")
+                            .arg(QTime::currentTime().toString(QStringLiteral("HH:mm:ss")))
+                            .arg(width)
+                            .arg(height);
+        if (!message.isEmpty()) label += QStringLiteral("  ") + message;
+        frameLabels_.insert(slot, label);
         lastError_.clear();
     } else {
         lastError_ = message.isEmpty() ? tr("the capture failed") : message;
     }
     emit changed();
+    emit captured(slot, ok, ok ? QString() : lastError_);
 }
 
 void CameraController::connectTo(int domainId) {
@@ -207,12 +215,16 @@ void CameraController::connectTo(int domainId) {
 #endif
 }
 
-void CameraController::capture() {
+void CameraController::capture(const QString &slot) {
     if (busy_ || status_ != ProbeStatus::Ok) return;
 
+    const QString key = slotKey(slot);
+
 #ifndef FISHEYE_ROS_ENABLED
+    Q_UNUSED(key)
     lastError_ = tr("this build has no ROS 2 support");
     emit changed();
+    emit captured(key, false, lastError_);
 #else
     rclcpp::Client<moil_interfaces::srv::Capture>::SharedPtr client;
     {
@@ -234,7 +246,7 @@ void CameraController::capture() {
 
     client->async_send_request(
         request,
-        [this, generation,
+        [this, key, generation,
          token](rclcpp::Client<moil_interfaces::srv::Capture>::SharedFuture future) {
             const auto response = future.get();
 
@@ -262,17 +274,18 @@ void CameraController::capture() {
 
             if (ok) {
                 QMutexLocker locker(&frameMutex);
-                frameImage = image;
+                frameImages.insert(key, image);
             }
 
             QMetaObject::invokeMethod(this, "applyCapture", Qt::QueuedConnection,
-                                      Q_ARG(bool, ok), Q_ARG(int, ok ? image.width() : 0),
+                                      Q_ARG(QString, key), Q_ARG(bool, ok),
+                                      Q_ARG(int, ok ? image.width() : 0),
                                       Q_ARG(int, ok ? image.height() : 0),
                                       Q_ARG(QString, message), Q_ARG(quint64, token),
                                       Q_ARG(quint64, generation));
         });
 
-    QTimer::singleShot(kCaptureTimeoutMs, this, [this, generation, token] {
+    QTimer::singleShot(kCaptureTimeoutMs, this, [this, key, generation, token] {
         if (generation != d_->generation.load() || token != captureToken_ || !busy_) return;
         ++captureToken_;
         busy_ = false;
@@ -280,6 +293,7 @@ void CameraController::capture() {
                          .arg(QString::fromLatin1(kCaptureService))
                          .arg(kCaptureTimeoutMs / 1000);
         emit changed();
+        emit captured(key, false, lastError_);
     });
 #endif
 }

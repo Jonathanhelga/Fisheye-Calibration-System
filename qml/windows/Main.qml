@@ -68,14 +68,29 @@ ApplicationWindow {
                 CameraPanel {
                     id: camera
 
-                    singlePath: CameraController.frameUrl
-                    imageLabel: CameraController.frameLabel
+                    readonly property string slotKey: camera.patternMode === "Positive" ? "positive"
+                                                   : camera.patternMode === "Negative" ? "negative"
+                                                                                       : "single"
+
+                    singlePath:   CameraController.frameUrls["single"]   || ""
+                    positivePath: CameraController.frameUrls["positive"] || ""
+                    negativePath: CameraController.frameUrls["negative"] || ""
+
+                    imageLabel: CameraController.frameLabels[camera.slotKey] || ""
                     errorText: CameraController.lastError
                     busy: CameraController.busy
 
-                    onCaptureRequested: (mode) => {
-                        if (mode === "")
-                            CameraController.capture()
+                    onCaptureRequested: (mode) => CameraController.capture(mode)
+
+                    Connections {
+                        target: CameraController
+
+                        function onCaptured(slot, ok, message) {
+                            if (!ok) return
+                            const stamp = Qt.formatTime(new Date(), "HH:mm:ss")
+                            if (slot === "positive") camera.positiveTime = stamp
+                            else if (slot === "negative") camera.negativeTime = stamp
+                        }
                     }
 
                     Layout.fillWidth: true
