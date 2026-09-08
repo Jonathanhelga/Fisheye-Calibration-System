@@ -258,7 +258,9 @@ Rectangle {
             }
 
             LabeledField {
-                Layout.fillWidth: true
+                Layout.fillWidth: false
+                Layout.preferredWidth: Theme.charUnit * 12
+                Layout.maximumWidth: Theme.charUnit * 12
                 visible: root.checkMode
                 label: qsTr("Check Radius")
                 text: root.checkRadius

@@ -107,7 +107,9 @@ ApplicationWindow {
 
                     onCaptureRequested: (mode) => {
                         camera.patternError = ""
+                        patternSettle.stop()
                         if (mode === "") {
+                            camera.awaitingPolarity = ""
                             CameraController.capture("")
                             return
                         }
@@ -115,14 +117,30 @@ ApplicationWindow {
                         PatternController.showPrepared(camera.awaitingPolarity)
                     }
 
+                    Timer {
+                        id: patternSettle
+
+                        interval: Theme.patternSettleDelay
+                        repeat: false
+
+                        onTriggered: {
+                            const polarity = camera.awaitingPolarity
+                            camera.awaitingPolarity = ""
+                            CameraController.capture(polarity)
+                        }
+                    }
+
                     Connections {
                         target: PatternController
 
                         function onPreparedShown(ok, polarity, shown, message) {
                             if (camera.awaitingPolarity !== polarity) return
-                            if (ok) CameraController.capture(polarity)
-                            else camera.patternError = message
-                            camera.awaitingPolarity = ""
+                            if (ok) {
+                                patternSettle.restart()
+                            } else {
+                                camera.patternError = message
+                                camera.awaitingPolarity = ""
+                            }
                         }
                     }
 
