@@ -1,6 +1,11 @@
 # Backend that has no button
 
 **As of 2026-09-07**, on branch `v2.1_2026_New-UI-CPP-ROS_Wiring` (merge `8b60b33`).
+**Revised 2026-09-08** — each entry now names the control it had in the old Qt
+Widgets client (`cpp/`, on `v2.0_2026_main-cpp-ros`), because "what was this
+called and where did the operator find it" turned out to be the fastest way to
+settle both what a control should do and whether it ever existed. Three of these
+have *no* old-UI counterpart, which is worth knowing before designing one.
 
 Every control in the UI now reaches a backend service. This document is the
 *other* direction: capability that exists, compiles and works, but that no
@@ -22,6 +27,62 @@ for h in src/*.h; do
 done
 ```
 
+To find what a control was called in the old client, and where the operator found
+it — `cpp/` is not in this branch, but it is one `git show` away:
+
+```bash
+git grep -n "<the C++ method>"  v2.0_2026_main-cpp-ros -- cpp/     # find the handler
+git grep -n "btn_<name>"        v2.0_2026_main-cpp-ros -- cpp/     # handler -> objectName
+git show v2.0_2026_main-cpp-ros:cpp/ui/cali_result.ui | grep -n QPushButton
+git show v2.0_2026_main-cpp-ros:cpp/ui/<file>.ui | sed -n '<line-40>,<line+40>p'
+```
+
+The `.ui` files use absolute `geometry` rects rather than layouts at the top
+level, so the surrounding `<rect>` and the sibling widgets in the same
+`gridLayout` tell you what a button was grouped *with* — which is usually a
+better guide to where it belongs now than the label is. Do not skip this step
+and design from the method name: it is how this document ended up asserting a
+wrong answer to the PCT question below.
+
+## The four checks, and why one is not enough
+
+Run 2026-09-08. Each catches a class the others miss, which is why the count kept
+changing as checks were added rather than converging from the first one.
+
+| | Check | Method | Result |
+|---|---|---|---|
+| **A** | control → backend | every clickable handler traced through panel signals and local functions to a controller call | 118 handlers, **0 dead** |
+| **B** | `Q_INVOKABLE` → caller | every backend method walked against its QML callers | 77 methods, 12 unreached |
+| **C** | toggle → consumer | every toggle-backed property checked for a reader | all consumed |
+| **D** | writable `Q_PROPERTY` → writer | every settable property checked for a QML writer | 3 written, 1 fixed by design |
+
+**Check D exists because check B cannot see it.** `singleDistance`,
+`baseDistance`, `folder` and `fov` are set from QML by assignment, not by calling
+an invokable, so a `Q_INVOKABLE` audit reports nothing about them either way. The
+one with no writer is `CalibrationController::regressionDegree`, and it is
+**correctly** not exposed: it is fixed at 4 because the camera parameter block
+holds exactly four coefficients (c₁…c₄ → `parameter5`…`parameter2`, with
+`parameter0`/`parameter1` left at 0 and c₀ dropped). A degree control would
+produce a fit that does not fit the output format. Do not "wire" it.
+
+**Check A's verdict is that no button in this app does nothing.** Every control
+either reaches a controller or is legitimate view state (opening a popup,
+flipping a preview flag). Two things it surfaced that are worth knowing but are
+not faults:
+
+- **Nine signals are declared and emitted that nothing handles** —
+  `updateTableRequested`, `clearTableRequested`, `clearAllTablesRequested`,
+  `loadExcelRequested`, `loadAllExcelRequested`, `loadDatabaseRequested`,
+  `saveExcelRequested` (all `MoilCalibrationResult`), plus
+  `CenteringPanel.centerChanged` and `PatternAndMonitor.fourSideBrowseRequested`.
+  Every one of those buttons reaches its backend by another route — a direct
+  controller call on the line above, or a `FileDialog`'s `onAccepted`. They are
+  spare hooks for a parent that was never written, the same shape as
+  `PatternAndMonitor.applyMappingRequested`, which *is* handled in `Main.qml`.
+  Harmless; leave them.
+- **A signals→handlers check passes this app completely.** Every button emits
+  something. That is precisely why it is not one of the four.
+
 Two related checks, for completeness:
 
 - **Signals with no handler** — finds a button whose click goes nowhere.
@@ -42,8 +103,102 @@ Two related checks, for completeness:
 | **Backend** | `CalibrationController::updateFromCapture(round, pct, nodes)` |
 | **Service** | `/compute/cali`, op `update_table_from_capture` |
 | **State** | written, compiles, **no caller** |
+| **Old UI** | `btn_update_table`, labelled **"Update Table"** — *Calibration Result* window, top toolbar, directly beneath *Save to Excel*. Tooltip: "Update Tabel System from Calibration System". Handler `ControllerCaliResult::updateTable()`, which ports Python's `onclick_btn_update_table`. |
+| **⚠️ Name taken** | The new UI **already has a button labelled "Update Table"** and it is a different operation. See immediately below. |
+
+#### The label is already in use, by something else
+
+[MoilCalibrationResult.qml:314](../qml/windows/MoilCalibrationResult.qml#L314)
+has an *Update Table* button, and it calls `CalibrationController.computeAll()`
+— op `compute_all`, which recomputes the derived columns from data the table
+already holds. That is the old client's **`btn_update_all_cali_result`**, labelled
+*"Update All Cali Result"*, tooltip "Recalculate and refresh all calibration
+results using the current parameters".
+
+The two are unrelated operations that have swapped names:
+
+| Old client | Op | New client |
+|---|---|---|
+| **Update Table** (`btn_update_table`) | `update_table_from_capture` — capture fills the round | *no control* |
+| **Update All Cali Result** (`btn_update_all_cali_result`) | `compute_all` — recompute from existing data | **Update Table** |
+
+This is worse than a plain gap, because it is not silent-but-empty — it is
+silent-and-plausible. An operator who knows the old client presses *Update Table*
+expecting a fresh pair of shots to fill the round, gets a recompute of whatever
+was already there, and nothing reports that no capture was read. On an empty
+round it recomputes nothing and reads as a dead button; on a round loaded from
+Excel it produces a perfectly good result that is not the one asked for.
+
+The current tooltip — "Refill the round tables from the selected calibration
+system" — makes it worse rather than better: *refill* implies data arrives, and
+*from the selected calibration system* is exactly the old *Update Table*
+tooltip's phrasing ("Update Tabel System from Calibration System").
+
+#### …and the correct name is already in the UI, on another tab
+
+Found 2026-09-08 by mapping every button in `qml/` to the backend call it makes,
+rather than checking suspected controls one at a time. **Two buttons call
+`computeAll()`:**
+
+| Button | Where | Route |
+|---|---|---|
+| **Update Table** | Cali Result toolbar | `CalibrationController.computeAll()` |
+| **Update All Cali Result** | Cali Result → **Parameter tab** ([CaliResultParameterPanel.qml:323](../qml/panels/CaliResultParameterPanel.qml#L323)) | `updateAllRequested` → [MoilCalibrationResult.qml:434](../qml/windows/MoilCalibrationResult.qml#L434) → `computeAll()` |
+
+So the operation already has a button under its correct old name, on the tab
+where its result is read. The toolbar *Update Table* is a **duplicate of it,
+carrying the name of the function that is missing** — redundant and misnamed at
+once. The Parameter tab's tooltip even states the sequence correctly: "Load the
+rounds, press Update All Cali Result, then Save Parameters."
+
+That removes the awkward part of the fix. Nothing has to be invented and no
+vocabulary has to be taught: the toolbar button can be **dropped**, or relabelled
+and left as a convenient second entry point, and either way *Update Table* is
+free for the capture fill when it is wired. The two empty-state strings that name
+the button in
+[CaliResultGraphsPanel.qml:150](../qml/panels/CaliResultGraphsPanel.qml#L150) and
+[CaliResultOverlapPanel.qml:56](../qml/panels/CaliResultOverlapPanel.qml#L56)
+have to move with it.
+
+#### The button-to-backend map is the check that found this
+
+Both the name collision and this duplicate were invisible to the
+methods → callers audit, because `computeAll` *has* a caller — two, in fact, which
+is precisely the problem. Walk it the other way as well:
+
+```
+for each qml file:
+    track the most recent `text: qsTr("…")`
+    at each onClicked / onToggled, record  label -> Owner.method(...) calls in the body
+    follow panel signals (`panel.xRequested()`) to their handler in the window
+```
+
+122 handlers across 47 QML files, and it answers a question the other direction
+cannot: *does this label describe what this button does, and does anything else
+already do it?* Neither of those is a wiring fault, so nothing else catches them.
+
+The remaining four gaps were re-checked by **method name** rather than by label,
+which renaming cannot hide: `updateFromCapture`, `readBrightness`, `clearSlot`
+and `clearResults` appear nowhere in `qml/`. The map agrees — the only Clear
+controls in the app are *Clear Table* / *Clear All Table* (`clearTable` /
+`clearAllTables`, the cali table) and the Graphs tab's *Clear*
+(`fetchRoundPoints(0)`, which drops the inspected round). Nothing clears a
+capture slot or a detect result, and no button reads brightness back.
 | **Suggested home** | Data tab, beside *Calculate Result* |
 | **Enable when** | `ComputeController.hasNodes` |
+
+The old toolbar row it sat in, left to right, for anyone deciding where this
+belongs now:
+
+```
+[Select Cali System v]
+[Load All Excel] [Clear Table    ] [Save to Excel] [Stop         ] [ ] Single Distance
+[Load Excel    ] [Clear All Table] [Update Table ] [Load Database]
+```
+
+Note what it is grouped with: the Excel load/save pair. In the old client
+*Update Table* and *Load Excel* were the two ways to fill a round, sitting side
+by side, and that is the choice the operator was making at that moment.
 
 This is the missing link between the two halves of the app. The measurement path
 ends at the crossings and the calibration path begins at a filled table, and
@@ -58,6 +213,27 @@ Pair Shot --> Direction Diff --> nodes_8dir --> ComputeController.nodes
                                                updateFromCapture() --> round's ICT columns
 ```
 
+**The left-hand side of that diagram already runs on every Direction Diff, and the
+answer is discarded.** Verified 2026-09-08: `Main.qml`'s `runDirectionDiff()` calls
+`histogram8Dir` *and* `nodes8Dir`. The nodes reply is parsed into `nodes_` and
+`nodesChanged` is emitted
+([ComputeController.cpp:272](../src/ComputeController.cpp#L272)) — and
+**`ComputeController.nodes` and `hasNodes` have no QML reader anywhere.** The only
+visible effect is the toast counting crossings.
+
+Do not confuse this with the histogram panel's
+`ComputeController.histogram["nodes"]`, which is a sub-field of the *histogram*
+op's reply. Different ops, different data; the panel reading one says nothing
+about the other.
+
+So the rig is already doing the 8-direction detection, already sending the
+crossings, and the client is already parsing them into the shape
+`updateFromCapture(round, pct, nodes)` wants. The gap is narrower than this
+document implied: not the measurement, only the button that hands the nodes and
+the PCT list to the table. Whoever wires it should read `ComputeController.nodes`
+rather than triggering a fresh `nodes_8dir` — a second detection would re-measure
+the same slots and cost a full pass on the rig for data already in hand.
+
 The server side is substantial and already done: it clears the round, rewrites
 the Side column, and lays the eight ICT columns out **by ring** so that row *k*
 in the N column and row *k* in the E column are the same ring. See
@@ -67,30 +243,90 @@ Three inputs are needed. Two are obvious:
 
 - **round** — the Data tab's round selector
 - **nodes** — `ComputeController.nodes`, after a Direction Diff
-- **PCT list** — ⚠️ **open question, see below**
+- **PCT list** — answered 2026-09-08, see below
 
-#### Open question: where does the PCT list come from?
+#### Where the PCT list comes from — SETTLED, and not what this document guessed
 
-`updateTableFromCapture` takes `pctList` as a `QVector<QString>` — one entry per
-layer. The likely source is the **concentric pattern's layer radii**, in layer
-order, since that is what was physically on the glass when the pair was shot.
+This section used to say the list was "the concentric pattern's layer radii".
+**That is wrong, and wrong in a way that would not have shown up.** The old
+client's `ControllerPatternGenerator::pctList()` is:
 
-This needs confirming before it is wired. Writing the table off the wrong
-reference produces a plausible-looking result and a wrong calibration, and
-nothing downstream would flag it.
+```cpp
+constexpr int kConcentricLayers = 25;
+constexpr int kStripelineLayers = 50;
 
-Also unresolved if the radii are correct: the pattern lives in the *Pattern &
-Monitor* window and the table lives in *Cali Result*, so the button has to reach
-across two top-level windows — or the radii have to be captured at shot time and
-carried with the frame.
+QVector<QString> ControllerPatternGenerator::pctList() const {
+    QVector<QString> out;
+    for (int i = 1; i <= kConcentricLayers; ++i)   // lineedit_radius_<i>
+        out.append(...);
+    for (int i = 1; i <= kStripelineLayers; ++i)   // lineedit_interval_stripeline_<i>
+        out.append(...);
+    return out;
+}
+```
 
-### 2. Per-round enable checkboxes
+**75 entries: 25 concentric radii, then 50 stripeline intervals**, concatenated
+in that fixed order — which is exactly the table's 75 layer rows. Both patterns'
+values go in every time, regardless of which one is currently on the glass,
+because the table needs both.
+
+`CaliCompute::updateTableFromCapture` splits them at the `*` row:
+
+```cpp
+// PCT column. pctList = 25 concentric (TOP) + 50 stripeline (SIDE). Rows above
+// the "*" take the TOP pattern in order; from the "*" (sideStartLayer) down
+// they take the SIDE pattern, so the side pattern's line 1 lands on the "*" row.
+const int src = (sideStartLayer >= 0 && layer >= sideStartLayer)
+                    ? kTopCount + (layer - sideStartLayer)
+                    : layer;
+```
+
+Rows above the `*` are the top panel and read entries 0–24; rows from the `*`
+down are the **side** panel and read `25 + (layer - sideStartLayer)`. So had this
+been wired from the concentric radii alone, every side row would have paired its
+ICT with a concentric radius — and `pct_cal` is a **running sum**, so the error
+compounds down the column rather than staying local. The comment at step 2 of
+that function records the same class of bug from a different cause: one node
+misplaced at the head of the side segment credited the first real side ring with
+three stripes of pattern distance instead of one, and "invisible in the table,
+because this pattern's 50 side intervals are all 150."
+
+So a wrong PCT list here is a wrong calibration that nothing reports, and the
+uniform side intervals mean an off-by-N is *invisible by inspection*. Send both
+lists, in this order, or do not send.
+
+What is still open is only the plumbing: the pattern lives in the *Pattern &
+Monitor* window and the table in *Cali Result*, so the button reaches across two
+top-level windows — or the values are captured at shot time and carried with the
+frame. The old client took the first route, via a provider callback installed by
+the main controller:
+
+```cpp
+caliWin_->setPctListProvider([this] {
+    return patternWin_ ? patternWin_->pctList() : QVector<QString>();
+});
+```
+
+Worth noting how that fails: `patternWin_` null, or a layer field left blank,
+both degrade to `"0"` per entry without a word. A QML port should say the pattern
+window has not been opened rather than fill the round with zeros.
+
+### 2. Per-round enable checkboxes — WIRED 2026-09-08
 
 | | |
 |---|---|
 | **Backend** | `CalibrationController::setRoundEnabled(round, enabled)` |
-| **State** | written, compiles, **no caller**; no QML reads `roundEnabled` either |
-| **Suggested home** | a checkbox row under the Data tab's round selector, or beside the Graphs tab legend |
+| **State** | **wired** — ten checkboxes in the Data tab, `Repeater { model: 10 }` |
+| **Old UI** | **not a button.** Right-click a round tab in *Calibration Result* → the menu carrying "Show ZFL-IH Graph (Round N)" and "Show Overlap Graph (Round N)". `ControllerCaliResult::toggleRoundEnabled`, porting Python's `show_round_context_menu` + `toggle_round_enabled_status`. |
+
+The old client greyed the whole round table and appended ` [OFF]` to the tab
+text, then recomputed everything. Checkboxes were chosen here instead because a
+right-click menu is undiscoverable, and this setting silently decides what four
+different computations are averaging — see below. If the greying is wanted back,
+the state to bind is `CalibrationController.roundEnabled`.
+
+The rest of this entry is why it mattered, kept because it explains what the
+setting actually controls:
 
 `round_enabled` already travels with **every** request — the compute node has no
 session, so a stale copy would silently include or drop a whole round. The server
@@ -101,29 +337,100 @@ uses it to decide which rounds count in:
 - `global_ict_alpha` — the pooled Overlap plot
 - all three `CaliJob` distance searches
 
-It is currently hardcoded to all-true with no way to change it. So "use rounds
-1–5 only" is impossible, and the Aggregation tab silently includes every round
-whether or not it is any good.
+Until 2026-09-08 it was hardcoded to all-true with no way to change it, so "use
+rounds 1–5 only" was impossible and the Aggregation tab silently included every
+round whether or not it was any good.
 
 ---
 
 ## Useful — backend exists, no button
 
-| Control | Backend | Why it is worth having |
-|---|---|---|
-| **Read** per monitor slot | `MonitorController::readBrightness()` | Brightness is write-only today: the spin box shows what was last typed, not what the monitor is at. The rig is the authority and the handler that accepts its answer is already wired — there is just no way to ask. |
-| **Per-axis Stop** | `AxisController::stopAxis(axis)` | Only *Stop All* is exposed. Stopping one axis mid-jog needs this. |
-| **Disconnect** | `AxisController::disconnectFromRig()` | There is *Update* to connect and nothing to drop the link deliberately. |
+| Control | Backend | Old UI | Why it is worth having |
+|---|---|---|---|
+| **Read** per monitor slot | `MonitorController::readBrightness()` | **none** — the old client was write-only too. `lineedit_brightness_<dir>` was pushed by that direction's **Update** button in *Monitor Viewer*; nothing ever asked the panel what it was at. | ⚠️ **Not a convenience — this one is a live bug.** See below. |
+| **Per-axis Stop** | `AxisController::stopAxis(axis)` | `btn_stop_x`, `btn_stop_y`, `btn_stop_z`, `btn_stop_pitch`, `btn_stop_yaw` — five buttons labelled **"Stop"**, one beside each axis's jog cluster in the *Main window*. There was no Stop All; `btn_all_home` was the only whole-rig button. | Only *Stop All* is exposed. Stopping one axis mid-jog needs this. |
+| **Disconnect** | `AxisController::disconnectFromRig()` | **none** — the old client had no connect or disconnect control at all. | There is *Update* to connect and nothing to drop the link deliberately. |
+
+The old rig panel is the reverse of this one: five per-axis Stops and no Stop
+All, against our one Stop All and no per-axis. Both halves exist in the backend;
+this is a layout decision, not a wiring one.
+
+### Read brightness: the missing button leaves a dead signal and a stuck indicator
+
+`brightnessRead` is emitted from exactly one place
+([MonitorController.cpp:262](../src/MonitorController.cpp#L262)), reached only
+from `readBrightness`'s reply. The `KindBrightnessSet` case in `applyCommand`
+does nothing. **Nothing calls `readBrightness`, so the signal can never fire.**
+
+Two panels nevertheless handle it —
+[MonitorSlotPanel.qml:74](../qml/panels/MonitorSlotPanel.qml#L74) and
+[DpadMonitorViewer.qml:97](../qml/panels/DpadMonitorViewer.qml#L97) — and in
+`MonitorSlotPanel` it is the **only** writer of `appliedBrightness`:
+
+```qml
+property real appliedBrightness: 5              // line 29, never updated
+
+readonly property bool pendingChanges: root.on
+    && (root.imagePath !== root.appliedImagePath
+        || root.brightness !== root.appliedBrightness)
+```
+
+`onImageShown` updates `appliedImagePath` but not `appliedBrightness`. So the
+unsaved-changes indicator compares the typed brightness against the literal `5`
+forever: a slot set to anything else reads "unsaved changes" permanently and
+Update never clears it. That is exactly the confusion the comment at line 23 says
+the property exists to prevent — an un-pushed edit and a pushed one looking
+identical — arrived at from the other side.
+
+Two fixes, and they are not equivalent:
+
+1. **`appliedBrightness = root.brightness` in `onImageShown`.** Matches how
+   `appliedImagePath` is handled, no extra round trip. Optimistic: `show_pattern`
+   can succeed while the panel refuses `set_brightness` over DDC/CI, and the
+   indicator would then clear on a brightness that never landed. The old client
+   reported those two outcomes separately for this reason — see the four distinct
+   messages in `controller_monitor_viewer.cpp` `updateDir()`.
+2. **Add the Read button** and call `readBrightness(direction)` after a
+   successful show. Truthful, costs a round trip, and is evidently what the panel
+   was designed around.
+
+Whichever is chosen, note that `MonitorSlotPanel.qml` has collided on every merge
+with `v2.1_2026_New-UI-CPP-ROS` so far — agree the change before making it.
 
 ---
 
 ## Housekeeping — low value
 
-| Control | Backend |
-|---|---|
-| **Clear** per capture slot | `CameraController::clearSlot(slot)` |
-| **Clear results** | `ComputeController::clearResults()` |
-| **Open in browser** | `HttpServerProbe::urlFor(port)` — pre-existing, never had a caller |
+| Control | Backend | Old UI |
+|---|---|---|
+| **Clear** per capture slot | `CameraController::clearSlot(slot)` | **none.** `btn_clear_table` / `btn_clear_all_table` existed but clear the *cali table*, not a capture — different thing, similar name. |
+| **Clear results** | `ComputeController::clearResults()` | **none** |
+
+Re-capturing into a slot overwrites it, so both Clears only matter for making
+something *empty*. Low value stands.
+
+### `HttpServerProbe::urlFor` is not a gap — removed 2026-09-08
+
+It was listed here as "pre-existing, never had a caller". It has one:
+[HttpServerProbe.cpp:93](../src/HttpServerProbe.cpp#L93) builds every probe
+request with it. The audit script at the top of this document looks for a **QML**
+caller, so a method used only from C++ shows up as a gap when it is not one.
+Check for internal callers before adding an entry.
+
+---
+
+## Covered by a coarser control — a button would add granularity, not capability
+
+Found 2026-09-08 by asking, for each entry, whether the new UI reaches the same
+backend by another route.
+
+| Control | Already reached by | What is actually missing |
+|---|---|---|
+| **Per-axis Stop** | `AxisController::stopAll()` — [AxisController.cpp:1479](../src/AxisController.cpp#L1479) is `for (AxisState *state : d_->all) stopAxis(state->name())` | Only the granularity. Stop All stops the axis you meant and four you did not. |
+| **Disconnect** | the Server panel's **Update** — `connectTo()` calls `teardownSession()` before rebuilding ([AxisController.cpp:791](../src/AxisController.cpp#L791)) | Only reaching the `Disconnected` *state* deliberately. The teardown path itself runs on every Update. |
+
+Neither is worth a button on its own. Both are worth knowing before someone
+"fixes" a gap that is already covered.
 
 ---
 

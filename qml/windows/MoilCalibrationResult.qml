@@ -310,6 +310,20 @@ Window {
 
                 ActionSeparator {}
 
+                // This is the old client's "Update All Cali Result"
+                // (btn_update_all_cali_result), NOT its "Update Table"
+                // (btn_update_table). The two are unrelated and the label moved.
+                //
+                // Old Update Table ran update_table_from_capture: it read the
+                // positive/negative shots and filled the round's ICT columns.
+                // Nothing in this app does that yet -- see docs/MISSING_CONTROLS.md.
+                //
+                // The tooltip has to carry the difference, because the failure is
+                // silent and plausible rather than loud: press this expecting a
+                // fresh capture and you get a clean recompute of whatever was
+                // already in the table. On an empty round it computes nothing and
+                // reads as a dead button; on a round loaded from Excel it produces
+                // a perfectly good result that is not the one you asked for.
                 ActionButton {
                     text: qsTr("Update Table")
                     enabled: !root.busy
@@ -320,7 +334,10 @@ Window {
 
                     ToolTip.visible: hovered
                     ToolTip.delay: Theme.animSlow
-                    ToolTip.text: qsTr("Refill the round tables from the selected calibration system.")
+                    ToolTip.text: qsTr("Recalculate every round from the values already in the "
+                                     + "tables, using the selected calibration system. This does "
+                                     + "NOT read a new capture -- load Excel first, or type the "
+                                     + "values in.")
                 }
                 ActionButton {
                     text: qsTr("Save to Excel")
