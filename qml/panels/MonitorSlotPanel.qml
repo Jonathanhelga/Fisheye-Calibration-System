@@ -28,8 +28,11 @@ Rectangle {
     property string appliedImagePath: ""
     property real appliedBrightness: 5
 
-    readonly property bool pendingChanges:
-        root.imagePath !== root.appliedImagePath || root.brightness !== root.appliedBrightness
+    // Only meaningful while something is actually on the screen. An OFF slot has
+    // nothing applied to differ from, so it advertised unsaved changes forever.
+    readonly property bool pendingChanges: root.on
+        && (root.imagePath !== root.appliedImagePath
+            || root.brightness !== root.appliedBrightness)
 
     readonly property string livePreview:
         root.direction ? (PatternController.previewUrls[root.direction] || "") : ""
@@ -61,7 +64,10 @@ Rectangle {
         function onPatternClosed(direction) {
             if (direction !== root.direction && direction !== "all") return
             root.on = false
-            // Nothing is on the glass any more, so nothing is "applied".
+            // Nothing is on the glass any more, so nothing is applied and there
+            // is nothing left to push -- clearing both keeps the panel from
+            // describing a screen it just emptied.
+            root.imagePath = ""
             root.appliedImagePath = ""
         }
 

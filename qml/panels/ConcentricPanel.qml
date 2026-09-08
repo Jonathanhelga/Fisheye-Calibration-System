@@ -20,6 +20,11 @@ Rectangle {
     property color positiveColor: "black"
     property color negativeColor: "white"
 
+    // Whether the layer table still holds a generated alternation of the two
+    // colours above ("positive" / "negative"), or was edited row by row
+    // ("custom"). Only a generated table is recoloured automatically.
+    property string colorPolarity: "positive"
+
     property alias direction: directionCombo.currentIndex
 
     property url previewSource: ""
@@ -65,20 +70,37 @@ Rectangle {
     // Auto Update will never see.
     function setLayer(index, key, value) {
         layerModel.setProperty(index, key, value)
+        // A hand-picked colour makes the table no longer a generated alternation,
+        // so the colour pickers stop repainting over it.
+        if (key === "color") panel.colorPolarity = "custom"
         panel.layerRevision++
     }
 
-    function applyPositivePattern() {
+    function applyPattern(positive) {
+        panel.colorPolarity = positive ? "positive" : "negative"
         for (let i = 0; i < layerModel.count; i++)
-            layerModel.setProperty(i, "color", panel.layerColorAt(i, true))
+            layerModel.setProperty(i, "color", panel.layerColorAt(i, positive))
+        // Once for the whole repaint. Bumped here rather than through setLayer()
+        // so Auto Update sees one change, not twenty-five.
         panel.layerRevision++
     }
 
-    function applyNegativePattern() {
-        for (let i = 0; i < layerModel.count; i++)
-            layerModel.setProperty(i, "color", panel.layerColorAt(i, false))
-        panel.layerRevision++
+    function applyPositivePattern() { panel.applyPattern(true) }
+    function applyNegativePattern() { panel.applyPattern(false) }
+
+    // Repaint the table in place when either colour changes, so the rows follow
+    // the picker without a second click on Positive/Negative.
+    //
+    // A hand-edited table is "custom" and is left alone: recolouring it would
+    // silently throw away per-layer colours the operator set deliberately, and
+    // nothing would say so.
+    function refreshPattern() {
+        if (panel.colorPolarity !== "custom")
+            panel.applyPattern(panel.colorPolarity === "positive")
     }
+
+    onPositiveColorChanged: panel.refreshPattern()
+    onNegativeColorChanged: panel.refreshPattern()
 
     function specJson() {
         const doc = PatternConfig.specEnvelope(panel)
@@ -142,6 +164,11 @@ Rectangle {
                                    derived ? panel.layerColorAt(i, true)
                                            : PatternConfig.toColor(layer.color, "#000000"))
         }
+
+        // A file that carried pos_neg_color is a generated alternation and stays
+        // repaintable; one with per-layer colours is custom and must not be
+        // overwritten by the next colour-picker change.
+        panel.colorPolarity = derived ? "positive" : "custom"
 
         // Once for the whole import rather than per row: an imported file is one
         // change, and bumping per layer would fire 25 auto-renders.

@@ -65,10 +65,7 @@ QtObject {
     readonly property int animFast: 120
     readonly property int animSlow: 450
     readonly property int noticeTimeout: 6000
-
-    // How long Auto Update waits after the last edit before re-rendering. Long
-    // enough to type a three-digit number without firing twice.
-    readonly property int autoUpdateDelay: 1500
+    readonly property int autoUpdateDelay: 1000
 
     readonly property int panelGap: spaceMd
     readonly property int panelMargin: spaceSm

@@ -23,6 +23,11 @@ Rectangle {
     property color positiveColor: "black"
     property color negativeColor: "white"
 
+    // Whether the layer table still holds a generated alternation of the two
+    // colours above ("positive" / "negative"), or was edited row by row
+    // ("custom"). Only a generated table is recoloured automatically.
+    property string colorPolarity: "positive"
+
     property alias direction: directionCombo.currentIndex
 
     property url previewSource: ""
@@ -56,20 +61,31 @@ Rectangle {
     // a setProperty that skips it is a change Auto Update will never see.
     function setLayer(index, key, value) {
         layerModel.setProperty(index, key, value)
+        // A hand-picked colour makes the table no longer a generated alternation,
+        // so the colour pickers stop repainting over it.
+        if (key === "color") panel.colorPolarity = "custom"
         panel.layerRevision++
     }
 
-    function applyPositivePattern() {
+    function applyPattern(positive) {
+        panel.colorPolarity = positive ? "positive" : "negative"
         for (let i = 0; i < layerModel.count; i++)
-            layerModel.setProperty(i, "color", panel.layerColorAt(i, true))
+            layerModel.setProperty(i, "color", panel.layerColorAt(i, positive))
         panel.layerRevision++
     }
 
-    function applyNegativePattern() {
-        for (let i = 0; i < layerModel.count; i++)
-            layerModel.setProperty(i, "color", panel.layerColorAt(i, false))
-        panel.layerRevision++
+    function applyPositivePattern() { panel.applyPattern(true) }
+    function applyNegativePattern() { panel.applyPattern(false) }
+
+    // Repaint the table in place when either colour changes, so the rows follow
+    // the picker without a second click. A hand-edited table is left alone.
+    function refreshPattern() {
+        if (panel.colorPolarity !== "custom")
+            panel.applyPattern(panel.colorPolarity === "positive")
     }
+
+    onPositiveColorChanged: panel.refreshPattern()
+    onNegativeColorChanged: panel.refreshPattern()
 
     function specJson() {
         const doc = PatternConfig.specEnvelope(panel)
@@ -123,6 +139,10 @@ Rectangle {
                                    derived ? panel.layerColorAt(i, true)
                                            : PatternConfig.toColor(layer.color, "#ffffff"))
         }
+
+        // A file that carried pos_neg_color is a generated alternation and stays
+        // repaintable; one with per-layer colours is custom.
+        panel.colorPolarity = derived ? "positive" : "custom"
 
         // Once for the whole import, not once per row.
         panel.layerRevision++
