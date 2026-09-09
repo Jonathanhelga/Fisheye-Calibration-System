@@ -53,9 +53,43 @@ REM discovery silently find nothing, which looks like a broken network and is no
 set "ROS_DISCOVERY_SERVER="
 set "FASTDDS_DEFAULT_PROFILES_FILE="
 set "FASTRTPS_DEFAULT_PROFILES_FILE="
-set "ROS_LOCALHOST_ONLY="
-set ROS_DOMAIN_ID=42
 set RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+
+REM OFFLINE MODE -- a server on a developer machine, for working without the rig.
+REM Added 2026-09-09.
+REM
+REM The compute node needs no hardware, so a laptop can serve the whole
+REM measurement path against saved captures. What it must NEVER do is serve it on
+REM domain 42. This server advertises /moil_axis /moil_camera /moil_monitor
+REM /moil_compute ... under the same names as the rig and with the same type
+REM hashes, so a client on 42 discovers BOTH, both receive every request, and both
+REM answer. Which reply the client keeps is not something you can rely on. One
+REM Capture press then fires the rig's camera AND the laptop's webcam; one Show on
+REM Monitor can put a pattern on the rig's calibration panels from a desk test.
+REM
+REM That happened on 2026-09-09.
+REM
+REM ONE VARIABLE SETS BOTH GUARDS, and that is the point -- a domain change
+REM without localhost-only still broadcasts, just somewhere else, and someone will
+REM eventually set one and forget the other:
+REM
+REM   set MOIL_OFFLINE_DOMAIN=91
+REM   run_server.bat
+REM
+REM Then type the same number into the app's Server panel. Deliberately its own
+REM variable rather than honouring a bare ROS_DOMAIN_ID: a stray ROS_DOMAIN_ID in
+REM someone's profile must never be able to quietly move the RIG's server off 42.
+if defined MOIL_OFFLINE_DOMAIN (
+  set "ROS_DOMAIN_ID=%MOIL_OFFLINE_DOMAIN%"
+  set "ROS_LOCALHOST_ONLY=1"
+  echo OFFLINE MODE: domain %MOIL_OFFLINE_DOMAIN%, localhost only -- the rig cannot see this.
+) else (
+  REM Plain LAN multicast, exactly as the rig has always run. ROS_LOCALHOST_ONLY
+  REM is blanked deliberately: a leftover value makes discovery silently find
+  REM nothing, which looks like a broken network and is not.
+  set "ROS_LOCALHOST_ONLY="
+  set ROS_DOMAIN_ID=42
+)
 
 if defined ROS_LOCAL_SETUP call "%ROS_LOCAL_SETUP%"
 call "%MOIL_INSTALL_BASE%\setup.bat"

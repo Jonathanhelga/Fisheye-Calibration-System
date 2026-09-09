@@ -392,6 +392,44 @@ Expect `/moil_axis`, `/moil_camera`, `/moil_monitor`.
 
 > The domain is **not** an environment variable for the app. It sets it in code from the Server panel field — default **42**, range 0–232. The `ROS_DOMAIN_ID` export above is only for the `ros2` CLI.
 
+### Working offline — a server on your own machine (added 2026-09-09)
+
+You do not need the rig to exercise the measurement path. The compute node needs
+**no hardware**: it serves `detect`, `cali`, `series`, `render_pattern`, `xlsx`
+and `self_test` and nothing else. On a laptop with no rig attached it comes up
+`compute OK — self-test passed, max drift 0` while `axis` sits `FAILED — COM4 is
+not found`. Nodes fail independently.
+
+So the offline loop is: run the server here, load a saved capture with **Open
+Img**, then Find Pos / Find Neg / Direction Diff exactly as on the rig. Same
+engine, same numbers — there is only one copy of it, and it is the server's.
+
+**Never start that server on domain 42.**
+
+```powershell
+$env:ROS_DOMAIN_ID     = "91"     # not 42
+$env:ROS_LOCALHOST_ONLY = "1"     # cannot leave this machine
+.\Server\v2.1.0\run_server.bat
+```
+
+Then type **91** in the app's Server panel and press Update.
+
+The reason is not tidiness. `run_server.bat` deliberately blanks
+`ROS_LOCALHOST_ONLY` because that is how the rig has always run, so a server
+started here on 42 advertises `/moil_axis /moil_camera /moil_monitor
+/moil_compute …` onto the LAN under the same names as the rig, with the same type
+hashes. A client then discovers **both**, both receive every request and both
+answer, and which reply it keeps is not something you can rely on. One Capture
+press fires the rig's camera *and* your webcam; one Show on Monitor can put a
+pattern on the rig's calibration panels from your offline test.
+
+This happened on 2026-09-09. The two guards above are independent on purpose: a
+different domain means no overlap at all, and localhost-only means even a domain
+mistake cannot reach the LAN.
+
+You cannot have both at once — on 91 the rig is unreachable, which is the
+isolation working.
+
 ### Expected noise
 
 Pressing Update prints a wall of these:
