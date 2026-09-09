@@ -55,6 +55,18 @@ Rectangle {
     readonly property string aggregation: CalibrationController.aggregationText
     property string distance: String(CalibrationController.baseDistance)
 
+    // Moved here from MoilCalibrationResult on the New-UI branch: the toggle
+    // belongs next to the Distance field it qualifies, not in the window's
+    // toolbar three panels away. The window keeps an alias so `root.singleDistance`
+    // still reads.
+    //
+    // readonly on purpose. A writable property here would be assigned by the
+    // toggle below, and that assignment DESTROYS the binding to the controller
+    // -- after the first click the switch would stop following anything that
+    // changed the flag elsewhere, while still looking correct. The toggle writes
+    // the controller and the value comes back through this binding.
+    readonly property bool singleDistance: CalibrationController.singleDistance
+
     signal calculateRequested(int round)
     signal aggrRoundRequested(int round)
     signal cleanNoiseRequested(int round)
@@ -276,6 +288,13 @@ Rectangle {
                     panel.distance = value
                     CalibrationController.baseDistance = parseFloat(value)
                 }
+            }
+
+            PatternToggleSwitch {
+                text: qsTr("Per-round distance")
+                checked: panel.singleDistance
+                onToggled: (value) => CalibrationController.singleDistance = value
+                tooltip: qsTr("Give each round its own distance instead of deriving every round from one base value.")
             }
 
             ActionButton {

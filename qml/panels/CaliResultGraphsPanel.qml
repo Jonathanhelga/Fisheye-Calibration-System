@@ -1,60 +1,113 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import FisheyeCaliJojo
 
-// Graphs: ZFL against ICT, one curve per round, all on one axis.
-//
-// The Parameter tab shows the same ZFL-IH series in a small block beside the
-// coefficient boxes; this is the same numbers with the whole tab to draw in,
-// which is what makes a round that diverges only at the edges visible at all.
-//
-// Nothing is derived here. The points are `ict_zfl` from the server, cached
-// against the table version they were computed from -- so switching to this tab,
-// resizing, or moving the cursor reads the cache and touches no wire.
 Rectangle {
     id: panel
 
-    readonly property var rounds: CalibrationController.zflRounds
-    readonly property var colors: CalibrationController.roundColors
-    readonly property bool hasData: rounds.length > 0
+    readonly property int readoutFontSize: Math.round(Theme.unit * 1.1)
+    readonly property real rayLength: 300
 
-    readonly property real ictMax: CalibrationController.maxIct > 0
-                                     ? CalibrationController.maxIct : 2500
+    property var ranges: []
+
+    property var pupilRays: []
+    property var distIhPoints: []
+    property var distAlphaPoints: []
+
+    signal updateShiftOfPupilRequested()
+    signal updateDistVsIhRangeRequested()
+    signal updateDistVsAlphaRequested()
 
     function roundColor(index) {
-        const given = panel.colors[index]
-        return given ? given : Theme.curvePalette[index % Theme.curvePalette.length]
+        return Theme.curvePalette[index % Theme.curvePalette.length]
     }
 
-    // One round on its own, fetched with ict_zfl_points. That op ignores the
-    // round's enabled flag on purpose -- you need to see a round you have
-    // switched OFF in order to decide whether switching it off was right.
-    readonly property var inspected: CalibrationController.roundPoints
+    function numberOf(text) {
+        const value = Number(String(text).trim())
+        return String(text).trim().length > 0 && isFinite(value) ? value : null
+    }
 
-    readonly property var curves: {
+    function enabledRanges() {
         const out = []
-        for (let r = 0; r < panel.rounds.length; ++r)
-            out.push({ color: panel.roundColor(r), points: panel.rounds[r], style: "scatter" })
-        // Drawn last and in the marker colour so it reads on top of the rest
-        // rather than becoming one more indistinguishable scatter.
-        if (panel.inspected.length > 0)
-            out.push({ color: Theme.previewMarker, points: panel.inspected, style: "scatter" })
+        for (let i = 1; i < panel.ranges.length; ++i)
+            if (panel.ranges[i].enabled)
+                out.push({ index: i, values: panel.ranges[i] })
         return out
     }
 
-    readonly property var legend: {
+    function meanPoints(minField, maxField) {
+        const rows = panel.enabledRanges()
+        const points = []
+        for (let i = 0; i < rows.length; ++i) {
+            const values = rows[i].values
+            const distance = panel.numberOf(values.pctToPupil)
+            const low = panel.numberOf(values[minField])
+            const high = panel.numberOf(values[maxField])
+            if (distance === null || low === null || high === null)
+                continue
+            points.push({ x: (low + high) / 2, y: distance })
+        }
+        points.sort((a, b) => a.x - b.x)
+        return points
+    }
+
+    function rebuildShiftOfPupil() {
+        const rows = panel.enabledRanges()
+        const rays = []
+        for (let i = 0; i < rows.length; ++i) {
+            const values = rows[i].values
+            const distance = panel.numberOf(values.pctToPupil)
+            const low = panel.numberOf(values.alphaMin)
+            const high = panel.numberOf(values.alphaMax)
+            if (distance === null || low === null || high === null)
+                continue
+            const theta = (low + high) / 2 * Math.PI / 180
+            rays.push({ color: panel.roundColor(rows[i].index - 1),
+                        points: [{ x: 0, y: distance },
+                                 { x: panel.rayLength * Math.sin(theta),
+                                   y: distance + panel.rayLength * Math.cos(theta) }] })
+        }
+        panel.pupilRays = rays
+    }
+
+    function rebuildDistVsIhRange() {
+        panel.distIhPoints = panel.meanPoints("ihMin", "ihMax")
+    }
+
+    function rebuildDistVsAlpha() {
+        panel.distAlphaPoints = panel.meanPoints("alphaMin", "alphaMax")
+    }
+
+    readonly property var pupilCurves: {
         const out = []
-        for (let r = 0; r < panel.rounds.length; ++r)
-            out.push({ color: panel.roundColor(r), label: qsTr("Round %1").arg(r + 1) })
+        for (let i = 0; i < panel.pupilRays.length; ++i) {
+            out.push(panel.pupilRays[i])
+            out.push({ color: Theme.textPrimary, style: "scatter",
+                       points: [panel.pupilRays[i].points[0]] })
+        }
         return out
     }
+
+    function traceCurves(points, color) {
+        if (points.length === 0)
+            return []
+        return [{ color: color, points: points },
+                { color: Theme.textPrimary, style: "scatter", points: points }]
+    }
+
+    readonly property var distIhCurves: panel.traceCurves(panel.distIhPoints, panel.roundColor(1))
+    readonly property var distAlphaCurves: panel.traceCurves(panel.distAlphaPoints, panel.roundColor(2))
 
     color: Theme.panelBackground
     border.color: Theme.panelBorder
     radius: Theme.radius
 
     ColumnLayout {
+        id: content
+
         anchors.fill: parent
         anchors.margins: Theme.panelMargin
         spacing: Theme.rowSpacing
@@ -64,97 +117,167 @@ Rectangle {
             spacing: Theme.spaceSm
 
             Label {
-                text: qsTr("IH-ZFL")
-                font.bold: true
-                font.pixelSize: Theme.fontTitle
-                color: Theme.accent
-            }
-
-            Repeater {
-                model: panel.legend
-
-                RowLayout {
-                    id: entry
-
-                    required property var modelData
-
-                    spacing: Theme.spaceXs
-
-                    // implicit*, not width/height: this sits in a RowLayout, and
-                    // setting width on a layout-managed item is undefined.
-                    Rectangle {
-                        implicitWidth: Theme.spaceSm
-                        implicitHeight: Theme.spaceSm
-                        radius: width / 2
-                        color: entry.modelData.color
-                    }
-                    Label {
-                        text: entry.modelData.label
-                        color: Theme.textCaption
-                        font.pixelSize: Theme.captionFontSize
-                    }
-                }
-            }
-
-            Item { Layout.fillWidth: true }
-
-            Label {
-                visible: !CalibrationController.seriesFresh && panel.hasData
-                text: qsTr("stale -- the table changed")
-                color: Theme.statusPartial
-                font.pixelSize: Theme.captionFontSize
-            }
-
-            Label {
-                text: qsTr("Inspect:")
+                Layout.fillWidth: true
+                text: qsTr("Each enabled range contributes one ray and one measured point. Press a plot's Update button to redraw it from the range table.")
                 color: Theme.textCaption
                 font.pixelSize: Theme.captionFontSize
-            }
-
-            SegmentedControl {
-                id: inspectRound
-                model: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+                elide: Text.ElideRight
             }
 
             ActionButton {
-                text: qsTr("Show Alone")
-                enabled: !CalibrationController.busy
-                onClicked: CalibrationController.fetchRoundPoints(inspectRound.currentIndex + 1)
+                id: aboutButton
+
+                text: qsTr("About entrance pupil")
+                onClicked: aboutPopup.open()
 
                 ToolTip.visible: hovered
                 ToolTip.delay: Theme.animSlow
-                ToolTip.text: qsTr("Draw this round on top, in red, even if it is switched off "
-                                 + "-- which is how you tell whether switching it off was right.")
-            }
+                ToolTip.text: qsTr("Show what the ray fan and the two distance plots measure.")
 
-            ActionButton {
-                text: qsTr("Clear")
-                visible: panel.inspected.length > 0
-                onClicked: CalibrationController.fetchRoundPoints(0)
-            }
+                Popup {
+                    id: aboutPopup
 
-            ActionButton {
-                text: qsTr("Update Graphs")
-                tone: "accent"
-                enabled: !CalibrationController.busy
-                onClicked: CalibrationController.updateSeries()
+                    y: aboutButton.height + Theme.spaceXs
+                    x: -width + aboutButton.width
+                    padding: Theme.panelMargin
+                    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+
+                    background: Rectangle {
+                        color: Theme.panelBackground
+                        border.color: Theme.panelBorder
+                        radius: Theme.radius
+                    }
+
+                    contentItem: ColumnLayout {
+                        spacing: Theme.rowSpacing
+
+                        Label {
+                            text: qsTr("How to read the graphs")
+                            font.bold: true
+                            font.pixelSize: Theme.fontTitle
+                            color: Theme.accent
+                        }
+
+                        Repeater {
+                            model: [
+                                { caption: qsTr("What the entrance pupil is"),
+                                  formula: qsTr("The point the camera looks from. A fisheye lens has no single one: it slides along the optical axis as the off-axis angle grows") },
+                                { caption: qsTr("What one ray is"),
+                                  formula: qsTr("One enabled range, drawn from (0, PCT to Pupil) at angle (Alpha Min + Alpha Max) / 2") },
+                                { caption: qsTr("What the ray fan shows"),
+                                  formula: qsTr("Where the rays cross the optical axis. Crossings spread apart means the pupil moved between ranges") },
+                                { caption: qsTr("Distance vs IH Range"),
+                                  formula: qsTr("x is (IH Min + IH Max) / 2 in percent, y is PCT to Pupil for that range") },
+                                { caption: qsTr("Distance vs Alpha"),
+                                  formula: qsTr("x is (Alpha Min + Alpha Max) / 2 in degrees, y is PCT to Pupil for that range") },
+                                { caption: qsTr("What good looks like"),
+                                  formula: qsTr("Both distance plots rise smoothly. A point off the trend marks a range whose distance search did not settle") }
+                            ]
+
+                            ColumnLayout {
+                                id: aboutEntry
+
+                                required property var modelData
+
+                                Layout.fillWidth: true
+                                spacing: 0
+
+                                Label {
+                                    text: aboutEntry.modelData.caption
+                                    color: Theme.textCaption
+                                    font.pixelSize: Theme.captionFontSize
+                                }
+                                Label {
+                                    text: aboutEntry.modelData.formula
+                                    color: Theme.textPrimary
+                                    font.bold: true
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
-        HistogramPlotView {
+        RowLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
+            spacing: Theme.panelGap
 
-            xLabel: qsTr("ICT (pixel)")
-            yLabel: qsTr("ZFL (pixel)")
-            emptyText: qsTr("No series yet -- press Update Table, then Update Graphs")
+            PlotBlock {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.preferredWidth: 1
 
-            defaultXMin: -panel.ictMax
-            defaultXMax: panel.ictMax
-            defaultYMin: 0
-            defaultYMax: 3000
+                title: qsTr("Shift of Entrance Pupil")
+                emptyText: qsTr("No enabled range has an alpha yet")
+                readoutFontSize: panel.readoutFontSize
 
-            curves: panel.curves
+                xLabel: qsTr("Lateral displacement")
+                yLabel: qsTr("Optical Axis (distance)")
+                xMin: -300
+                xMax: 300
+                yMin: 0
+                yMax: 600
+
+                curves: panel.pupilCurves
+
+                actionText: qsTr("Update Shift of Entrance Pupil")
+                onActionTriggered: {
+                    panel.rebuildShiftOfPupil()
+                    panel.updateShiftOfPupilRequested()
+                }
+            }
+
+            PlotBlock {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.preferredWidth: 1
+
+                title: qsTr("Distance vs IH Range")
+                emptyText: qsTr("No enabled range has an IH window yet")
+                readoutFontSize: panel.readoutFontSize
+
+                xLabel: qsTr("IH Range Mean (%)")
+                yLabel: qsTr("Distance")
+                xMin: 0
+                xMax: 100
+                yMin: 0
+                yMax: 400
+
+                curves: panel.distIhCurves
+
+                actionText: qsTr("Update Dist vs IH Range")
+                onActionTriggered: {
+                    panel.rebuildDistVsIhRange()
+                    panel.updateDistVsIhRangeRequested()
+                }
+            }
+
+            PlotBlock {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                Layout.preferredWidth: 1
+
+                title: qsTr("Distance vs Alpha")
+                emptyText: qsTr("No enabled range has an alpha yet")
+                readoutFontSize: panel.readoutFontSize
+
+                xLabel: qsTr("Alpha Mean (degree)")
+                yLabel: qsTr("Distance")
+                xMin: 0
+                xMax: 90
+                yMin: 0
+                yMax: 400
+
+                curves: panel.distAlphaCurves
+
+                actionText: qsTr("Update Dist vs Alpha")
+                onActionTriggered: {
+                    panel.rebuildDistVsAlpha()
+                    panel.updateDistVsAlphaRequested()
+                }
+            }
         }
     }
 }

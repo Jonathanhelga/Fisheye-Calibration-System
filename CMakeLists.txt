@@ -154,6 +154,7 @@ qt_add_qml_module(moil_fisheye_cali
         qml/controls/ScaledCanvas.qml
         qml/controls/ActionButton.qml
         qml/controls/GhostButton.qml
+        qml/controls/HelpButton.qml
         qml/controls/ColorSwatch.qml
         qml/controls/ValueField.qml
         qml/controls/DecimalValidator.qml
@@ -172,7 +173,10 @@ qt_add_qml_module(moil_fisheye_cali
         qml/controls/ConcentricLayerRow.qml
         qml/controls/StripelineLayerRow.qml
         qml/controls/CaliResultRow.qml
+        qml/controls/CaliRangeColumn.qml
+        qml/controls/CheckSquare.qml
         qml/controls/HistogramPlotView.qml
+        qml/controls/PlotBlock.qml
         qml/controls/RangeControl.qml
         qml/controls/AxisReadout.qml
         qml/controls/AxisStateReadout.qml

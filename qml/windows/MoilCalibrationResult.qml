@@ -22,9 +22,6 @@ Window {
     readonly property bool busy: CalibrationController.busy
     readonly property int loadStatus: CalibrationController.loadStatus
 
-    property bool singleDistance: CalibrationController.singleDistance
-    onSingleDistanceChanged: CalibrationController.singleDistance = root.singleDistance
-
     property alias caliFolder: caliFolderField.text
     property alias caliSystem: caliSystemCombo.currentIndex
 
@@ -51,6 +48,11 @@ Window {
 
     property alias view: viewSelector.currentIndex
     property alias round: dataPanel.round
+
+    // The toggle moved into the Data panel next to the Distance field it
+    // qualifies (New-UI branch). The alias keeps `root.singleDistance` reading
+    // for anything outside that still asks the window.
+    property alias singleDistance: dataPanel.singleDistance
 
 
     signal browseRequested()
@@ -158,6 +160,10 @@ Window {
                     color: Theme.textCaption
                     font.pixelSize: Theme.captionFontSize
                     elide: Text.ElideRight
+                }
+
+                HelpButton {
+                    page: "calibration-result"
                 }
             }
 
@@ -399,12 +405,6 @@ Window {
                     ToolTip.delay: Theme.animSlow
                     ToolTip.text: qsTr("Erase every value in all eleven rounds, current and 1 to 10.")
                 }
-        
-                PatternToggleSwitch {
-                    text: qsTr("Single Distance")
-                    checked: root.singleDistance
-                    onToggled: (value) => root.singleDistance = value
-                }
             }
 
             SegmentedControl {
@@ -453,22 +453,97 @@ Window {
                 }
             }
 
+            // The three ported tabs are pure views: series in as properties,
+            // intent out as signals. The ops they map to are the old client's,
+            // one for one -- see the comment at the top of each panel.
             CaliResultOverlapPanel {
+                id: overlapPanel
+
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 visible: root.view === root.viewOverlap
+
+                zflRounds: CalibrationController.zflRounds
+                roundColors: CalibrationController.roundColors
+                inspected: CalibrationController.roundPoints
+                busy: CalibrationController.busy
+
+                // The samples the Aggregation tab's searches produced. Redraw
+                // only -- `updatePlotDistVsAggr()` in the old controller never
+                // started a search, and a button saying "update" must not spend
+                // minutes on the rig.
+                distAggrSamples: CalibrationController.searchSamples
+
+                onUpdateOverlapRequested: CalibrationController.updateSeries()
+                onUpdateDistVsAggrRequested: {
+                    if (CalibrationController.searchSamples.length === 0)
+                        toast.show(qsTr("No search has run yet -- run one from the Aggregation tab."))
+                }
+
+                onShowAloneRequested: (round) => CalibrationController.fetchRoundPoints(round)
+                onClearInspectedRequested: CalibrationController.fetchRoundPoints(0)
             }
 
             CaliResultAggregationPanel {
+                id: aggregationPanel
+
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 visible: root.view === root.viewAggregation
+
+                searching: CalibrationController.searchRunning
+                busy: CalibrationController.busy
+                searchStage: CalibrationController.searchStage
+                searchSummary: CalibrationController.searchSummary
+                searchDone: CalibrationController.searchDone
+                searchTotal: CalibrationController.searchTotal
+
+                // Everything the panel converts from IH percent to pixels hangs
+                // off this. Zero disables the search buttons rather than letting
+                // them run on a window of 0..100 pixels.
+                maxIct: CalibrationController.maxIct
+
+                // Stop has to drop the queue as well as unwind the running
+                // probe. Calling cancelSearch() alone would land the rig back
+                // on the next round a moment later, which reads as a Stop
+                // button that does not stop.
+                onStopRequested: root.cancelMinByRound()
+
+                // Ports aggrByRangeAndDistance()'s two branches. A Distance in
+                // the box scores that distance; an empty one with a target
+                // aggregation searches for the distance that hits it.
+                onAggrByRangeAndDistanceRequested: {
+                    if (aggregationPanel.hasRequestedDistance) {
+                        CalibrationController.baseDistance = aggregationPanel.requestedDistance
+                        CalibrationController.aggregationAllRounds(
+                            true, aggregationPanel.windowXLo, aggregationPanel.windowXHi)
+                    } else {
+                        CalibrationController.findDistanceForTarget(
+                            aggregationPanel.requestedTarget, true,
+                            aggregationPanel.windowXLo, aggregationPanel.windowXHi)
+                    }
+                }
+
+                // Per ROUND, not one pooled search. See root.startMinByRound()
+                // for why the distinction is the whole point of this button.
+                onMinAggrByIntervalRequested: root.startMinByRound()
+
+                onRangeWindowRequested: toast.show(qsTr("Filled Range_1 to Range_20 from the interval."))
+
+                // No server op behind either of these yet: the old client wrote
+                // both to local files.
+                onKeepRoundDataRequested: toast.show(qsTr("Keep Round Data is not wired to the rig yet."))
+                onSaveHistoryDistanceRequested: toast.show(qsTr("Save Distance History is not wired to the rig yet."))
             }
 
             CaliResultGraphsPanel {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 visible: root.view === root.viewGraphs
+
+                // Entirely client-side arithmetic over the range table, exactly
+                // as the old tab_graphs was -- no op, no rig.
+                ranges: aggregationPanel.ranges
             }
         }
     }
@@ -542,15 +617,189 @@ Window {
         }
     }
 
+    // ---- Min Aggregation by Interval: one minimum PER ROUND ----------------
+    //
+    // Restored 2026-09-09, after the merge with origin/v2.1_2026_New-UI-CPP-ROS
+    // dropped it. That merge rebuilt this tab as the 20-range workspace and
+    // pointed this button at `findMinInWindow`, which is a different op with a
+    // different meaning, and the substitution is invisible in the UI:
+    //
+    //   findMinInWindow      -> find_min_aggregation_in_window
+    //                           ONE minimum, over every enabled round pooled
+    //   findMinForRound      -> find_min_aggr_single_round
+    //                           each round's OWN minimum, one search per round
+    //
+    // The pooled number cannot answer the question this button is for. A single
+    // bad round -- shot at the wrong distance, or against a stale pattern --
+    // barely moves the pooled minimum, and shows up only as its own minimum
+    // landing somewhere the others did not. That is the whole reason the old
+    // client looped the rounds instead of asking once, and it is why
+    // docs/MISSING_CONTROLS.md lists this exact swap as a semantic trap.
+    //
+    // The distance range is 1..500, matching the old client's
+    // find_min_aggr_single_round(i, 1, 500). Deliberately NOT the panel's
+    // interval fields: those are an ICT window in PIXELS, converted from IH
+    // percent, and feeding an ICT window in as a distance range would be the
+    // same class of unit error -- accepted without complaint, wrong by a factor
+    // nobody can see in the output.
+    readonly property real minByRoundDistMin: 1
+    readonly property real minByRoundDistMax: 500
+
+    property var minByRoundQueue: []
+    property var minByRoundResults: []
+    property bool minByRoundActive: false
+
+    // searchChanged also fires for progress, so "finished" cannot be read from
+    // one edge of searchRunning. We only treat a round as done once we have
+    // seen it actually running and then stop.
+    property bool minByRoundSawRunning: false
+    property int minByRoundCurrent: 0
+
+    // A round with no ICT anywhere is not worth a search -- the rig would spend
+    // a full ternary descent to report a minimum of nothing. The old client
+    // skipped these too.
+    function roundHasData(round) {
+        const table = CalibrationController.rounds[round]
+        if (!table)
+            return false
+        for (let i = 0; i < table.length; ++i) {
+            const v = table[i].ictAvg
+            if (v !== undefined && v !== "" && parseFloat(v) !== 0)
+                return true
+        }
+        return false
+    }
+
+    function startMinByRound() {
+        if (root.minByRoundActive)
+            return
+
+        const queue = []
+        const skippedOff = []
+        const skippedEmpty = []
+        for (let r = 1; r <= 10; ++r) {
+            if (CalibrationController.roundEnabled[r] === false) {
+                skippedOff.push(r)
+                continue
+            }
+            if (!root.roundHasData(r)) {
+                skippedEmpty.push(r)
+                continue
+            }
+            queue.push(r)
+        }
+
+        if (queue.length === 0) {
+            toast.show(qsTr("No round has data to search -- every round is either "
+                          + "switched off or empty."), true)
+            return
+        }
+
+        root.minByRoundQueue = queue
+        root.minByRoundResults = []
+        root.minByRoundActive = true
+
+        let note = qsTr("Searching %1 round(s), one minimum each.").arg(queue.length)
+        if (skippedOff.length > 0)
+            note += " " + qsTr("Skipped %1 switched off.").arg(skippedOff.join(", "))
+        if (skippedEmpty.length > 0)
+            note += " " + qsTr("Skipped %1 empty.").arg(skippedEmpty.join(", "))
+        toast.show(note, false)
+
+        root.runNextMinByRound()
+    }
+
+    function runNextMinByRound() {
+        if (!root.minByRoundActive)
+            return
+
+        if (root.minByRoundQueue.length === 0) {
+            root.finishMinByRound(false)
+            return
+        }
+
+        const next = root.minByRoundQueue.slice()
+        root.minByRoundCurrent = next.shift()
+        root.minByRoundQueue = next
+        root.minByRoundSawRunning = false
+
+        CalibrationController.findMinForRound(root.minByRoundCurrent,
+                                              root.minByRoundDistMin,
+                                              root.minByRoundDistMax)
+    }
+
+    function cancelMinByRound() {
+        // Always unwind the rig, whether or not a sequence is running -- this is
+        // the tab's only Stop and the other two searches go through it as well.
+        CalibrationController.cancelSearch()
+
+        if (!root.minByRoundActive)
+            return
+
+        root.minByRoundQueue = []
+        root.finishMinByRound(true)
+    }
+
+    function finishMinByRound(cancelled) {
+        root.minByRoundActive = false
+        root.minByRoundSawRunning = false
+
+        const done = root.minByRoundResults
+        if (done.length === 0) {
+            toast.show(cancelled ? qsTr("Stopped before any round finished.")
+                                 : qsTr("No round produced a minimum."), true)
+            return
+        }
+
+        const parts = []
+        for (let i = 0; i < done.length; ++i)
+            parts.push(qsTr("R%1: %2").arg(done[i].round).arg(done[i].distance.toFixed(1)))
+
+        // Partial is reported as partial. A cancelled search produced a real
+        // answer for the rounds it got through; saying otherwise would throw
+        // away work the operator paid rig time for.
+        toast.show((cancelled ? qsTr("Stopped after %1 round(s) -- ")
+                              : qsTr("Best distance per round -- ")).arg(done.length)
+                   + parts.join(", "), cancelled)
+    }
+
     Connections {
         target: CalibrationController
 
         function onErrorRaised(message) {
             toast.show(message, true)
+            // A refused or failed op ends the sequence rather than marching the
+            // rig through nine more rounds that will fail the same way.
+            if (root.minByRoundActive) {
+                root.minByRoundQueue = []
+                root.finishMinByRound(true)
+            }
         }
 
         function onNotice(message) {
             toast.show(message, false)
+        }
+
+        function onSearchChanged() {
+            if (!root.minByRoundActive)
+                return
+
+            if (CalibrationController.searchRunning) {
+                root.minByRoundSawRunning = true
+                return
+            }
+
+            if (!root.minByRoundSawRunning)
+                return
+
+            root.minByRoundSawRunning = false
+            root.minByRoundResults = root.minByRoundResults.concat([{
+                round: root.minByRoundCurrent,
+                distance: CalibrationController.bestDistance,
+                aggregation: CalibrationController.bestAggregation
+            }])
+
+            root.runNextMinByRound()
         }
     }
 }
