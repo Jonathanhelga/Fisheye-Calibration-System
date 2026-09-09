@@ -124,6 +124,19 @@ Rectangle {
         if (!PatternConfig.isConfigFor(doc, panel))
             return false
 
+        // Held at "custom" while the envelope's colours land, so the
+        // positiveColor/negativeColor changes it makes do not fire
+        // refreshPattern() and repaint rows the loop below is about to rewrite.
+        // Without this an import repaints the whole table once for nothing and
+        // bumps layerRevision an extra time, firing a spurious auto-render.
+        //
+        // ConcentricPanel has carried this since the 335ee75 port; this panel
+        // did not, and the 2026-09-08 merge did not restore it because
+        // StripelinePanel.qml auto-merged without a conflict. Neither the build,
+        // qmllint, nor an API diff can see a missing guard inside a function
+        // body -- it was found by comparing the two panels against each other.
+        panel.colorPolarity = "custom"
+
         PatternConfig.applyConfigEnvelope(doc, panel)
         const derived = doc.pos_neg_color === true
 

@@ -50,6 +50,7 @@ class CameraController : public QObject {
     Q_PROPERTY(QString liveUrl READ liveUrl NOTIFY changed)
     Q_PROPERTY(bool streaming READ streaming NOTIFY changed)
     Q_PROPERTY(bool receiving READ receiving NOTIFY changed)
+    Q_PROPERTY(qreal fps READ fps NOTIFY changed)
 
 public:
     explicit CameraController(QObject *parent = nullptr);
@@ -71,6 +72,7 @@ public:
     QString liveUrl() const;
     bool streaming() const { return streaming_; }
     bool receiving() const { return streaming_ && liveRevision_ > 0; }
+    qreal fps() const { return fps_; }
 
     Q_INVOKABLE void connectTo(int domainId);
     Q_INVOKABLE void capture(const QString &slot = QString());
@@ -109,6 +111,8 @@ private:
     int fov_ = 180;
     bool streaming_ = false;
     int liveRevision_ = 0;
+    qreal fps_ = 0;
+    qint64 lastFrameMs_ = 0;
     quint64 captureToken_ = 0;
 
     struct Impl;

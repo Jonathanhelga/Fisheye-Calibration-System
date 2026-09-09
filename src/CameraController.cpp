@@ -3,6 +3,7 @@
 #include "ImageStore.h"
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QImage>
 #include <QMutex>
 #include <QQuickImageProvider>
@@ -248,11 +249,21 @@ QString CameraController::liveUrl() const {
 }
 
 // GUI thread. The frame itself is already in frameImages and ImageStore; this
-// only bumps the revision so the binding re-reads it.
+// only bumps the revision so the binding re-reads it, and keeps the frame rate.
 void CameraController::applyLiveFrame(int width, int height, quint64 generation) {
     Q_UNUSED(width)
     Q_UNUSED(height)
     if (generation != d_->generation.load() || !streaming_) return;
+
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (lastFrameMs_ > 0) {
+        const qint64 gap = now - lastFrameMs_;
+        // Smoothed so the readout does not flicker between 11 and 19 fps on a
+        // stream that is perfectly steady.
+        if (gap > 0) fps_ = fps_ > 0 ? (fps_ * 0.7 + (1000.0 / gap) * 0.3) : 1000.0 / gap;
+    }
+    lastFrameMs_ = now;
+
     ++liveRevision_;
     emit changed();
 }
@@ -265,6 +276,10 @@ void CameraController::startStream() {
         return;
     }
     streaming_ = true;
+    // Cleared on every start, not carried over: a stale rate from the previous
+    // session would be shown as current for the first second of this one.
+    fps_ = 0;
+    lastFrameMs_ = 0;
     d_->wantStream.store(true);
     emit changed();
 }
@@ -273,6 +288,8 @@ void CameraController::stopStream() {
     if (!streaming_) return;
     d_->wantStream.store(false);
     streaming_ = false;
+    fps_ = 0;
+    lastFrameMs_ = 0;
     emit changed();
 }
 

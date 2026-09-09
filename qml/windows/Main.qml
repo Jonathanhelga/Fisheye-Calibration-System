@@ -265,6 +265,7 @@ ApplicationWindow {
                         framePath:  CameraController.liveUrl
                         streaming:  CameraController.streaming
                         receiving:  CameraController.receiving
+                        fps:        CameraController.fps
                         linkStatus: CameraController.status
 
                         onStartRequested: CameraController.startStream()
