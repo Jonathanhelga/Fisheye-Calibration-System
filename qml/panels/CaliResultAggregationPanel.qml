@@ -9,7 +9,8 @@ Rectangle {
     id: panel
 
     readonly property int rangeCount: 20
-    readonly property int resultRowCount: 10
+    readonly property int resultRowCount: 137
+    readonly property int visibleResultRows: 10
 
     readonly property var rowCaptions: [qsTr("IH Min"), qsTr("IH Max"),
                                         qsTr("Dist Min"), qsTr("Dist Max"),
@@ -313,14 +314,16 @@ Rectangle {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     Layout.minimumHeight: 0
-                    Layout.preferredHeight: panel.resultRowCount * metrics.cellHeight
-                                            + (panel.resultRowCount - 1) * metrics.cellSpacing
+                    Layout.preferredHeight: panel.visibleResultRows * metrics.cellHeight
+                                            + (panel.visibleResultRows - 1) * metrics.cellSpacing
 
                     clip: true
-                    interactive: false
+                    interactive: true
                     spacing: metrics.cellSpacing
                     boundsBehavior: Flickable.StopAtBounds
                     model: panel.rangeResults.length
+
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
                     delegate: RowLayout {
                         id: resultRow
