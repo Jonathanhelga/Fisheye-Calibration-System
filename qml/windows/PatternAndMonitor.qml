@@ -515,8 +515,29 @@ Window {
         }
     }
 
+    // Setup Monitor Direction. The dialog only collects the five display numbers;
+    // sending them is the window's job, because the dialog has no controller of
+    // its own and should not grow one.
+    //
+    // Wired to PatternController, not MonitorController. Both can do this, and
+    // that duplication is the open question this branch keeps colliding on -- but
+    // this window drives every other monitor operation through PatternController,
+    // and a dialog that reached a different controller than the panel beside it
+    // would connect to the rig twice and answer to neither.
+    //
+    // Re-wired 2026-09-08: this window came from v2.1_2026_New-UI-CPP-ROS, which
+    // opens the dialog but handles neither signal, so both buttons emitted into
+    // nothing. Build and qmllint were clean -- an unhandled signal is not an error.
     MonitorDirectionDialog {
         id: directionDialog
         anchors.centerIn: parent
+
+        onShowNumbersRequested: PatternController.showDisplayNumbers()
+
+        onApplyMappingRequested: (top, north, west, south, east) => {
+            PatternController.applyDisplayDirection(top, north, west, south, east)
+            toast.show(qsTr("Display mapping sent: TOP=%1 N=%2 W=%3 S=%4 E=%5")
+                       .arg(top).arg(north).arg(west).arg(south).arg(east), false)
+        }
     }
 }

@@ -1,5 +1,7 @@
 #include "CameraController.h"
 
+#include "ImageStore.h"
+
 #include <QCoreApplication>
 #include <QImage>
 #include <QMutex>
@@ -17,6 +19,7 @@
 #include <string>
 
 #include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/compressed_image.hpp>
 
 #include "moil_interfaces/srv/capture.hpp"
 #endif
@@ -31,6 +34,18 @@ constexpr int kWaitSliceMs = 200;
 constexpr int kSpinSliceMs = 100;
 constexpr int kCaptureTimeoutMs = 20000;
 constexpr int kMinFoldRadius = 8;
+
+// The live preview. Restored 2026-09-08 -- v2.1_2026_New-UI-CPP-ROS never had a
+// stream, so the merge left LiveCameraPanel's Start, Stop and Snapshot emitting
+// into nothing.
+constexpr char kLiveTopic[] = "/camera/image_raw/compressed";
+constexpr char kSlotLive[] = "live";
+constexpr char kSlotSingle[] = "single";
+
+// The topic is 3040x3040 BEST_EFFORT. Decoding every frame that arrives costs
+// more than the panel can show, so frames are dropped at the subscription rather
+// than queued -- roughly 12/s reaches the GUI thread.
+constexpr int kMinFrameGapMs = 80;
 
 QMutex frameMutex;
 QHash<QString, QImage> frameImages;
@@ -79,6 +94,10 @@ struct CameraController::Impl {
     std::atomic<quint64> generation{0};
     std::thread worker;
     std::mutex clientMutex;
+    // Read by the worker each spin to decide whether the preview subscription
+    // should exist. Atomic rather than mutex-guarded because it is a single flag
+    // written from the GUI thread and read from the executor thread.
+    std::atomic<bool> wantStream{false};
 #ifdef FISHEYE_ROS_ENABLED
     rclcpp::Client<moil_interfaces::srv::Capture>::SharedPtr client;
 #endif
@@ -219,6 +238,75 @@ void CameraController::foldCheck(const QString &slot, int cx, int cy, int radius
 // Restored after the 2026-09-08 merge; see the note on the property in the
 // header. Guarded so a repeated write does not emit -- changed() is this class's
 // one catch-all notify signal, and every frame binding in the UI depends on it.
+QString CameraController::liveUrl() const {
+    // The revision is what makes the URL change. Without it Qt serves the cached
+    // picture and the preview freezes on the first frame while the rig streams on.
+    return liveRevision_ > 0 ? QStringLiteral("image://moilcamera/%1/%2")
+                                   .arg(QLatin1String(kSlotLive))
+                                   .arg(liveRevision_)
+                             : QString();
+}
+
+// GUI thread. The frame itself is already in frameImages and ImageStore; this
+// only bumps the revision so the binding re-reads it.
+void CameraController::applyLiveFrame(int width, int height, quint64 generation) {
+    Q_UNUSED(width)
+    Q_UNUSED(height)
+    if (generation != d_->generation.load() || !streaming_) return;
+    ++liveRevision_;
+    emit changed();
+}
+
+void CameraController::startStream() {
+    if (streaming_) return;
+    if (status_ != ProbeStatus::Ok) {
+        lastError_ = tr("not connected to the camera node, press Update in the Server panel");
+        emit changed();
+        return;
+    }
+    streaming_ = true;
+    d_->wantStream.store(true);
+    emit changed();
+}
+
+void CameraController::stopStream() {
+    if (!streaming_) return;
+    d_->wantStream.store(false);
+    streaming_ = false;
+    emit changed();
+}
+
+void CameraController::snapshot() {
+    const ImageStore::Frame frame = ImageStore::frame(QString::fromLatin1(kSlotLive));
+    if (frame.image.isNull()) {
+        lastError_ = tr("no live frame to keep yet");
+        emit changed();
+        return;
+    }
+
+    const QString slot = QString::fromLatin1(kSlotSingle);
+
+    // Straight across, bytes and all -- re-encoding here would defeat the reason
+    // ImageStore holds the originals.
+    ImageStore::put(slot, frame.bytes, frame.format, frame.image, frame.width, frame.height);
+    {
+        QMutexLocker locker(&frameMutex);
+        frameImages.insert(slot, frame.image);
+    }
+
+    const int revision = revisions_.value(slot) + 1;
+    revisions_.insert(slot, revision);
+    frameUrls_.insert(slot, QStringLiteral("image://moilcamera/%1/%2").arg(slot).arg(revision));
+    frameSizes_.insert(slot, QSize(frame.width, frame.height));
+    frameLabels_.insert(slot, tr("preview frame %1  %2x%3")
+                                  .arg(QTime::currentTime().toString(QStringLiteral("HH:mm:ss")))
+                                  .arg(frame.width)
+                                  .arg(frame.height));
+    lastError_.clear();
+    emit changed();
+    emit captured(slot, true, QString());
+}
+
 void CameraController::setFov(int degrees) {
     if (fov_ == degrees) return;
     fov_ = degrees;
@@ -297,7 +385,63 @@ void CameraController::connectTo(int domainId) {
                 }
                 post(ProbeStatus::Ok, QString());
 
-                while (alive()) executor.spin_once(std::chrono::milliseconds(kSpinSliceMs));
+                // The preview subscription exists only while the operator has the
+                // stream on. Subscribing up front and discarding frames would put
+                // a 3040x3040 topic on the wire for the whole session to serve a
+                // panel nobody is looking at.
+                rclcpp::Subscription<sensor_msgs::msg::CompressedImage>::SharedPtr live;
+                auto lastPosted = std::chrono::steady_clock::now() - std::chrono::hours(1);
+
+                while (alive()) {
+                    const bool want = d_->wantStream.load();
+
+                    if (want && !live) {
+                        live = node->create_subscription<sensor_msgs::msg::CompressedImage>(
+                            kLiveTopic, rclcpp::SensorDataQoS(),
+                            [this, generation, &lastPosted](
+                                const sensor_msgs::msg::CompressedImage::SharedPtr msg) {
+                                if (generation != d_->generation.load()) return;
+
+                                const auto now = std::chrono::steady_clock::now();
+                                if (std::chrono::duration_cast<std::chrono::milliseconds>(
+                                        now - lastPosted)
+                                        .count() < kMinFrameGapMs)
+                                    return;
+                                lastPosted = now;
+
+                                const QByteArray bytes(
+                                    reinterpret_cast<const char *>(msg->data.data()),
+                                    qsizetype(msg->data.size()));
+
+                                QImage image;
+                                if (!image.loadFromData(bytes)) return;
+
+                                // Both stores, for the same reason a capture goes
+                                // to both: frameImages is what the QML image
+                                // provider paints from, ImageStore is what keeps
+                                // the original bytes so Snapshot can hand a frame
+                                // on without re-encoding it.
+                                {
+                                    QMutexLocker locker(&frameMutex);
+                                    frameImages.insert(QString::fromLatin1(kSlotLive), image);
+                                }
+                                ImageStore::put(QString::fromLatin1(kSlotLive), bytes,
+                                                QString::fromStdString(msg->format), image,
+                                                image.width(), image.height());
+
+                                QMetaObject::invokeMethod(
+                                    this, "applyLiveFrame", Qt::QueuedConnection,
+                                    Q_ARG(int, image.width()), Q_ARG(int, image.height()),
+                                    Q_ARG(quint64, generation));
+                            });
+                    } else if (!want && live) {
+                        live.reset();
+                    }
+
+                    executor.spin_once(std::chrono::milliseconds(kSpinSliceMs));
+                }
+
+                live.reset();
 
                 std::lock_guard<std::mutex> lock(d_->clientMutex);
                 d_->client.reset();
@@ -346,10 +490,27 @@ void CameraController::capture(const QString &slot) {
          token](rclcpp::Client<moil_interfaces::srv::Capture>::SharedFuture future) {
             const auto response = future.get();
 
+            // The bytes and the format are kept, not just the decoded QImage.
+            //
+            // This controller only needs the QImage -- it paints it. But
+            // /compute/detect takes sensor_msgs/CompressedImage, so ComputeController
+            // has to send a capture back out over the wire, and re-encoding the
+            // QImage to PNG would hand the detect ops a picture that is not the one
+            // the camera produced. Every centre fit in this system is a measurement
+            // of exact pixel values, so that difference is not cosmetic.
+            //
+            // Learned the hard way on 2026-09-08: this file arrived from
+            // v2.1_2026_New-UI-CPP-ROS, which has no ComputeController and therefore
+            // no reason to keep the bytes. Nothing wrote ImageStore afterwards, so
+            // every detect op sent an empty image -- Find Pos, Find Neg and
+            // Direction Diff all failed, and the build and qmllint were both clean.
             QImage image;
+            QByteArray bytes;
+            QString format;
             if (response->success && !response->image.data.empty()) {
-                const QByteArray bytes(reinterpret_cast<const char *>(response->image.data.data()),
-                                       qsizetype(response->image.data.size()));
+                bytes = QByteArray(reinterpret_cast<const char *>(response->image.data.data()),
+                                   qsizetype(response->image.data.size()));
+                format = QString::fromStdString(response->image.format);
                 image.loadFromData(bytes);
             }
 
@@ -369,8 +530,14 @@ void CameraController::capture(const QString &slot) {
                               .arg(response->height);
 
             if (ok) {
-                QMutexLocker locker(&frameMutex);
-                frameImages.insert(key, image);
+                {
+                    QMutexLocker locker(&frameMutex);
+                    frameImages.insert(key, image);
+                }
+                // Scoped above so this is not called holding frameMutex --
+                // ImageStore takes its own lock, and nesting two would be a
+                // deadlock waiting for a second writer.
+                ImageStore::put(key, bytes, format, image, response->width, response->height);
             }
 
             QMetaObject::invokeMethod(this, "applyCapture", Qt::QueuedConnection,

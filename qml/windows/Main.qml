@@ -60,13 +60,21 @@ ApplicationWindow {
                         // connect on startup, so pressing Update is what creates
                         // them. A controller missing from this list does not fail;
                         // it sits idle for ever with no message, which reads as a
-                        // dead rig rather than an unwired button.
+                        // dead rig rather than an unwired button. That is how the
+                        // last three went missing in the 2026-09-08 merge.
+                        //
+                        // MonitorController is deliberately NOT here. After that
+                        // merge the monitor work is PatternController's, and nothing
+                        // in QML calls MonitorController any more -- connecting it
+                        // would build a context, node and executor to serve no
+                        // caller, and each one adds to the XTYPES wall Windows
+                        // prints on Update. Re-add the line the moment something
+                        // needs it; do not add it back speculatively.
                         onRosUpdateRequested: (domainId, axisNamespace, monitorNamespace, cameraTopic) => {
                             RosServerProbe.probeAll(domainId, axisNamespace, monitorNamespace, cameraTopic)
                             AxisController.connectTo(domainId, axisNamespace, true)
                             CameraController.connectTo(domainId)
                             PatternController.connectTo(domainId)
-                            MonitorController.connectTo(domainId)
                             ComputeController.connectTo(domainId)
                             CalibrationController.connectTo(domainId)
                         }
@@ -248,6 +256,20 @@ ApplicationWindow {
 
                         Layout.fillWidth: true
                         Layout.fillHeight: true
+
+                        // Restored 2026-09-08. The merge from
+                        // v2.1_2026_New-UI-CPP-ROS brought a Main.qml that binds
+                        // only this panel's geometry, so Start, Stop and Snapshot
+                        // emitted into nothing and no frame ever arrived -- a panel
+                        // that looked idle rather than unwired.
+                        framePath:  CameraController.liveUrl
+                        streaming:  CameraController.streaming
+                        receiving:  CameraController.receiving
+                        linkStatus: CameraController.status
+
+                        onStartRequested: CameraController.startStream()
+                        onStopRequested: CameraController.stopStream()
+                        onSnapshotRequested: CameraController.snapshot()
 
                         roiRadius: centering.centerRoi
                         centerX: centering.hasPositiveCenter ? centering.positiveCpx

@@ -39,6 +39,18 @@ class CameraController : public QObject {
     // with one wrong field.
     Q_PROPERTY(int fov READ fov WRITE setFov NOTIFY changed)
 
+    // The live preview, restored 2026-09-08 after the merge from
+    // v2.1_2026_New-UI-CPP-ROS, which has no stream -- LiveCameraPanel's Start,
+    // Stop and Snapshot were left emitting into nothing.
+    //
+    // `receiving` is not the same question as `streaming`: streaming says the
+    // operator asked for frames, receiving says some have arrived. A rig that
+    // publishes nothing leaves the first true and the second false, which is the
+    // distinction the panel's status line is made of.
+    Q_PROPERTY(QString liveUrl READ liveUrl NOTIFY changed)
+    Q_PROPERTY(bool streaming READ streaming NOTIFY changed)
+    Q_PROPERTY(bool receiving READ receiving NOTIFY changed)
+
 public:
     explicit CameraController(QObject *parent = nullptr);
     ~CameraController() override;
@@ -56,9 +68,21 @@ public:
     int fov() const { return fov_; }
     void setFov(int degrees);
 
+    QString liveUrl() const;
+    bool streaming() const { return streaming_; }
+    bool receiving() const { return streaming_ && liveRevision_ > 0; }
+
     Q_INVOKABLE void connectTo(int domainId);
     Q_INVOKABLE void capture(const QString &slot = QString());
     Q_INVOKABLE void foldCheck(const QString &slot, int cx, int cy, int radius, int gain = 4);
+
+    Q_INVOKABLE void startStream();
+    Q_INVOKABLE void stopStream();
+
+    // Keep the newest preview frame as the "single" capture. Labelled as a
+    // preview on purpose: it came off a BEST_EFFORT topic and may predate the
+    // pattern now on the glass -- fine for aiming, not a measurement.
+    Q_INVOKABLE void snapshot();
 
 signals:
     void changed();
@@ -69,6 +93,7 @@ private:
     Q_INVOKABLE void applyCapture(const QString &slot, bool ok, int width, int height,
                                   int frameWidth, int frameHeight, const QString &message,
                                   quint64 token, quint64 generation);
+    Q_INVOKABLE void applyLiveFrame(int width, int height, quint64 generation);
 
     void stopWorker();
 
@@ -82,6 +107,8 @@ private:
     QVariantMap foldScores_;
     QString lastError_;
     int fov_ = 180;
+    bool streaming_ = false;
+    int liveRevision_ = 0;
     quint64 captureToken_ = 0;
 
     struct Impl;
