@@ -68,6 +68,7 @@ Rectangle {
                       : ""
 
     signal captureRequested(string mode)
+    signal openImageRequested(string mode)
     signal pairRequested()
     signal directionDiffRequested()
     signal centerPicked(string mode, int x, int y)
@@ -343,6 +344,28 @@ Rectangle {
                 ToolTip.visible: hovered
                 ToolTip.delay: Theme.animSlow
                 ToolTip.text: qsTr("Retake the negative shot only")
+            }
+
+            // Loads a picture from disk into the slot the view is currently
+            // showing -- Single, Positive or Negative. Deliberately follows the
+            // view rather than asking: the operator can see which slot they are
+            // about to overwrite, which a dialog with a dropdown cannot promise.
+            //
+            // NOT gated on root.busy or the rig. This is the offline path: with a
+            // compute node running anywhere -- including this machine, which needs
+            // no hardware for it -- Open Img plus Find Pos / Find Neg plus
+            // Direction Diff is a complete measurement without a camera.
+            ActionButton {
+                Layout.preferredWidth: Math.round(Theme.charUnit * 10)
+                text: qsTr("Open Img")
+                onClicked: root.openImageRequested(root.patternMode)
+
+                ToolTip.visible: hovered
+                ToolTip.delay: Theme.animSlow
+                ToolTip.text: qsTr("Load a saved capture into the %1 slot, to analyse it "
+                                 + "without the rig.")
+                                  .arg(root.patternMode === "" ? qsTr("Single")
+                                                               : root.patternMode)
             }
 
             ActionButton {

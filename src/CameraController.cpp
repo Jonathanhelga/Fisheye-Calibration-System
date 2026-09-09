@@ -4,6 +4,8 @@
 
 #include <QCoreApplication>
 #include <QDateTime>
+#include <QFile>
+#include <QFileInfo>
 #include <QImage>
 #include <QMutex>
 #include <QQuickImageProvider>
@@ -140,6 +142,9 @@ void CameraController::applyCapture(const QString &slot, bool ok, int width, int
         frameSizes_.insert(slot, frameWidth > 0 && frameHeight > 0
                                      ? QSize(frameWidth, frameHeight)
                                      : QSize(width, height));
+        // The decoded picture, always -- never the rig's report. See the note on
+        // the imageSizes property.
+        imageSizes_.insert(slot, QSize(width, height));
 
         QString label = tr("capture %1  %2x%3")
                             .arg(QTime::currentTime().toString(QStringLiteral("HH:mm:ss")))
@@ -239,6 +244,57 @@ void CameraController::foldCheck(const QString &slot, int cx, int cy, int radius
 // Restored after the 2026-09-08 merge; see the note on the property in the
 // header. Guarded so a repeated write does not emit -- changed() is this class's
 // one catch-all notify signal, and every frame binding in the UI depends on it.
+bool CameraController::openImage(const QUrl &fileUrl, const QString &slot) {
+    const QString path = fileUrl.isLocalFile() ? fileUrl.toLocalFile() : fileUrl.toString();
+    const QString key = slotKey(slot);
+
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        lastError_ = tr("cannot read %1: %2").arg(QFileInfo(path).fileName(), file.errorString());
+        emit changed();
+        emit captured(key, false, lastError_);
+        return false;
+    }
+
+    const QByteArray bytes = file.readAll();
+    QImage image;
+    if (!image.loadFromData(bytes)) {
+        lastError_ = tr("%1 is not an image this build can read").arg(QFileInfo(path).fileName());
+        emit changed();
+        emit captured(key, false, lastError_);
+        return false;
+    }
+
+    // The bytes are kept exactly as they came off disk, and the format is taken
+    // from the suffix rather than by re-encoding. The detect ops measure pixel
+    // values; a re-encode here would hand them a different picture from the one
+    // the operator is looking at, and the two would never visibly disagree.
+    const QString suffix = QFileInfo(path).suffix().toLower();
+    const QString format = (suffix == QLatin1String("jpg") || suffix == QLatin1String("jpeg"))
+                               ? QStringLiteral("jpeg")
+                               : QStringLiteral("png");
+
+    ImageStore::put(key, bytes, format, image, image.width(), image.height());
+    {
+        QMutexLocker locker(&frameMutex);
+        frameImages.insert(key, image);
+    }
+
+    const int revision = revisions_.value(key) + 1;
+    revisions_.insert(key, revision);
+    frameUrls_.insert(key, QStringLiteral("image://moilcamera/%1/%2").arg(key).arg(revision));
+    frameSizes_.insert(key, QSize(image.width(), image.height()));
+    imageSizes_.insert(key, QSize(image.width(), image.height()));
+    // Named after the file, not stamped with a time: this frame was not taken
+    // now, and a clock reading beside it would say it was.
+    frameLabels_.insert(key, QFileInfo(path).fileName());
+
+    lastError_.clear();
+    emit changed();
+    emit captured(key, true, QString());
+    return true;
+}
+
 QString CameraController::liveUrl() const {
     // The revision is what makes the URL change. Without it Qt serves the cached
     // picture and the preview freezes on the first frame while the rig streams on.

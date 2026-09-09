@@ -3,6 +3,7 @@
 #include <QHash>
 #include <QObject>
 #include <QString>
+#include <QUrl>
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
 
@@ -22,6 +23,17 @@ class CameraController : public QObject {
     Q_PROPERTY(QVariantMap frameUrls READ frameUrls NOTIFY changed)
     Q_PROPERTY(QVariantMap frameLabels READ frameLabels NOTIFY changed)
     Q_PROPERTY(QVariantMap frameSizes READ frameSizes NOTIFY changed)
+
+    // The size of the picture that actually arrived, as decoded -- NOT what the
+    // rig said it sent. frameSizes prefers the rig's own report, and the two do
+    // differ: the capture reply carries both, and the mismatch is reported to the
+    // operator as "(the rig reported %1x%2)".
+    //
+    // Anything working in image coordinates must use this one. The detect ops
+    // decode the same bytes and measure those pixels, so a centre derived from a
+    // reported size that disagrees would be off by exactly the difference --
+    // silently, because both numbers look like a frame size.
+    Q_PROPERTY(QVariantMap imageSizes READ imageSizes NOTIFY changed)
     Q_PROPERTY(QVariantMap foldUrls READ foldUrls NOTIFY changed)
     Q_PROPERTY(QVariantMap foldScores READ foldScores NOTIFY changed)
     Q_PROPERTY(QString lastError READ lastError NOTIFY changed)
@@ -63,6 +75,7 @@ public:
     QVariantMap frameUrls() const { return frameUrls_; }
     QVariantMap frameLabels() const { return frameLabels_; }
     QVariantMap frameSizes() const { return frameSizes_; }
+    QVariantMap imageSizes() const { return imageSizes_; }
     QVariantMap foldUrls() const { return foldUrls_; }
     QVariantMap foldScores() const { return foldScores_; }
     QString lastError() const { return lastError_; }
@@ -77,6 +90,20 @@ public:
     Q_INVOKABLE void connectTo(int domainId);
     Q_INVOKABLE void capture(const QString &slot = QString());
     Q_INVOKABLE void foldCheck(const QString &slot, int cx, int cy, int radius, int gain = 4);
+
+    // Read a picture off disk into a slot, so a capture taken earlier -- or on
+    // another machine -- can be analysed without the rig.
+    //
+    // This is the ONLY way to get an image into the app without a camera, and it
+    // is what makes offline work possible: the detect ops take the bytes in the
+    // request, so a file loaded here reaches /compute/detect exactly as a fresh
+    // capture would. A compute node needs no hardware, so the whole measurement
+    // path runs against a server on this machine.
+    //
+    // Restored 2026-09-09. It existed before the merge from
+    // v2.1_2026_New-UI-CPP-ROS, which removed the button and the backend
+    // together -- consistently, so nothing dangled and nothing reported it.
+    Q_INVOKABLE bool openImage(const QUrl &fileUrl, const QString &slot = QString());
 
     Q_INVOKABLE void startStream();
     Q_INVOKABLE void stopStream();
@@ -105,6 +132,7 @@ private:
     QVariantMap frameUrls_;
     QVariantMap frameLabels_;
     QVariantMap frameSizes_;
+    QVariantMap imageSizes_;
     QVariantMap foldUrls_;
     QVariantMap foldScores_;
     QString lastError_;
