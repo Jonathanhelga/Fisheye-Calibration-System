@@ -753,6 +753,12 @@ void CalibrationController::applyCaliOp(const QString &op, int round, bool ok,
 
     if (op == QLatin1String("update_table_from_capture")) {
         emit notice(tr("Round %1 filled from the capture").arg(round));
+        // Then recompute, as the old client's Update Table did: the op writes the
+        // PCT and the eight ICT columns and nothing else, so without this the
+        // round shows raw measurements with every derived column -- ict_avg,
+        // pct_cal, distance, alpha, ZFL -- still holding the PREVIOUS round's
+        // numbers or blank. One press, one finished round.
+        computeAll();
         return;
     }
 }

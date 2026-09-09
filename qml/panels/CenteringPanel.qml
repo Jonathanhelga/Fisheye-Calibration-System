@@ -66,6 +66,13 @@ Rectangle {
 
     // Ask the rig where the centre is. The answer may be "nowhere" and that is a
     // valid answer -- see onCenterRefused.
+    //
+    // NO CALLER since the Find Pos / Find Neg buttons were removed on 2026-09-09.
+    // Kept because it is the only route to the auto_center cascade, which is
+    // specified in doc/auto_center_design.md and still served by the rig; putting
+    // a button back is one call, working out how to ask for it again from scratch
+    // would not be. onCenterFound and onCenterRefused below are its other half
+    // and are equally dormant.
     function findCenter(target) {
         const slot = slotFor(target)
         if (slot === "" || locked)
@@ -113,7 +120,11 @@ Rectangle {
                                      : -1
     }
 
-    function setCenter(target, x, y) {
+    // `method` is optional and names where the centre came from, because the
+    // read-out beside it is the only thing telling the operator whether they are
+    // looking at a measurement or a default. Omitted, it stays "picked by hand" --
+    // which is what every existing caller means.
+    function setCenter(target, x, y, method) {
         if (locked)
             return
         if (target === "Positive") {
@@ -126,7 +137,7 @@ Rectangle {
             return
         }
         refusalReason = ""
-        lastMethod = qsTr("picked by hand")
+        lastMethod = (method !== undefined && method !== "") ? method : qsTr("picked by hand")
         lastConfidence = ""
         centerChanged(target, x, y)
 
@@ -250,26 +261,15 @@ Rectangle {
                 }
             }
 
-            ActionButton {
-                text: qsTr("Find Pos")
-                enabled: root.linked && !root.computing && !root.locked
-                onClicked: root.findCenter("Positive")
-
-                ToolTip.visible: hovered
-                ToolTip.delay: Theme.animSlow
-                ToolTip.text: qsTr("Run the auto_center cascade on the positive shot. "
-                                 + "It answers 'no centre' rather than guessing.")
-            }
-
-            ActionButton {
-                text: qsTr("Find Neg")
-                enabled: root.linked && !root.computing && !root.locked
-                onClicked: root.findCenter("Negative")
-
-                ToolTip.visible: hovered
-                ToolTip.delay: Theme.animSlow
-                ToolTip.text: qsTr("Run the auto_center cascade on the negative shot")
-            }
+            // Find Pos / Find Neg removed 2026-09-09. The Widgets client never had
+            // them, and nothing needs them now: in Auto a shot centres on the
+            // middle of its own frame, and in Manual a click seeds roi_exact.
+            //
+            // They were the only callers of ComputeController.autoCenter, so the
+            // auto_center cascade is now unreachable from this UI. The op is
+            // untouched on the server and findCenter() below still calls it, so
+            // restoring them is one button; deleting the C++ would not be, and
+            // doc/auto_center_design.md is the specification for that cascade.
         }
 
         RowLayout {
@@ -326,9 +326,9 @@ Rectangle {
 
             Label {
                 text: root.mode === root.modeAuto
-                        ? qsTr("Auto: Find asks the rig")
+                        ? qsTr("Auto: a shot centres on the middle of its frame")
                         : root.mode === root.modeManual
-                            ? qsTr("Manual: a click seeds roi_exact")
+                            ? qsTr("Manual: type a centre, or click to seed roi_exact")
                             : qsTr("Locked: centres are read-only")
                 color: Theme.textCaption
                 font.pixelSize: Theme.captionFontSize

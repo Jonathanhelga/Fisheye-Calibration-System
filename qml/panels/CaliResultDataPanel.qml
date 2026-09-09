@@ -287,14 +287,35 @@ Rectangle {
                 ToolTip.delay: Theme.animSlow
                 ToolTip.text: qsTr("Measure how tightly this round's ZFL values agree with each other.")
             }
+            // NOT "Clean Noise". Renamed 2026-09-09.
+            //
+            // In the Widgets client "Clean Noise" is a TOGGLE of the global
+            // noise_cleaning flag -- it changes how the rig extracts nodes, and
+            // its effect shows up in the histogram the moment you flip it. That
+            // control exists here too, on the Centering panel, spelled "Noise
+            // cleaning".
+            //
+            // This button is a different operation that shares none of that:
+            // auto_detect_noise_bands finds bands in the round's ICT columns and
+            // REMOVES them from the table. It is destructive, it touches no
+            // histogram, and the Widgets client has no equivalent at all -- it is
+            // a newer server capability.
+            //
+            // Two unrelated things under one name, and an operator who knew the
+            // old client pressed this expecting the curves to change. Same trap as
+            // Update Table, found the same afternoon.
             ActionButton {
-                text: qsTr("Clean Noise")
-                enabled: !CalibrationController.busy
+                text: qsTr("Remove Noise Bands")
+                enabled: !CalibrationController.busy && panel.roundHasData
                 onClicked: panel.cleanNoiseRequested(panel.round)
 
                 ToolTip.visible: hovered
                 ToolTip.delay: Theme.animSlow
-                ToolTip.text: qsTr("Drop measurements that sit too far from their neighbours before computing.")
+                ToolTip.text: qsTr("Find dense bands of false crossings in round %1 and delete "
+                                 + "them from the table. This edits the data and cannot be "
+                                 + "undone. It is not the Noise cleaning switch on the "
+                                 + "Centering panel, which changes how the rig detects.")
+                                  .arg(panel.round)
             }
             ActionButton {
                 id: formulaButton

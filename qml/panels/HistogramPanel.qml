@@ -12,6 +12,10 @@ Rectangle {
     property int channel: 1
     property bool showCurves: true
 
+    // Raised when Show Curve is pressed on a panel that has nothing to draw. The
+    // window owns the fetch, because both panels share one measurement.
+    signal fetchRequested()
+
     property var posDirections: []
     property var negDirections: []
     property var colorOverrides: ({})
@@ -257,11 +261,31 @@ Rectangle {
                 onUpperMoved: (value) => plotView.xMax = value
             }
 
+            // Collects once, then toggles.
+            //
+            // The old Widgets client's Show Curve FETCHED -- showCurve(n) called
+            // histogram_8dir on demand and cached the answer. Here it was a pure
+            // view toggle, so an operator who pressed it on an empty panel got
+            // nothing at all and no explanation, which is exactly how it was
+            // reported on 2026-09-09.
+            //
+            // It does not re-fetch once there is data: one request already carries
+            // all eight directions for both polarities, and the checkboxes filter
+            // that locally. Pressing this again would put an identical request on
+            // the wire and re-measure two 3040x3040 frames for the same answer.
+            // Direction Diff is the deliberate re-measure.
             ActionButton {
                 text: qsTr("Show Curve")
                 checked: root.showCurves
                 enabled: root.curveSet.length > 0
-                onClicked: root.showCurves = !root.showCurves
+                onClicked: {
+                    if (!root.hasData) {
+                        root.showCurves = true
+                        root.fetchRequested()
+                        return
+                    }
+                    root.showCurves = !root.showCurves
+                }
             }
 
             ActionButton {

@@ -131,6 +131,29 @@ Window {
         saveImageDialog.open()
     }
 
+    // The PCT column, in the exact order update_table_from_capture expects:
+    // 25 concentric radii, THEN 50 stripeline intervals. Not one or the other --
+    // both go in every time, whichever pattern is currently on screen.
+    //
+    // CaliCompute splits them at the "*" row: rows above it are the TOP panel and
+    // read entries 0..24; rows from the "*" down are the SIDE panel and read
+    // 25 + (layer - sideStartLayer). So sending only the concentric radii would
+    // pair every side row's ICT with a ring radius, and pct_cal is a RUNNING SUM
+    // -- the error compounds down the column instead of staying local. It would
+    // also be invisible: a pattern whose 50 side intervals are all equal produces
+    // a table that looks perfectly reasonable.
+    //
+    // Strings, not numbers, because "" and "0" are different answers to
+    // updateTableFromCapture and a blank must stay blank.
+    function pctList() {
+        const out = []
+        for (let i = 0; i < concentricPanel.layers.count; ++i)
+            out.push(String(Math.round(concentricPanel.layers.get(i).radius)))
+        for (let j = 0; j < stripelinePanel.layers.count; ++j)
+            out.push(String(Math.round(stripelinePanel.layers.get(j).interval)))
+        return out
+    }
+
     function turnOffFourSides() {
         monitorViewer.turnOffFourSides()
     }

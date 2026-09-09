@@ -57,7 +57,13 @@ Window {
     signal loadAllExcelRequested()
     signal loadExcelRequested()
     signal saveExcelRequested()
-    signal updateTableRequested()
+    // Whether a capture can be turned into a round: a pair with a centre on each.
+    // Bound from Main.qml, which owns the camera and the Centering panel -- this
+    // window can see neither, and the centres are not always ComputeController's
+    // to report (in Auto they are the frame's middle, set client-side).
+    property bool captureReady: false
+
+    signal updateTableRequested(int round)
     signal loadDatabaseRequested()
     signal stopRequested()
     signal clearTableRequested()
@@ -310,34 +316,34 @@ Window {
 
                 ActionSeparator {}
 
-                // This is the old client's "Update All Cali Result"
-                // (btn_update_all_cali_result), NOT its "Update Table"
-                // (btn_update_table). The two are unrelated and the label moved.
+                // Fill the current round from the capture, then recompute -- the
+                // old client's btn_update_table, restored 2026-09-09.
                 //
-                // Old Update Table ran update_table_from_capture: it read the
-                // positive/negative shots and filled the round's ICT columns.
-                // Nothing in this app does that yet -- see docs/MISSING_CONTROLS.md.
+                // Between the merge and today this button ran compute_all, which
+                // is the old client's "Update All Cali Result" -- a DIFFERENT
+                // operation that recomputes from data already in the table. The
+                // Parameter tab already carries that one under its correct name,
+                // so this was a duplicate wearing the missing function's name, and
+                // pressing it on an empty round recomputed nothing and looked
+                // dead.
                 //
-                // The tooltip has to carry the difference, because the failure is
-                // silent and plausible rather than loud: press this expecting a
-                // fresh capture and you get a clean recompute of whatever was
-                // already in the table. On an empty round it computes nothing and
-                // reads as a dead button; on a round loaded from Excel it produces
-                // a perfectly good result that is not the one you asked for.
+                // The window does not do the work: it has no access to the pattern
+                // panels, and the nodes belong to ComputeController. Main.qml owns
+                // both, so the request goes there -- which is what updateTableRequested
+                // was declared for and never used.
                 ActionButton {
                     text: qsTr("Update Table")
-                    enabled: !root.busy
-                    onClicked: {
-                        CalibrationController.computeAll()
-                        root.updateTableRequested()
-                    }
+                    enabled: !root.busy && root.captureReady
+                    onClicked: root.updateTableRequested(root.round)
 
                     ToolTip.visible: hovered
                     ToolTip.delay: Theme.animSlow
-                    ToolTip.text: qsTr("Recalculate every round from the values already in the "
-                                     + "tables, using the selected calibration system. This does "
-                                     + "NOT read a new capture -- load Excel first, or type the "
-                                     + "values in.")
+                    ToolTip.text: root.captureReady
+                        ? qsTr("Measure the crossings in the current pair and fill round %1 "
+                             + "with them, plus the PCT from the pattern, then recompute.")
+                              .arg(root.round)
+                        : qsTr("Needs a positive and a negative shot with a centre on each. "
+                             + "Take a pair first.")
                 }
                 ActionButton {
                     text: qsTr("Save to Excel")
