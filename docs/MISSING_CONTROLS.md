@@ -94,9 +94,83 @@ Two related checks, for completeness:
 
 ---
 
+## The 20-range IH analysis workspace — added 2026-09-09
+
+**The largest remaining gap, and it is a whole feature area rather than a button.**
+
+`client_prepared` (`C:\Users\Bahri\Desktop\13082026_Nasyah_developt - Copy\…`)
+carries `checkbox_enable_range_1..20`, each with `lineedit_distance_range_N`,
+`alpha_min/max_N` and `aggregation_min/max_range_N`, driven by six controls this
+app has no equivalent for:
+
+| Old control | What it does |
+|---|---|
+| **Range Window** | loads `range_min` / `range_max` / `step` from a JSON file |
+| **Aggr by Range and Distance** | aggregation for an IH range given as **percent** of `maxIctAllRounds`, at a distance |
+| **Min Aggregation by Interval** | loops rounds 1–10, per-round minimum via `find_min_aggr_single_round(i, 1, 500)`, skipping OFF and empty rounds, cancellable |
+| **Show Graph Dist-Alpha** | distance against α across the enabled ranges |
+| **Show Graph Dist-IH-Range** | distance against aggregation across the enabled ranges |
+| **Save History Distance** | writes the best distance per enabled range to a folder |
+
+**No server op is missing** — every one of these composes ops this app already
+calls. The gap is entirely client-side state and presentation.
+
+Two semantic traps for anyone porting it:
+
+- Our *Limit to ICT window* takes **absolute ICT pixels**; the old *Aggr by Range
+  and Distance* takes a **percentage** of max ICT. An operator moving across
+  enters `20` meaning 20% and gets 20 pixels.
+- Our *Find Min (all rounds)* is `find_min_aggregation_in_window` — one global
+  minimum. The old *Min Aggregation by Interval* gives each round **its own**
+  minimum, which is how a single bad round is spotted.
+
+Also absent, and much smaller: **Keep Round Data**, which copied the "current"
+table into round N. Less needed here because our round selector includes
+*Current* and Update Table writes straight to the selected round.
+
+## Neither client measures the side panels
+
+Found 2026-09-09 by reading `moil_cali_result.xlsx` from a real run
+(`LRCP_U3JMX577_31_253_3040x3040_yuanman_Bahri_20260818\1`), which is the **old
+client's own output from that folder's two captures**.
+
+Layers 0–11 carry all eight directions. Layer 12 is the `*`, and from there down
+**every one of the eight columns is blank**, to layer 74 — while the PCT column
+dutifully carries `120` for all sixty-odd side layers.
+
+The captures clearly show stripes on all four side panels running out to the frame
+edge (~1500 px radius). The largest ICT in that reference table is **930 px**. So
+detection stops at the top panel and the side stripes never enter the table, in
+**either** client. Those rows cannot contribute to the fit.
+
+This is not a porting defect — it is the behaviour being ported. Worth knowing
+before anyone reads blank side rows as a bug in this app, and worth deciding on
+separately if side data is meant to count.
+
 ## Blocking — a calibration cannot be completed without these
 
-### 1. Fill Round from Capture
+### 1. Fill Round from Capture — WIRED 2026-09-09
+
+**Closed.** The toolbar's *Update Table* now does what the old client's
+`btn_update_table` did: measure the pair's crossings, fill the round with them
+and the PCT from the pattern panels, then recompute. `Main.qml` owns the join,
+because the crossings belong to `ComputeController`, the PCT to the pattern
+panels and the table to the Cali Result window, and only that window sees all
+three.
+
+Two refusals rather than plausible output: it needs a pair with a centre on each,
+and it refuses a PCT of all zeros (an unopened pattern window) rather than
+sending 75 of them — `pct_cal` is a running sum, so a wrong PCT is a wrong curve,
+and a pattern whose side intervals are all equal makes it invisible in the table.
+
+Note it re-measures its own nodes rather than reusing the last Direction Diff's,
+because the noise-cleaning toggle deliberately refreshes only the curves now. The
+old client did the same for the same reason.
+
+The rest of this entry is kept for the reasoning, which is still the reference for
+anyone touching that path.
+
+### 1b. Original entry
 
 | | |
 |---|---|
@@ -348,6 +422,7 @@ round whether or not it was any good.
 | Control | Backend | Old UI | Why it is worth having |
 |---|---|---|---|
 | **Read** per monitor slot | `MonitorController::readBrightness()` | **none** — the old client was write-only too. `lineedit_brightness_<dir>` was pushed by that direction's **Update** button in *Monitor Viewer*; nothing ever asked the panel what it was at. | ⚠️ **Not a convenience — this one is a live bug.** See below. |
+| **auto_center** | `ComputeController::autoCenter()` — unreachable since 2026-09-09, when Find Pos / Find Neg were removed. Auto now takes the middle of the frame and Manual seeds `roi_exact`, so nothing calls the cascade. `CenteringPanel.findCenter()` and its `onCenterFound` / `onCenterRefused` handlers are intact and dormant: restoring it is one button. The op itself is untouched on the rig and specified in `doc/auto_center_design.md`. |
 | **Per-axis Stop** | `AxisController::stopAxis(axis)` | `btn_stop_x`, `btn_stop_y`, `btn_stop_z`, `btn_stop_pitch`, `btn_stop_yaw` — five buttons labelled **"Stop"**, one beside each axis's jog cluster in the *Main window*. There was no Stop All; `btn_all_home` was the only whole-rig button. | Only *Stop All* is exposed. Stopping one axis mid-jog needs this. |
 | **Disconnect** | `AxisController::disconnectFromRig()` | **none** — the old client had no connect or disconnect control at all. | There is *Update* to connect and nothing to drop the link deliberately. |
 
