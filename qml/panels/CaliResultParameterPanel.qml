@@ -8,13 +8,13 @@ import FisheyeCaliJojo
 Rectangle {
     id: panel
 
-    readonly property int roundCount: 3
     readonly property real alphaMax: 90
     readonly property real ictMax: 2500
 
     property var alphaRounds: []
     property var alphaFit: []
     property var zflRounds: []
+    property var ihBands: []
 
     property string cameraName: ""
     property string cameraFov: ""
@@ -28,7 +28,7 @@ Rectangle {
     property string calibrationRatio: ""
     property string distancePerRound: ""
 
-    property var coefficients: ["0", "0", "21.4507", "-97.8215", "186.442", "1402.31"]
+    property var coefficients: ["0", "0", "", "", "", ""]
 
     readonly property var coefficientRows: [
         { name: "parameter0", note: qsTr("always 0"), fitted: false },
@@ -58,42 +58,6 @@ Rectangle {
         const next = panel.coefficients.slice()
         next[index] = value
         panel.coefficients = next
-    }
-
-    // Stand-in measurements so the plots show their real shape during design
-    // review. Jitter is a sine of the sample index, not a random draw, so the
-    // scatter stays identical across repaints.
-    function buildPlaceholderData() {
-        const alpha = []
-        for (let r = 0; r < panel.roundCount; ++r) {
-            const points = []
-            for (let i = 0; i <= 16; ++i) {
-                const a = 5 + i * 5
-                points.push({ x: a,
-                              y: 24 * a - 0.05 * a * a
-                                 + Math.sin((i + r * 3) * 1.7) * 26 + r * 18 })
-            }
-            alpha.push(points)
-        }
-        panel.alphaRounds = alpha
-
-        const fit = []
-        for (let k = 0; k <= panel.alphaMax; ++k)
-            fit.push({ x: k, y: 24 * k - 0.05 * k * k + 18 })
-        panel.alphaFit = fit
-
-        const zfl = []
-        for (let s = 0; s < panel.roundCount; ++s) {
-            const points = []
-            for (let j = 0; j <= 24; ++j) {
-                const ict = -2400 + j * 200
-                points.push({ x: ict,
-                              y: 2600 - 0.00035 * ict * ict
-                                 + Math.sin((j + s * 5) * 1.3) * 55 - s * 40 })
-            }
-            zfl.push(points)
-        }
-        panel.zflRounds = zfl
     }
 
     readonly property var roundLegend: {
@@ -127,16 +91,13 @@ Rectangle {
     }
 
     readonly property var zflRegions: {
-        const spans = [{ min: -2200, max: -1300 },
-                       { min: -500,  max: 500 },
-                       { min: 1300,  max: 2200 }]
         const out = []
-        for (let i = 0; i < spans.length; ++i)
-            out.push({ min: spans[i].min, max: spans[i].max, color: panel.bandColor(i) })
+        for (let i = 0; i < panel.ihBands.length; ++i)
+            out.push({ min: panel.ihBands[i].min,
+                       max: panel.ihBands[i].max,
+                       color: panel.bandColor(i) })
         return out
     }
-
-    Component.onCompleted: buildPlaceholderData()
 
     color: Theme.panelBackground
     border.color: Theme.panelBorder
@@ -196,114 +157,6 @@ Rectangle {
         color: Theme.accent
         font.bold: true
         font.pixelSize: Theme.captionFontSize
-    }
-
-    component PlotBlock: ColumnLayout {
-        id: block
-
-        property string title: ""
-        property var legend: []
-        property string xLabel: ""
-        property string yLabel: ""
-        property real xMin: 0
-        property real xMax: 1
-        property real yMin: 0
-        property real yMax: 1
-        property var curves: []
-        property var regions: []
-        property string actionText: ""
-        property string readoutXLabel: ""
-        property string readoutYLabel: ""
-
-        signal actionTriggered()
-
-        spacing: Theme.labelSpacing
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Theme.spaceSm
-
-            Label {
-                text: block.title
-                color: Theme.textPrimary
-                font.bold: true
-                font.pixelSize: Theme.fontTitle
-            }
-
-            Item { Layout.fillWidth: true }
-
-            Repeater {
-                model: block.legend
-
-                RowLayout {
-                    id: legendEntry
-
-                    required property var modelData
-
-                    spacing: Theme.labelSpacing
-
-                    ColorSwatch {
-                        Layout.alignment: Qt.AlignVCenter
-                        implicitWidth: Math.round(Theme.unit * 0.5)
-                        implicitHeight: Math.round(Theme.unit * 0.5)
-                        radius: width / 2
-                        color: legendEntry.modelData.color
-                    }
-
-                    Label {
-                        text: legendEntry.modelData.label
-                        color: Theme.textCaption
-                        font.pixelSize: Theme.captionFontSize
-                    }
-                }
-            }
-        }
-
-        HistogramPlotView {
-            id: plot
-
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            Layout.minimumHeight: Theme.minHistogramHeight
-
-            xLabel: block.xLabel
-            yLabel: block.yLabel
-            emptyText: qsTr("No rounds loaded")
-
-            defaultXMin: block.xMin
-            defaultXMax: block.xMax
-            defaultYMin: block.yMin
-            defaultYMax: block.yMax
-
-            curves: block.curves
-            regions: block.regions
-        }
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: Theme.spaceSm
-
-            ActionButton {
-                text: block.actionText
-                onClicked: block.actionTriggered()
-            }
-
-            Item { Layout.fillWidth: true }
-
-            AxisReadout {
-                Layout.preferredWidth: Math.round(Theme.charUnit * 16)
-                label: block.readoutXLabel
-                editable: false
-                value: plot.cursorInside ? plot.cursorX.toFixed(2) : ""
-            }
-
-            AxisReadout {
-                Layout.preferredWidth: Math.round(Theme.charUnit * 16)
-                label: block.readoutYLabel
-                editable: false
-                value: plot.cursorInside ? plot.cursorY.toFixed(2) : ""
-            }
-        }
     }
 
     ColumnLayout {
@@ -430,8 +283,6 @@ Rectangle {
                 yMax: 2000
                 curves: panel.alphaCurves
                 actionText: qsTr("Update IH-Alpha")
-                readoutXLabel: qsTr("Alpha=")
-                readoutYLabel: qsTr("IH=")
 
                 onActionTriggered: panel.updateIhAlphaRequested()
             }
@@ -451,8 +302,6 @@ Rectangle {
                 curves: panel.zflCurves
                 regions: panel.zflRegions
                 actionText: qsTr("Update IH-ZFL")
-                readoutXLabel: qsTr("IH=")
-                readoutYLabel: qsTr("ZFL=")
 
                 onActionTriggered: panel.updateIhZflRequested()
             }

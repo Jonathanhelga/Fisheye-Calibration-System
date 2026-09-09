@@ -16,6 +16,8 @@ Rectangle {
     property var negDirections: []
     property var colorOverrides: ({})
 
+    property var curveData: ({})
+
     readonly property var directionOrder: ["n", "s", "w", "e", "nw", "se", "sw", "ne"]
 
     readonly property string compareDirection: {
@@ -49,13 +51,13 @@ Rectangle {
         return out
     }
 
-    // The expensive part, keyed by "side:direction". Only resamples when the
-    // selection or channel changes, never on a color-only edit.
+    // Measured points keyed by "side:direction", filled by the controller.
     readonly property var curveShapes: {
         const out = ({})
         for (let i = 0; i < curveSelection.length; ++i) {
             const entry = curveSelection[i]
-            out[entry.key] = sampleCurve(entry.side, entry.direction)
+            const points = curveData[entry.key]
+            out[entry.key] = points !== undefined ? points : []
         }
         return out
     }
@@ -84,8 +86,11 @@ Rectangle {
         if (!showCurves)
             return []
         const out = []
-        for (let i = 0; i < curveSet.length; ++i)
-            out.push({ color: curveSet[i].color, points: curveShapes[curveSet[i].key] })
+        for (let i = 0; i < curveSet.length; ++i) {
+            const points = curveShapes[curveSet[i].key]
+            if (points.length > 0)
+                out.push({ color: curveSet[i].color, points: points })
+        }
         return out
     }
 
@@ -107,7 +112,7 @@ Rectangle {
         return out
     }
 
-    readonly property string statusText: !showCurves ? qsTr("Curves hidden")
+    readonly property string statusText: !showCurves ? qsTr("Curves empty")
         : compareDirection !== "" ? qsTr("Comparing %1").arg(compareDirection.toUpperCase())
         : curveSet.length === 0 ? qsTr("No direction selected")
         : curveSet.length === 1 ? qsTr("1 curve")
@@ -146,25 +151,6 @@ Rectangle {
             if (existing !== key)
                 next[existing] = colorOverrides[existing]
         colorOverrides = next
-    }
-
-    function sampleCurve(side, direction) {
-        const diagonal = direction === "nw" || direction === "se"
-                      || direction === "sw" || direction === "ne"
-        const scale = diagonal ? Math.SQRT2 : 1
-        const seed = directionOrder.indexOf(direction) + (side === "neg" ? 8 : 0) + channel * 3
-        const rate = 0.5 + 0.02 * (seed % 5)
-        const base = side === "pos" ? 148 : 126
-        const count = 880
-        const points = []
-        for (let i = 0; i < count; ++i) {
-            const travelled = i / count
-            const contrast = 96 * Math.pow(1 - travelled, 0.6)
-            const value = base - 34 * travelled
-                        + contrast * Math.sin(rate * Math.pow(i, 0.82) + seed)
-            points.push({ x: i * scale, y: Math.max(0, Math.min(255, value)) })
-        }
-        return points
     }
 
     implicitWidth: body.implicitWidth + 2 * Theme.panelMargin
@@ -335,7 +321,7 @@ Rectangle {
                 curves: root.plotCurves
                 markers: root.intersections
                 emptyText: root.curveSet.length === 0 ? qsTr("Pick a direction to plot")
-                                                      : qsTr("Curves hidden")
+                                                      : qsTr("Curves empty")
             }
         }
     }
@@ -447,7 +433,7 @@ Rectangle {
                 curves: root.plotCurves
                 markers: root.intersections
                 emptyText: root.curveSet.length === 0 ? qsTr("Pick a direction to plot")
-                                                      : qsTr("Curves hidden")
+                                                      : qsTr("Curves empty")
             }
         }
     }

@@ -38,7 +38,7 @@ Rectangle {
     property string negICx: ""
     property string negICy: ""
     property string aggregation: ""
-    property string distance: "250"
+    property string distance: ""
 
     signal calculateRequested(int round)
     signal aggrRoundRequested(int round)
@@ -55,7 +55,7 @@ Rectangle {
         }
     }
 
-    function buildPlaceholderData() {
+    function buildEmptyTables() {
         const tables = []
         const sides = []
         for (let r = 0; r <= 10; r++) {
@@ -95,7 +95,7 @@ Rectangle {
         panel.sideLayers = next
     }
 
-    Component.onCompleted: buildPlaceholderData()
+    Component.onCompleted: buildEmptyTables()
 
     color: Theme.panelBackground
     border.color: Theme.panelBorder

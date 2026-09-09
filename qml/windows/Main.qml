@@ -33,8 +33,28 @@ ApplicationWindow {
             anchors.margins: Theme.spaceMd
             spacing: Theme.spaceMd
 
-            readonly property real free: Math.max(0, fit.canvasHeight - 4 * Theme.spaceMd)
+            readonly property real free: Math.max(0, fit.canvasHeight - 5 * Theme.spaceMd
+                                                     - header.implicitHeight)
             readonly property real histogramWidth: camera.x + camera.width
+
+            RowLayout {
+                id: header
+
+                Layout.fillWidth: true
+                spacing: Theme.rowSpacing
+
+                Label {
+                    text: qsTr("Fisheye Calibration")
+                    font.bold: true
+                    color: Theme.accent
+                }
+
+                Item { Layout.fillWidth: true }
+
+                HelpButton {
+                    page: "main"
+                }
+            }
 
             RowLayout {
                 id: workRow

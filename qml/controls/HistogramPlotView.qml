@@ -30,6 +30,8 @@ Rectangle {
 
     property bool interactive: true
 
+    property int readoutFontSize: Theme.captionFontSize
+
     property real scatterRadius: Math.max(1.5, Theme.unit * 0.14)
 
     readonly property real xSpan: (xMax - xMin) !== 0 ? xMax - xMin : 1
@@ -409,7 +411,7 @@ Rectangle {
                         .arg(root.xLabel).arg(Math.round(root.toDataX(cursor.mouseX)))
                         .arg(root.yLabel).arg(Math.round(root.toDataY(cursor.mouseY)))
                 color: Theme.textOnPreview
-                font.pixelSize: Theme.captionFontSize
+                font.pixelSize: root.readoutFontSize
             }
         }
 

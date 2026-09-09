@@ -177,6 +177,10 @@ Window {
                     font.pixelSize: Theme.captionFontSize
                     elide: Text.ElideRight
                 }
+
+                HelpButton {
+                    page: "pattern-and-monitor"
+                }
             }
 
             RowLayout {

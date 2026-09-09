@@ -84,6 +84,10 @@ Window {
                     font.pixelSize: Theme.captionFontSize
                     elide: Text.ElideRight
                 }
+
+                HelpButton {
+                    page: "calibration-result"
+                }
             }
 
             RowLayout {
@@ -296,10 +300,21 @@ Window {
                 onSaveConfigurationRequested: console.log("[Cali Result] Save calibration system configuration")
             }
 
+            CaliResultOverlapPanel {
+                id: overlapPanel
+
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                visible: root.view === root.viewOverlap
+
+                onUpdateOverlapRequested: console.log("[Cali Result] Update overlap plot")
+                onUpdateDistVsAggrRequested: console.log("[Cali Result] Update aggregation vs distance plot")
+            }
+
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                visible: root.view !== root.viewData && root.view !== root.viewParameter
+                visible: root.view === root.viewAggregation || root.view === root.viewGraphs
 
                 color: Theme.panelBackground
                 border.color: Theme.panelBorder
@@ -309,9 +324,9 @@ Window {
                     anchors.centerIn: parent
                     color: Theme.textCaption
                     font.pixelSize: Theme.captionFontSize
-                    text: root.view === root.viewOverlap ? qsTr("Overlap plot goes here.")
-                        : root.view === root.viewAggregation ? qsTr("Aggregation by distance and IH range goes here.")
-                                                             : qsTr("IH-alpha and IH-ZFL graphs go here.")
+                    text: root.view === root.viewAggregation
+                              ? qsTr("Aggregation by distance and IH range goes here.")
+                              : qsTr("Entrance pupil and distance graphs go here.")
                 }
             }
         }
