@@ -274,11 +274,15 @@ Rectangle {
             id: topRow
 
             Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.preferredHeight: 1
+            Layout.minimumHeight: 0
             spacing: Theme.panelGap
 
             SectionFrame {
                 Layout.fillWidth: true
-                Layout.alignment: Qt.AlignTop
+                Layout.fillHeight: true
+                Layout.minimumHeight: 0
                 Layout.minimumWidth: resultCols.indexWidth + resultCols.rangeWidth
                                      + resultCols.aggrWidth + resultCols.distWidth
                                      + resultCols.samplesWidth
@@ -307,6 +311,8 @@ Rectangle {
                     id: resultTable
 
                     Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    Layout.minimumHeight: 0
                     Layout.preferredHeight: panel.resultRowCount * metrics.cellHeight
                                             + (panel.resultRowCount - 1) * metrics.cellSpacing
 
@@ -570,6 +576,7 @@ Rectangle {
         SectionFrame {
             Layout.fillWidth: true
             Layout.fillHeight: true
+            Layout.preferredHeight: 1
             Layout.minimumHeight: 0
 
             SectionCaption {
