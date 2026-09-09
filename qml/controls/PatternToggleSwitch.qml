@@ -9,9 +9,17 @@ RowLayout {
 
     property bool checked: false
     property alias text: caption.text
+    property string tooltip: ""
 
     signal toggled(bool checked)
 
+    HoverHandler {
+        id: hover
+    }
+
+    ToolTip.visible: hover.hovered && control.tooltip.length > 0
+    ToolTip.delay: Theme.animSlow
+    ToolTip.text: control.tooltip
 
     spacing: Theme.spaceXs
     Label {

@@ -126,6 +126,8 @@ qt_add_qml_module(moil_fisheye_cali
         qml/panels/CaliResultDataPanel.qml
         qml/panels/CaliResultParameterPanel.qml
         qml/panels/CaliResultOverlapPanel.qml
+        qml/panels/CaliResultAggregationPanel.qml
+        qml/panels/CaliResultGraphsPanel.qml
 
         qml/controls/ScaledCanvas.qml
         qml/controls/ActionButton.qml
@@ -148,6 +150,8 @@ qt_add_qml_module(moil_fisheye_cali
         qml/controls/ConcentricLayerRow.qml
         qml/controls/StripelineLayerRow.qml
         qml/controls/CaliResultRow.qml
+        qml/controls/CaliRangeColumn.qml
+        qml/controls/CheckSquare.qml
         qml/controls/HistogramPlotView.qml
         qml/controls/PlotBlock.qml
         qml/controls/RangeControl.qml

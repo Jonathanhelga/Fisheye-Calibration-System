@@ -17,7 +17,6 @@ Window {
 
     property bool busy: false
     property int loadStatus: ProbeStatus.Unknown
-    property bool singleDistance: false
 
     property alias caliFolder: caliFolderField.text
     property alias caliSystem: caliSystemCombo.currentIndex
@@ -40,6 +39,7 @@ Window {
 
     property alias view: viewSelector.currentIndex
     property alias round: dataPanel.round
+    property alias singleDistance: dataPanel.singleDistance
 
 
     signal browseRequested()
@@ -258,12 +258,6 @@ Window {
                     ToolTip.delay: Theme.animSlow
                     ToolTip.text: qsTr("Erase every value in all eleven rounds, current and 1 to 10.")
                 }
-        
-                PatternToggleSwitch {
-                    text: qsTr("Single Distance")
-                    checked: root.singleDistance
-                    onToggled: (value) => root.singleDistance = value
-                }
             }
 
             SegmentedControl {
@@ -311,23 +305,36 @@ Window {
                 onUpdateDistVsAggrRequested: console.log("[Cali Result] Update aggregation vs distance plot")
             }
 
-            Rectangle {
+            CaliResultAggregationPanel {
+                id: aggregationPanel
+
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                visible: root.view === root.viewAggregation || root.view === root.viewGraphs
+                visible: root.view === root.viewAggregation
 
-                color: Theme.panelBackground
-                border.color: Theme.panelBorder
-                radius: Theme.radius
+                onRangeWindowRequested: console.log("[Cali Result] Build IH range windows")
+                onAggrByRangeAndDistanceRequested: console.log("[Cali Result] Aggregation by range and distance")
+                onMinAggrByIntervalRequested: console.log("[Cali Result] Minimum aggregation by interval")
+                onSaveHistoryDistanceRequested: console.log("[Cali Result] Save history distance")
+                onKeepRoundDataRequested: console.log("[Cali Result] Keep round data")
+                onGapEdited: (key, value) => console.log("[Cali Result] Gap " + key + " = " + value)
+                onRangeEnabledChanged: (index, enabled) => console.log("[Cali Result] Range " + index + " enabled " + enabled)
+                onRangeEdited: (index, field, value) => console.log("[Cali Result] Range " + index + " " + field + " = " + value)
+                onZflIhGraphRequested: (index) => console.log("[Cali Result] ZFL-IH graph for range " + index)
+            }
 
-                Label {
-                    anchors.centerIn: parent
-                    color: Theme.textCaption
-                    font.pixelSize: Theme.captionFontSize
-                    text: root.view === root.viewAggregation
-                              ? qsTr("Aggregation by distance and IH range goes here.")
-                              : qsTr("Entrance pupil and distance graphs go here.")
-                }
+            CaliResultGraphsPanel {
+                id: graphsPanel
+
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                visible: root.view === root.viewGraphs
+
+                ranges: aggregationPanel.ranges
+
+                onUpdateShiftOfPupilRequested: console.log("[Cali Result] Update shift of entrance pupil plot")
+                onUpdateDistVsIhRangeRequested: console.log("[Cali Result] Update distance vs IH range plot")
+                onUpdateDistVsAlphaRequested: console.log("[Cali Result] Update distance vs alpha plot")
             }
         }
     }

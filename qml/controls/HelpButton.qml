@@ -9,12 +9,11 @@ AbstractButton {
 
     hoverEnabled: true
 
-    leftPadding:  Theme.spaceMd
-    rightPadding: Theme.spaceMd
+    leftPadding:  Theme.spaceSm
+    rightPadding: Theme.spaceSm
 
-    implicitWidth: Math.max(Math.round(Theme.charUnit * 6),
-                            label.implicitWidth + leftPadding + rightPadding)
-    implicitHeight: Theme.controlHeight
+    implicitWidth: label.implicitWidth + leftPadding + rightPadding
+    implicitHeight: Math.round(Theme.unit * 1.25)
 
     background: Rectangle {
         radius: Theme.radius

@@ -39,6 +39,7 @@ Rectangle {
     property string negICy: ""
     property string aggregation: ""
     property string distance: ""
+    property bool singleDistance: false
 
     signal calculateRequested(int round)
     signal aggrRoundRequested(int round)
@@ -270,6 +271,13 @@ Rectangle {
                 caption: qsTr("Distance:")
                 value: panel.distance
                 onEdited: (value) => panel.distance = value
+            }
+
+            PatternToggleSwitch {
+                text: qsTr("Per-round distance")
+                checked: panel.singleDistance
+                onToggled: (value) => panel.singleDistance = value
+                tooltip: qsTr("Give each round its own distance instead of deriving every round from one base value.")
             }
 
             ActionButton {
