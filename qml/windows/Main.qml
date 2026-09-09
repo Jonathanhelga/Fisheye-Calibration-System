@@ -280,7 +280,25 @@ ApplicationWindow {
                     // cascade or by hand in Manual mode. Refusals are reported
                     // through patternError, which this panel shows as errorText;
                     // this window has no toast.
-                    onDirectionDiffRequested: window.runDirectionDiff()
+                    // Not a measurement control. The Widgets client's
+                    // btn_direction_diff is a "?" that opens a popup of the
+                    // pairwise ICT differences -- N-S, W-E, NW-SE, SW-NE -- and
+                    // that is what this restores.
+                    //
+                    // It re-measures first, exactly as the old one did, so the
+                    // popup shows what Update Table would write rather than
+                    // whatever the last shot left behind. Noise cleaning may have
+                    // been toggled since, and that now refreshes only the curves.
+                    onDirectionDiffRequested: {
+                        if (!window.centresReady())
+                            return
+                        camera.patternError = ""
+                        window.pendingDiff = true
+                        ComputeController.nodes8Dir(
+                            centering.positiveCpx, centering.positiveCpy,
+                            centering.negativeCpx, centering.negativeCpy,
+                            centering.noiseCleaning)
+                    }
                 }
 
                 ColumnLayout {
@@ -562,6 +580,10 @@ ApplicationWindow {
     // not fill a table nobody asked to fill.
     property var pendingFill: null
 
+    // Set while Direction Diff's measurement is in flight, so the popup opens on
+    // the nodes it asked for rather than on a shot's own refresh arriving first.
+    property bool pendingDiff: false
+
     Connections {
         target: ComputeController
 
@@ -570,6 +592,7 @@ ApplicationWindow {
             // Direction Diff would then write a table the operator asked for
             // minutes ago, against whatever is on the glass now.
             window.pendingFill = null
+            window.pendingDiff = false
             toast.show(message, true)
         }
 
@@ -578,6 +601,16 @@ ApplicationWindow {
         }
 
         function onNodesChanged() {
+            if (window.pendingDiff) {
+                window.pendingDiff = false
+                if (!ComputeController.hasNodes) {
+                    toast.show(qsTr("No nodes were detected in this pair."), true)
+                } else {
+                    directionDiffDialog.nodes = ComputeController.nodes
+                    directionDiffDialog.open()
+                }
+            }
+
             if (!window.pendingFill)
                 return
             const job = window.pendingFill
@@ -652,6 +685,11 @@ ApplicationWindow {
                                 Math.round(size.width / 2), Math.round(size.height / 2),
                                 qsTr("frame centre"))
         }
+    }
+
+    DirectionDiffDialog {
+        id: directionDiffDialog
+        anchors.centerIn: parent
     }
 
     // Offline path: a saved capture read into a slot, so the detect ops can run

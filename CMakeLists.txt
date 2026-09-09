@@ -167,6 +167,7 @@ qt_add_qml_module(moil_fisheye_cali
         qml/controls/DirectionRosette.qml
         qml/controls/ImagePreview.qml
         qml/controls/CurveColorPopup.qml
+        qml/controls/DirectionDiffDialog.qml
         qml/controls/MonitorDirectionDialog.qml
         qml/controls/ConcentricLayerRow.qml
         qml/controls/StripelineLayerRow.qml
