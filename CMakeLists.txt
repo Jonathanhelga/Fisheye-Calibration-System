@@ -196,6 +196,7 @@ qt_add_qml_module(moil_fisheye_cali
         src/ImageStore.cpp src/ImageStore.h
         src/MonitorController.cpp src/MonitorController.h
         src/ComputeController.cpp src/ComputeController.h
+        src/SessionController.cpp src/SessionController.h
         src/CalibrationController.cpp src/CalibrationController.h
 )
 
