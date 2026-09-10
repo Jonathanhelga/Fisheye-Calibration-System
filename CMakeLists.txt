@@ -236,6 +236,10 @@ if(FISHEYE_ENABLE_SUBAPPS)
 
     target_compile_definitions(subapp_3d_verification PRIVATE _USE_MATH_DEFINES NOMINMAX)
 
+    target_compile_options(subapp_3d_verification PRIVATE
+        $<$<CXX_COMPILER_ID:AppleClang,Clang,GNU>:-Wno-deprecated-declarations>
+    )
+
     target_link_libraries(subapp_3d_verification PUBLIC
         Qt6::Widgets Qt6::Concurrent Qt6::OpenGLWidgets
         ${OpenCV_LIBS} Eigen3::Eigen
