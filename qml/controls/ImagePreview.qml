@@ -41,10 +41,7 @@ Rectangle {
     property int centerY: -1
     property int roiRadius: 0
 
-    // The fisheye edge circle: a second ring on the same centre, drawn at a
-    // radius the operator sets by hand. Separate from the ROI because it means
-    // something different -- the ROI is the search window a centre fit works in,
-    // the edge is where the image circle ends.
+    // The image circle's edge, set by hand.
     property int edgeRadius: 0
     property color edgeColor: "transparent"
     property int edgeThickness: 2
@@ -170,9 +167,7 @@ Rectangle {
         }
     }
 
-    // Just the circle -- no crosshair and no bounding square. Those belong to the
-    // ROI marker and would clutter the one thing this ring is for: seeing whether
-    // the radius matches where the image circle actually ends.
+    // Just the circle; markers belong to the ROI.
     Item {
         id: edge
 

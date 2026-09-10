@@ -46,16 +46,13 @@ constexpr int kServiceWaitMs = 5000;
 constexpr int kWaitSliceMs = 200;
 constexpr int kSpinSliceMs = 100;
 
-// Kinds for applySimple, so one slot serves the three fire-and-forget calls
-// rather than three near-identical ones.
+// Kinds for applySimple's three fire-and-forget calls.
 enum SimpleKind { KindBrightnessSet = 0, KindShow = 1, KindClose = 2, KindDirections = 3,
                   KindNumbers = 4 };
 
 MonitorController *g_instance = nullptr;
 
-// CompressedImage wants "png" or "jpeg". Anything else the operator picked is
-// transcoded to PNG rather than refused: the file dialog's filter is a
-// suggestion and a .bmp on the glass is still a valid calibration target.
+// Anything not png/jpeg is transcoded to PNG.
 bool loadForWire(const QString &path, QByteArray *bytes, QString *format, QString *error) {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) {
@@ -198,9 +195,7 @@ void MonitorController::applyLink(int status, const QString &message, quint64 ge
     setLastError(message);
 
     if (status_ != ProbeStatus::Ok) {
-        // Outstanding calls will never answer on a link that just went away, and
-        // a busy flag that never clears leaves every Update button disabled with
-        // no way back.
+        // A busy flag that never clears disables everything.
         if (busy_ > 0) {
             busy_ = 0;
             emit busyChanged();
@@ -284,10 +279,7 @@ void MonitorController::applyScreens(const QVariantList &screens, bool complete,
 
     emit screensChanged();
 
-    // An incomplete mapping is the single most common reason a pattern lands
-    // nowhere, and it is silent -- show_pattern still answers success for the
-    // panels it did reach. Say it once, here, rather than let every later call
-    // look mysteriously half-broken.
+    // An incomplete mapping fails silently. Say it once.
     if (!complete && !screens.isEmpty())
         setLastError(tr("the five calibration directions are not all mapped -- "
                         "use Setup Monitor Direction before showing a pattern"));
@@ -309,9 +301,7 @@ void MonitorController::applyPrepared(const QString &polarity, bool ok, const QS
     setLastError(QString());
     emit preparedShown(polarity, shown);
 
-    // Short of five panels means one is unmapped or refused. The shot would still
-    // be taken, against a rig that is not showing what was asked for, so this is
-    // reported rather than assumed away.
+    // Fewer than five panels means one refused.
     if (shown.size() < 5)
         emit notice(tr("%1 pattern is on %2 of 5 panels (%3)")
                         .arg(polarity)
@@ -457,10 +447,7 @@ void MonitorController::connectTo(int domainId) {
 #endif
 }
 
-// The bodies below share one shape: bail unless connected, take a client copy
-// under the mutex, send, and route the reply back through an apply* on the GUI
-// thread carrying the generation it was issued under. Every one of them is
-// called from QML on the GUI thread.
+// All these: check, copy client, send, apply.
 
 void MonitorController::setBrightness(const QString &direction, double brightness) {
     if (!ready()) return;

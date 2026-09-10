@@ -346,15 +346,7 @@ Rectangle {
                 ToolTip.text: qsTr("Retake the negative shot only")
             }
 
-            // Loads a picture from disk into the slot the view is currently
-            // showing -- Single, Positive or Negative. Deliberately follows the
-            // view rather than asking: the operator can see which slot they are
-            // about to overwrite, which a dialog with a dropdown cannot promise.
-            //
-            // NOT gated on root.busy or the rig. This is the offline path: with a
-            // compute node running anywhere -- including this machine, which needs
-            // no hardware for it -- Open Img plus Find Pos / Find Neg plus
-            // Direction Diff is a complete measurement without a camera.
+            // Offline path: follows the view, not the rig.
             ActionButton {
                 Layout.preferredWidth: Math.round(Theme.charUnit * 10)
                 text: qsTr("Open Img")

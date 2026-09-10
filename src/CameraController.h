@@ -24,41 +24,16 @@ class CameraController : public QObject {
     Q_PROPERTY(QVariantMap frameLabels READ frameLabels NOTIFY changed)
     Q_PROPERTY(QVariantMap frameSizes READ frameSizes NOTIFY changed)
 
-    // The size of the picture that actually arrived, as decoded -- NOT what the
-    // rig said it sent. frameSizes prefers the rig's own report, and the two do
-    // differ: the capture reply carries both, and the mismatch is reported to the
-    // operator as "(the rig reported %1x%2)".
-    //
-    // Anything working in image coordinates must use this one. The detect ops
-    // decode the same bytes and measure those pixels, so a centre derived from a
-    // reported size that disagrees would be off by exactly the difference --
-    // silently, because both numbers look like a frame size.
+    // The decoded size, not the rig's report.
     Q_PROPERTY(QVariantMap imageSizes READ imageSizes NOTIFY changed)
     Q_PROPERTY(QVariantMap foldUrls READ foldUrls NOTIFY changed)
     Q_PROPERTY(QVariantMap foldScores READ foldScores NOTIFY changed)
     Q_PROPERTY(QString lastError READ lastError NOTIFY changed)
 
-    // The lens's field of view, in degrees. Not a capture property and nothing
-    // here reads it -- it lives on this controller because it describes the
-    // camera, and it is written into camera_parameters.json beside the fitted
-    // coefficients by the Cali Result window's Parameter tab.
-    //
-    // Restored after the 2026-09-08 merge, which took the camera path from
-    // v2.1_2026_New-UI-CPP-ROS wholesale. That branch never had this property,
-    // so CaliResultParameterPanel's binding resolved to undefined and the tab
-    // showed "undefined" as the FOV -- then wrote it into the saved parameters.
-    // qmllint caught it; at run time it would have been a plausible-looking file
-    // with one wrong field.
+    // Lens FOV in degrees. Saved to camera_parameters.json.
     Q_PROPERTY(int fov READ fov WRITE setFov NOTIFY changed)
 
-    // The live preview, restored 2026-09-08 after the merge from
-    // v2.1_2026_New-UI-CPP-ROS, which has no stream -- LiveCameraPanel's Start,
-    // Stop and Snapshot were left emitting into nothing.
-    //
-    // `receiving` is not the same question as `streaming`: streaming says the
-    // operator asked for frames, receiving says some have arrived. A rig that
-    // publishes nothing leaves the first true and the second false, which is the
-    // distinction the panel's status line is made of.
+    // Live preview state. receiving is not streaming.
     Q_PROPERTY(QString liveUrl READ liveUrl NOTIFY changed)
     Q_PROPERTY(bool streaming READ streaming NOTIFY changed)
     Q_PROPERTY(bool receiving READ receiving NOTIFY changed)
@@ -91,26 +66,13 @@ public:
     Q_INVOKABLE void capture(const QString &slot = QString());
     Q_INVOKABLE void foldCheck(const QString &slot, int cx, int cy, int radius, int gain = 4);
 
-    // Read a picture off disk into a slot, so a capture taken earlier -- or on
-    // another machine -- can be analysed without the rig.
-    //
-    // This is the ONLY way to get an image into the app without a camera, and it
-    // is what makes offline work possible: the detect ops take the bytes in the
-    // request, so a file loaded here reaches /compute/detect exactly as a fresh
-    // capture would. A compute node needs no hardware, so the whole measurement
-    // path runs against a server on this machine.
-    //
-    // Restored 2026-09-09. It existed before the merge from
-    // v2.1_2026_New-UI-CPP-ROS, which removed the button and the backend
-    // together -- consistently, so nothing dangled and nothing reported it.
+    // Read a picture off disk into a slot.
     Q_INVOKABLE bool openImage(const QUrl &fileUrl, const QString &slot = QString());
 
     Q_INVOKABLE void startStream();
     Q_INVOKABLE void stopStream();
 
-    // Keep the newest preview frame as the "single" capture. Labelled as a
-    // preview on purpose: it came off a BEST_EFFORT topic and may predate the
-    // pattern now on the glass -- fine for aiming, not a measurement.
+    // Keep the newest preview frame. Aiming only.
     Q_INVOKABLE void snapshot();
 
 signals:

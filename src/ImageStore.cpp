@@ -52,8 +52,7 @@ int revision(const QString &slot) {
 void clear(const QString &slot) {
     QMutexLocker locker(&storeMutex);
     frames.remove(slot);
-    // The revision is deliberately NOT reset. A slot that is cleared and refilled
-    // must not reuse a URL Qt has already cached, or the old picture comes back.
+    // Never reset: a reused URL serves the cache.
     ++revisions[slot];
 }
 

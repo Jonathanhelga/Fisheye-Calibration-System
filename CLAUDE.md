@@ -435,10 +435,20 @@ lost:
 
 ## Conventions
 
-- **Comments explain *why*, at length, and record what went wrong.** Long block
-  comments above a function, a CMake option or a script preserve a diagnosis that
-  cost someone hours. Match this: when you fix a silent failure, write down how it
-  presented, not just what you changed.
+- **Source comments are labels, not explanations. Eight words, hard maximum.**
+  A comment in `src/`, `qml/` or a script says *what this is* and stops:
+  `// Requests still expected to answer.` No paragraphs, no dated migration
+  notes, no worked examples, no reproduction of a bug report. Changed
+  2026-09-10; the long block comments that used to be the convention here were
+  removed on that date and the code reads better without them.
+- **The *why* goes in [docs/CODE_NOTES.md](docs/CODE_NOTES.md), not above the
+  function.** That file is where the diagnoses live, one section per source
+  file, and it holds everything the old block comments said. It is still true
+  that a silent failure must be written down — write it down *there*. When you
+  fix one, add the section; when you change behaviour a section describes,
+  update it. Deleting an explanation without moving it is the one thing that is
+  not allowed, because almost every trap in this project produces no error
+  message and the note is the only record that it exists.
 - **Commit messages are plain sentences describing the effect**, imperative and
   outcome-shaped: "Stop the sensor probe freezing the GUI for five seconds".
 - READMEs are the real documentation and carry dated entries for behaviour changes
@@ -459,5 +469,6 @@ ros/moil_interfaces/     the ROS 2 contract. One copy, built by every side
 doc/                     auto_center_design.md + the Docusaurus site
 tools/run_windows_ros.ps1  the Windows launcher
 assets/                  images compiled into the binary
-docs/                    QML-app notes; gitignored except three force-tracked files
+docs/CODE_NOTES.md       why the code in src/ and qml/ is shaped the way it is
+docs/                    QML-app notes; gitignored except the force-tracked files
 ```

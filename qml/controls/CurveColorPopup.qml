@@ -16,7 +16,7 @@ Popup {
                                    ? curves[selectedIndex]
                                    : null
 
-    // Rows beyond this scroll instead of stretching the popup past the window.
+    // Beyond this, rows scroll.
     readonly property real curveListMaxHeight: Theme.controlHeight * 5 + Theme.rowSpacing * 4
     readonly property real anchorGap: Theme.spaceXs
 
@@ -29,8 +29,7 @@ Popup {
 
     onAboutToShow: selectedIndex = 0
 
-    // Open below the anchor button, but flip above it when the window
-    // doesn't have enough room left underneath.
+    // Opens below, flips above when short of room.
     y: {
         if (!parent)
             return anchorGap

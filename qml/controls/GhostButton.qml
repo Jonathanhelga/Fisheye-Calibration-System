@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import FisheyeCaliJojo
 
-// Text-only button for low-emphasis actions in a card header, e.g. Import/Export.
+// Text-only button for low-emphasis actions.
 AbstractButton {
     id: control
 

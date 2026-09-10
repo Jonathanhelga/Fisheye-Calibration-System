@@ -3,11 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import FisheyeCaliJojo
 
-// One projector/camera slot in the Monitor Viewer window: preview, pattern
-// file, and brightness controls for a single direction (TOP, N, W, S, E).
-// Browse loads a pattern JSON into the panel that owns that pattern type;
-// Update pushes that panel's spec plus brightness to this screen; Turn off asks
-// the rig to close the pattern on it, so the panel returns to its desktop.
+// One monitor slot: preview, pattern file, brightness.
 Rectangle {
     id: root
 
@@ -22,7 +18,7 @@ Rectangle {
     property url appliedConfigUrl
     property real appliedBrightness: 5
 
-    // toLocalPath, not localPath -- this branch's PatternIo spells it that way.
+    // toLocalPath, not localPath, on this branch.
     readonly property string configPath: PatternIo.toLocalPath(root.configUrl)
 
     readonly property bool pendingChanges: PatternController.status === ProbeStatus.Ok

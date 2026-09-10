@@ -24,8 +24,7 @@ Window {
     width:  root.naturalWidth
     height: root.naturalHeight
 
-    // All of it belongs to the controller. The window is the form; the table, the
-    // load state and the option flags live where the ops that use them live.
+    // All state belongs to the controller.
     readonly property bool busy: CalibrationController.busy
     readonly property int loadStatus: CalibrationController.loadStatus
 
@@ -56,9 +55,7 @@ Window {
     property alias view: viewSelector.currentIndex
     property alias round: dataPanel.round
 
-    // The toggle moved into the Data panel next to the Distance field it
-    // qualifies (New-UI branch). The alias keeps `root.singleDistance` reading
-    // for anything outside that still asks the window.
+    // Alias; the toggle moved into the Data panel.
     property alias singleDistance: dataPanel.singleDistance
 
 
@@ -66,10 +63,7 @@ Window {
     signal loadAllExcelRequested()
     signal loadExcelRequested()
     signal saveExcelRequested()
-    // Whether a capture can be turned into a round: a pair with a centre on each.
-    // Bound from Main.qml, which owns the camera and the Centering panel -- this
-    // window can see neither, and the centres are not always ComputeController's
-    // to report (in Auto they are the frame's middle, set client-side).
+    // Bound from Main.qml, which owns both.
     property bool captureReady: false
 
     signal updateTableRequested(int round)
@@ -78,8 +72,7 @@ Window {
     signal clearTableRequested()
     signal clearAllTablesRequested()
 
-    // The camera parameters, as the .json the rest of the toolchain reads. Built
-    // from what was measured and fitted, not from anything typed here.
+    // The camera parameters as the toolchain's .json.
     function parameterDocument() {
         return {
             "cameraName": parameterPanel.cameraName,
@@ -110,10 +103,7 @@ Window {
         }
     }
 
-    // Push a rig profile into the table fields the pipeline actually reads.
-    // Every value goes through CalibrationController.setField, so it travels
-    // with the table on the next op rather than living in a QML property the
-    // server never sees.
+    // Push a rig profile through setField.
     function applyCaliSystem(index) {
         const fields = CaliSystems.fieldsFor(index)
         if (!fields) {
@@ -251,12 +241,7 @@ Window {
                         font.pixelSize: Theme.captionFontSize
                         model: CaliSystems.names()
 
-                        // Picking a system applies that rig's pixel sizes and
-                        // screen gaps to the table. Only `activated` -- which
-                        // fires on an operator choice, not on the model loading
-                        // or a programmatic index change -- so opening the
-                        // window never silently overwrites fields that came out
-                        // of a loaded Excel file.
+                        // activated only, so opening never overwrites fields.
                         onActivated: (index) => root.applyCaliSystem(index)
 
                         ToolTip.visible: hovered
@@ -329,21 +314,7 @@ Window {
 
                 ActionSeparator {}
 
-                // Fill the current round from the capture, then recompute -- the
-                // old client's btn_update_table, restored 2026-09-09.
-                //
-                // Between the merge and today this button ran compute_all, which
-                // is the old client's "Update All Cali Result" -- a DIFFERENT
-                // operation that recomputes from data already in the table. The
-                // Parameter tab already carries that one under its correct name,
-                // so this was a duplicate wearing the missing function's name, and
-                // pressing it on an empty round recomputed nothing and looked
-                // dead.
-                //
-                // The window does not do the work: it has no access to the pattern
-                // panels, and the nodes belong to ComputeController. Main.qml owns
-                // both, so the request goes there -- which is what updateTableRequested
-                // was declared for and never used.
+                // Fill from capture, then recompute. Main.qml does it.
                 ActionButton {
                     text: qsTr("Update Table")
                     enabled: !root.busy && root.captureReady
@@ -445,9 +416,7 @@ Window {
                 Layout.minimumHeight: Theme.minCaliViewHeight
                 visible: root.view === root.viewParameter
 
-                // Update All recomputes the pipeline and then re-reads the
-                // series; the two plot buttons only re-read, because the numbers
-                // behind them have not changed unless the table did.
+                // Update All recomputes; the plot buttons only redraw.
                 onUpdateAllRequested: CalibrationController.computeAll()
                 onUpdateIhAlphaRequested: CalibrationController.updateSeries()
                 onUpdateIhZflRequested: CalibrationController.updateSeries()
@@ -464,9 +433,7 @@ Window {
                 }
             }
 
-            // The three ported tabs are pure views: series in as properties,
-            // intent out as signals. The ops they map to are the old client's,
-            // one for one -- see the comment at the top of each panel.
+            // Pure views: series in, signals out.
             CaliResultOverlapPanel {
                 id: overlapPanel
 
@@ -481,10 +448,7 @@ Window {
                 inspected: CalibrationController.roundPoints
                 busy: CalibrationController.busy
 
-                // The samples the Aggregation tab's searches produced. Redraw
-                // only -- `updatePlotDistVsAggr()` in the old controller never
-                // started a search, and a button saying "update" must not spend
-                // minutes on the rig.
+                // Redraw only; never start a search here.
                 distAggrSamples: CalibrationController.searchSamples
 
                 onUpdateOverlapRequested: CalibrationController.updateSeries()
@@ -513,20 +477,13 @@ Window {
                 searchDone: CalibrationController.searchDone
                 searchTotal: CalibrationController.searchTotal
 
-                // Everything the panel converts from IH percent to pixels hangs
-                // off this. Zero disables the search buttons rather than letting
-                // them run on a window of 0..100 pixels.
+                // Zero disables the searches.
                 maxIct: CalibrationController.maxIct
 
-                // Stop has to drop the queue as well as unwind the running
-                // probe. Calling cancelSearch() alone would land the rig back
-                // on the next round a moment later, which reads as a Stop
-                // button that does not stop.
+                // Stop drops the queue as well.
                 onStopRequested: root.cancelMinByRound()
 
-                // Ports aggrByRangeAndDistance()'s two branches. A Distance in
-                // the box scores that distance; an empty one with a target
-                // aggregation searches for the distance that hits it.
+                // Distance scores it; blank searches for it.
                 onAggrByRangeAndDistanceRequested: {
                     if (aggregationPanel.hasRequestedDistance) {
                         CalibrationController.baseDistance = aggregationPanel.requestedDistance
@@ -539,14 +496,12 @@ Window {
                     }
                 }
 
-                // Per ROUND, not one pooled search. See root.startMinByRound()
-                // for why the distinction is the whole point of this button.
+                // Per round, not one pooled search.
                 onMinAggrByIntervalRequested: root.startMinByRound()
 
                 onRangeWindowRequested: toast.show(qsTr("Filled Range_1 to Range_20 from the interval."))
 
-                // No server op behind either of these yet: the old client wrote
-                // both to local files.
+                // No server op behind either yet.
                 onKeepRoundDataRequested: toast.show(qsTr("Keep Round Data is not wired to the rig yet."))
                 onSaveHistoryDistanceRequested: toast.show(qsTr("Save Distance History is not wired to the rig yet."))
             }
@@ -560,8 +515,7 @@ Window {
                 Layout.minimumHeight: Theme.minCaliViewHeight
                 visible: root.view === root.viewGraphs
 
-                // Entirely client-side arithmetic over the range table, exactly
-                // as the old tab_graphs was -- no op, no rig.
+                // Client-side arithmetic over the range table.
                 ranges: aggregationPanel.ranges
             }
         }
@@ -574,15 +528,12 @@ Window {
         z: 100
     }
 
-    // The file dialogs stay on the client: picking a path is the operator's, and
-    // the operator is sitting at the client. Everything between the path and the
-    // numbers is parsing, and that happens on the rig.
+    // The file dialog stays on the client.
 
     FolderDialog {
         id: folderDialog
 
-        // Browse just records the folder; Load All / Load Database go on to read
-        // it. One dialog, because "which folder" is the same question.
+        // One dialog; Load All reads the folder.
         property bool loadAfterPick: false
 
         title: qsTr("Calibration folder")
@@ -636,31 +587,8 @@ Window {
         }
     }
 
-    // ---- Min Aggregation by Interval: one minimum PER ROUND ----------------
-    //
-    // Restored 2026-09-09, after the merge with origin/v2.1_2026_New-UI-CPP-ROS
-    // dropped it. That merge rebuilt this tab as the 20-range workspace and
-    // pointed this button at `findMinInWindow`, which is a different op with a
-    // different meaning, and the substitution is invisible in the UI:
-    //
-    //   findMinInWindow      -> find_min_aggregation_in_window
-    //                           ONE minimum, over every enabled round pooled
-    //   findMinForRound      -> find_min_aggr_single_round
-    //                           each round's OWN minimum, one search per round
-    //
-    // The pooled number cannot answer the question this button is for. A single
-    // bad round -- shot at the wrong distance, or against a stale pattern --
-    // barely moves the pooled minimum, and shows up only as its own minimum
-    // landing somewhere the others did not. That is the whole reason the old
-    // client looped the rounds instead of asking once, and it is why
-    // docs/MISSING_CONTROLS.md lists this exact swap as a semantic trap.
-    //
-    // The distance range is 1..500, matching the old client's
-    // find_min_aggr_single_round(i, 1, 500). Deliberately NOT the panel's
-    // interval fields: those are an ICT window in PIXELS, converted from IH
-    // percent, and feeding an ICT window in as a distance range would be the
-    // same class of unit error -- accepted without complaint, wrong by a factor
-    // nobody can see in the output.
+    // ---- Min Aggregation by Interval ----
+    // One minimum per round, over 1..500.
     readonly property real minByRoundDistMin: 1
     readonly property real minByRoundDistMax: 500
 
@@ -668,15 +596,11 @@ Window {
     property var minByRoundResults: []
     property bool minByRoundActive: false
 
-    // searchChanged also fires for progress, so "finished" cannot be read from
-    // one edge of searchRunning. We only treat a round as done once we have
-    // seen it actually running and then stop.
+    // searchChanged also fires for progress.
     property bool minByRoundSawRunning: false
     property int minByRoundCurrent: 0
 
-    // A round with no ICT anywhere is not worth a search -- the rig would spend
-    // a full ternary descent to report a minimum of nothing. The old client
-    // skipped these too.
+    // Skip a round with no ICT.
     function roundHasData(round) {
         const table = CalibrationController.rounds[round]
         if (!table)
@@ -748,8 +672,7 @@ Window {
     }
 
     function cancelMinByRound() {
-        // Always unwind the rig, whether or not a sequence is running -- this is
-        // the tab's only Stop and the other two searches go through it as well.
+        // Always unwind the rig.
         CalibrationController.cancelSearch()
 
         if (!root.minByRoundActive)
@@ -774,9 +697,7 @@ Window {
         for (let i = 0; i < done.length; ++i)
             parts.push(qsTr("R%1: %2").arg(done[i].round).arg(done[i].distance.toFixed(1)))
 
-        // Partial is reported as partial. A cancelled search produced a real
-        // answer for the rounds it got through; saying otherwise would throw
-        // away work the operator paid rig time for.
+        // Partial is reported as partial.
         toast.show((cancelled ? qsTr("Stopped after %1 round(s) -- ")
                               : qsTr("Best distance per round -- ")).arg(done.length)
                    + parts.join(", "), cancelled)
@@ -787,8 +708,7 @@ Window {
 
         function onErrorRaised(message) {
             toast.show(message, true)
-            // A refused or failed op ends the sequence rather than marching the
-            // rig through nine more rounds that will fail the same way.
+            // A failure ends the sequence.
             if (root.minByRoundActive) {
                 root.minByRoundQueue = []
                 root.finishMinByRound(true)

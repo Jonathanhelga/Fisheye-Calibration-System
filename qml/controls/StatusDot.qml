@@ -3,7 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import FisheyeCaliJojo
 
-// A small coloured circle, with an optional label, reporting service's status.
+// A small coloured status circle, optionally labelled.
 RowLayout {
     id: control
 

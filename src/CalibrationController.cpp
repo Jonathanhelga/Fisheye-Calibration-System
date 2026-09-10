@@ -41,16 +41,13 @@ constexpr int kWaitSliceMs = 200;
 constexpr int kSpinSliceMs = 100;
 constexpr int kOpTimeoutMs = 120000;
 
-// The geometry of a round table, from CaliTableData: two header rows then the
-// layer rows. 75 layers, not 40 -- a real capture's after-bezel segment runs
-// well past 40 and a shorter table drops everything below the cut silently.
+// Round table: two header rows, 75 layers.
 constexpr int kRows = 77;
 constexpr int kCols = 35;
 constexpr int kFirstDataRow = 2;
 constexpr int kLayers = kRows - kFirstDataRow;
 
-// _dict_column_index, mirrored from CaliCompute.cpp. These indices are the wire
-// format; they are not a display choice and must not be "tidied".
+// Wire-format column indices, mirrored from CaliCompute.cpp.
 constexpr int kColSide = 1;
 constexpr int kColPct = 2;
 constexpr int kColIctAvg = 12;
@@ -59,8 +56,7 @@ constexpr int kColDistance = 14;
 constexpr int kColAlphaAvg = 33;
 constexpr int kColZflAvg = 34;
 
-// The eight directions in the order the Cali Result table shows them, which is
-// also the order their columns run in.
+// The eight directions in table column order.
 const QStringList &dirs8() {
     static const QStringList d{QStringLiteral("n"),  QStringLiteral("s"),  QStringLiteral("w"),
                                QStringLiteral("e"),  QStringLiteral("nw"), QStringLiteral("se"),
@@ -90,8 +86,7 @@ QVariantList pointsToVariant(const QJsonArray &pts) {
     return out;
 }
 
-// "round_3.xlsx" -> 3. Falls back to -1, which the caller turns into "next free
-// round" so a folder of oddly named files still loads in a predictable order.
+// "round_3.xlsx" -> 3, or -1.
 int roundFromName(const QString &fileName) {
     static const QRegularExpression digits(QStringLiteral("(\\d+)"));
     const QRegularExpressionMatch m = digits.match(QFileInfo(fileName).completeBaseName());
@@ -135,9 +130,7 @@ struct CalibrationController::Impl {
     rclcpp::Client<moil_interfaces::srv::XlsxIo>::SharedPtr xlsx;
     rclcpp_action::Client<moil_interfaces::action::CaliJob>::SharedPtr job;
 
-    // Held so Cancel has something to cancel. Written on the executor thread
-    // when the goal is accepted, read from the GUI thread by cancelSearch, so
-    // it takes the same mutex as the clients.
+    // Written on executor thread, read on GUI.
     rclcpp_action::ClientGoalHandle<moil_interfaces::action::CaliJob>::SharedPtr goal;
 #endif
 };
@@ -145,9 +138,7 @@ struct CalibrationController::Impl {
 CalibrationController::CalibrationController(QObject *parent) : QObject(parent), d_(new Impl) {
     connect(qApp, &QCoreApplication::aboutToQuit, this, [this] { stopWorker(); });
 
-    // Every round exists from the start. A round the operator has not filled in
-    // is an EMPTY table, not a missing one: hasRound() false means "this tab does
-    // not exist" to the formulas, and the eleven tabs do exist.
+    // An unfilled round is empty, not missing.
     for (int r = 0; r <= 10; ++r) ensureRound(r);
 
     coefficients_ = QVariantList{QStringLiteral("0"), QStringLiteral("0"), QString(),
@@ -162,17 +153,8 @@ void CalibrationController::stopWorker() {
     if (d_->worker.joinable()) d_->worker.join();
 }
 
-// ---- table storage ---------------------------------------------------------
-//
-// The CaliTableData wire format is kept verbatim rather than mirrored into a
-// second structure:
-//
-//   {"rounds": {"1": {"rows": 77, "cols": 35, "cells": {"2": {"3": "100.5"}}}},
-//    "fields": {"lineedit_pixel_size_top": "0.2478"}}
-//
-// Cells are STRINGS end to end. "" and "0" mean different things to every formula
-// on the far side (avgWithoutZero counts one and not the other), and a JSON
-// number would also reformat what the operator typed.
+// ---- table storage ----
+// Cells are strings; "" and "0" differ.
 
 void CalibrationController::ensureRound(int round) {
     QJsonObject rounds = table_.value(QStringLiteral("rounds")).toObject();
@@ -234,7 +216,7 @@ void CalibrationController::bumpVersion(int round) {
     else
         rebuildModel();
     emit tableChanged();
-    // The cached series are now answers to a question nobody asked any more.
+    // Cached series now answer a stale question.
     emit seriesChanged();
 }
 
@@ -264,8 +246,7 @@ void CalibrationController::rebuildRound(int round) {
         entry[QStringLiteral("alphaAvg")] = cell(round, row, kColAlphaAvg);
         entry[QStringLiteral("zflAvg")] = cell(round, row, kColZflAvg);
 
-        // First marked row wins. The column records where the after-bezel
-        // segment starts, and there is only one start.
+        // First marked row wins; one start only.
         if (!cell(round, row, kColSide).isEmpty() && sideLayer == kLayers) sideLayer = layer;
 
         table.append(entry);
@@ -296,7 +277,7 @@ void CalibrationController::rebuildModel() {
     fields_ = fields;
 }
 
-// ---- plumbing --------------------------------------------------------------
+// ---- plumbing ----
 
 void CalibrationController::setStatus(ProbeStatus::Status status) {
     if (status_ == status) return;
@@ -330,9 +311,7 @@ bool CalibrationController::ready() {
 }
 
 void CalibrationController::stop() {
-    // A running search is the one thing here that can genuinely be stopped, so
-    // Stop means that first and falls back to dropping replies only when there
-    // is no search to cancel.
+    // Cancel a running search first.
     if (searchRunning_) {
         cancelSearch();
         return;
@@ -348,9 +327,7 @@ void CalibrationController::stop() {
     seriesPending_ = 0;
     emit busyChanged();
 
-    // Said plainly rather than implied. /compute/cali and /compute/xlsx are
-    // services with no cancel; only the three distance SEARCHES are an action,
-    // and none of them is driven from this window.
+    // Cali and xlsx are services with no cancel.
     emit notice(tr("Stopped waiting on %1 request(s). They are still running on the rig -- "
                    "their answers will be ignored.")
                     .arg(dropped));
@@ -514,7 +491,7 @@ void CalibrationController::connectTo(int domainId) {
 #endif
 }
 
-// ---- editing ---------------------------------------------------------------
+// ---- editing ----
 
 void CalibrationController::setPct(int round, int layer, const QString &value) {
     if (layer < 0 || layer >= kLayers) return;
@@ -534,8 +511,7 @@ void CalibrationController::setSideLayer(int round, int layer) {
     const int row = kFirstDataRow + layer;
     const bool wasSet = !cell(round, row, kColSide).isEmpty();
 
-    // One side marker per round: the column records where the after-bezel segment
-    // starts, and two starts is not a thing the pipeline can read.
+    // One side marker per round.
     for (int l = 0; l < kLayers; ++l) setCell(round, kFirstDataRow + l, kColSide, QString());
     if (!wasSet) setCell(round, row, kColSide, QString::number(layer));
 
@@ -598,7 +574,7 @@ void CalibrationController::clearAllTables() {
     emit notice(tr("All eleven rounds cleared"));
 }
 
-// ---- cali ops --------------------------------------------------------------
+// ---- cali ops ----
 
 bool CalibrationController::sendCaliOp(const QString &op, int round, const QJsonObject &extra,
                                        const QString &activity) {
@@ -657,9 +633,7 @@ void CalibrationController::applyCaliOp(const QString &op, int round, bool ok,
     if (generation != d_->generation.load() || !liveTokens_.remove(token)) return;
     endCall();
 
-    // The mutated table comes back even on failure: an op that got part way has
-    // already written derived columns, and the display must match what the server
-    // actually holds rather than silently keeping the pre-call state.
+    // The mutated table comes back even on failure.
     if (!tableJson.isEmpty()) {
         const QJsonObject next = QJsonDocument::fromJson(tableJson.toUtf8()).object();
         if (!next.isEmpty()) {
@@ -688,13 +662,7 @@ void CalibrationController::applyCaliOp(const QString &op, int round, bool ok,
     }
 
     if (op == QLatin1String("auto_detect_noise_bands")) {
-        // The bands are removed ONE AT A TIME, not fanned out.
-        //
-        // Every cali op answers with the whole table, and the client replaces its
-        // copy with it. Sending all the removals at once would build each request
-        // from the pre-removal table, so the last reply to arrive would overwrite
-        // every removal before it -- ending with exactly one band removed and no
-        // sign that the others were lost.
+        // One at a time; each reply replaces all.
         pendingBands_.clear();
         pendingBandRound_ = round;
         bandsRemoved_ = 0;
@@ -753,11 +721,7 @@ void CalibrationController::applyCaliOp(const QString &op, int round, bool ok,
 
     if (op == QLatin1String("update_table_from_capture")) {
         emit notice(tr("Round %1 filled from the capture").arg(round));
-        // Then recompute, as the old client's Update Table did: the op writes the
-        // PCT and the eight ICT columns and nothing else, so without this the
-        // round shows raw measurements with every derived column -- ict_avg,
-        // pct_cal, distance, alpha, ZFL -- still holding the PREVIOUS round's
-        // numbers or blank. One press, one finished round.
+        // Then recompute, or derived columns stay stale.
         computeAll();
         return;
     }
@@ -810,16 +774,13 @@ void CalibrationController::aggregationAllRounds(bool useRange, double xLo, doub
     extra[QStringLiteral("use_range")] = useRange;
     extra[QStringLiteral("x_lo")] = xLo;
     extra[QStringLiteral("x_hi")] = xHi;
-    // round is meaningless here -- the op reads round_enabled instead, which
-    // paramsJson always sends.
+    // The op reads round_enabled, not round.
     sendCaliOp(QStringLiteral("aggregation_all_rounds_by_distance"), 0, extra,
                tr("aggregating every enabled round"));
 }
 
 void CalibrationController::cleanNoise(int round) {
-    // Two steps on purpose: detect first, then remove each band the detector was
-    // confident about. The removal is destructive, so the bands it acts on are
-    // the ones reported rather than a fresh guess per direction.
+    // Detect first, then remove the reported bands.
     sendCaliOp(QStringLiteral("auto_detect_noise_bands"), round, {},
                tr("finding noise bands in round %1").arg(round));
 }
@@ -844,7 +805,7 @@ void CalibrationController::updateFromCapture(int round, const QVariantList &pct
                tr("filling round %1 from the capture").arg(round));
 }
 
-// ---- series ----------------------------------------------------------------
+// ---- series ----
 
 bool CalibrationController::sendSeries(const QString &kind, const QJsonObject &extra) {
     if (status_ != ProbeStatus::Ok) return false;
@@ -907,9 +868,7 @@ void CalibrationController::applySeries(const QString &kind, bool ok, const QStr
     endCall();
     if (seriesPending_ > 0) --seriesPending_;
 
-    // An answer computed from a table that has since been edited is stale. It is
-    // dropped rather than drawn: the cache's whole contract is that it holds the
-    // answer for the version it was asked about.
+    // Stale answers are dropped, not drawn.
     if (version != tableVersion_) return;
 
     if (!ok) {
@@ -965,7 +924,7 @@ void CalibrationController::updateSeries() {
     sendSeries(QStringLiteral("ih_alpha_regression"), {});
     sendSeries(QStringLiteral("ict_zfl"), {});
     sendSeries(QStringLiteral("alpha_polynomial"), {});
-    // Every enabled round's (ict, alpha) pooled -- what the Overlap tab draws.
+    // Every enabled round's (ict, alpha) pooled.
     sendSeries(QStringLiteral("global_ict_alpha"), {});
 }
 
@@ -980,17 +939,8 @@ void CalibrationController::fetchRoundPoints(int round) {
     sendSeries(QStringLiteral("ict_zfl_points"), extra);
 }
 
-// ---- the distance searches (CaliJob) ---------------------------------------
-//
-// The only cancellable work in this window. Everything else here is a plain
-// service that finishes on the rig whatever the client does; these three run for
-// minutes -- find_distance_for_target_aggregation is 282 probes, each recomputing
-// eleven rounds -- and unwind properly when asked.
-//
-// The table comes back even on cancel, at whatever the last probe wrote. That is
-// deliberate on the server side and it is why `cancelled` is reported next to
-// `success` rather than instead of it: a cancelled search produced a partial
-// answer, it did not fail.
+// ---- distance searches (CaliJob) ----
+// Cancellable; a cancelled search answers partially.
 
 void CalibrationController::startSearch(const QString &op, const QJsonObject &extra, int round) {
     if (searchRunning_) {
@@ -1107,8 +1057,7 @@ void CalibrationController::applySearchFeedback(int done, int total, const QStri
     if (generation != d_->generation.load() || !searchRunning_) return;
 
     searchDone_ = done;
-    // 0 means the op cannot report a total -- the bar shows indeterminate rather
-    // than pretending to know how far along it is.
+    // 0 means indeterminate, not zero progress.
     searchTotal_ = total;
     searchStage_ = stage.isEmpty() ? tr("running") : stage;
     emit searchChanged();
@@ -1156,8 +1105,7 @@ void CalibrationController::applySearchResult(bool ok, bool cancelled, const QSt
     if (!found) {
         searchSummary_ = tr("no distance found -- nothing to aggregate over");
     } else if (cancelled) {
-        // Said outright. A partial answer that looks like a final one is the
-        // worst outcome here, because the number goes into a calibration.
+        // Say partial outright.
         searchSummary_ = tr("stopped early: best so far %1 at distance %2 (partial)")
                              .arg(bestAggregation_, 0, 'f', 4)
                              .arg(bestDistance_, 0, 'f', 2);
@@ -1194,7 +1142,7 @@ void CalibrationController::cancelSearch() {
     }
 #endif
 
-    // Accepted but no handle yet, or no ROS at all. Nothing to cancel remotely.
+    // Nothing to cancel remotely.
     searchRunning_ = false;
     searchStage_.clear();
     endCall();
@@ -1226,7 +1174,7 @@ void CalibrationController::findDistanceForTarget(double target, bool useRange, 
     startSearch(QStringLiteral("find_distance_for_target_aggregation"), extra, 0);
 }
 
-// ---- Excel -----------------------------------------------------------------
+// ---- Excel ----
 
 void CalibrationController::loadExcel(int round, const QUrl &fileUrl) {
     if (!ready()) return;
@@ -1253,9 +1201,7 @@ void CalibrationController::loadExcel(int round, const QUrl &fileUrl) {
     const quint64 token = ++nextToken_;
     liveTokens_.insert(token);
 
-    // The file dialog stays on the client -- picking a path is the operator's.
-    // Everything between the path and the numbers is parsing, and parsing is
-    // computing, so the bytes go to the rig and a grid comes back.
+    // Path is the operator's; parsing is the rig's.
     auto request = std::make_shared<moil_interfaces::srv::XlsxIo::Request>();
     request->mode = "read";
     request->sheet = "";
@@ -1311,9 +1257,7 @@ void CalibrationController::applyXlsxRead(int round, bool ok, const QString &gri
         return;
     }
 
-    // grid_json is [["a1","b1"],["a2","b2"], ...] -- the sheet as text, in the
-    // same row/column geometry as the round table. Anything past 77x35 is a
-    // wider sheet than this pipeline reads and is left behind deliberately.
+    // grid_json is the sheet as text rows.
     const QJsonArray grid = QJsonDocument::fromJson(gridJson.toUtf8()).array();
 
     QJsonObject rounds = table_.value(QStringLiteral("rounds")).toObject();
@@ -1341,8 +1285,7 @@ void CalibrationController::applyXlsxRead(int round, bool ok, const QString &gri
 
     ++loadedOk_;
     setLastError(QString());
-    // Only this round changed, and a ten-file batch would otherwise rebuild all
-    // eleven tables ten times over.
+    // Only this round changed.
     bumpVersion(round);
 
     if (!partOfBatch || pendingLoads_ == 0) {
@@ -1378,9 +1321,7 @@ void CalibrationController::loadAllExcel(const QUrl &folderUrl) {
     loadFailures_.clear();
     pendingLoads_ = 0;
 
-    // A round number in the file name wins; anything unnumbered falls into the
-    // next free slot so an oddly named folder still loads in a predictable order
-    // instead of silently overwriting round 1 ten times.
+    // Numbered names win; the rest fill free slots.
     QSet<int> taken;
     QList<QPair<int, QString>> plan;
     QStringList unnumbered;
@@ -1433,8 +1374,7 @@ void CalibrationController::saveExcel(int round, const QUrl &fileUrl) {
     }
     if (!client) return;
 
-    // The grid is dense here, unlike the sparse storage: a spreadsheet has no
-    // notion of a missing cell in the middle of a row.
+    // The Excel grid is dense, unlike storage.
     QJsonArray grid;
     for (int row = 0; row < kRows; ++row) {
         QJsonArray line;
@@ -1491,8 +1431,7 @@ void CalibrationController::applyXlsxWrite(bool ok, const QByteArray &data, cons
         return;
     }
 
-    // QSaveFile so a failed write leaves the previous file intact rather than a
-    // truncated one -- these are the run's only record of a round.
+    // QSaveFile: a failed write keeps the old file.
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly)) {
         setLastError(tr("cannot write %1: %2").arg(name, file.errorString()));

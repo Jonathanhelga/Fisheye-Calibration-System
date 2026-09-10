@@ -9,43 +9,7 @@
 
 #include "ProbeStatus.h"
 
-// The rig's session: where captures live, and where analysis happens.
-//
-// WHY THIS EXISTS, and why it is not just another service client.
-//
-// `/compute/detect` takes `sensor_msgs/CompressedImage[] images` -- the client
-// uploads the pictures and the node analyses what it was handed. That is the path
-// this app used until 2026-09-09, and it means every centre fit, every histogram
-// and every node extraction re-sends two 3040x3040 frames the rig took itself and
-// already has on disk. One Direction Diff is four such uploads.
-//
-// The session path does not work that way. A capture is written into a NAMED SLOT
-// on the rig, and an op names the slot:
-//
-//     {"slots": ["positive", "negative"], "pos_cx": 1520, ... }
-//
-// Named, not sent. `/session/run_compute` resolves those names to the session's
-// own files, so no image crosses the wire for analysis at all -- and the
-// measurement outlives this client, because it lives in the session rather than
-// in a QVariantMap that dies with the process.
-//
-// This is not a new idea here. The Qt Widgets client (`cpp/`, on
-// v2.0_2026_main-cpp-ros) has done it this way since the server-calculation
-// migration; `session_ros_client.cpp` is the reference this class was written
-// from, down to the `slots` key and the command vocabulary. What is new is only
-// that the QML client finally has it.
-//
-// ONE SESSION AT A TIME. The server keeps a current session
-// (`ctx_.sessions->sessionId()`) and `RunCompute` answers from it, so this class
-// holds a single id rather than a set. `openOrCreate` is the entry point: it
-// opens a session of that name if one exists -- inheriting the shots already in
-// it, so the curve panels work without re-shooting -- and creates one otherwise.
-//
-// Threading follows the house pattern exactly: its own `rclcpp::Context`, node
-// and executor on a worker thread, a `generation` counter through every callback
-// so a reconnect invalidates in-flight replies, and every result routed back to
-// the GUI thread through a private `Q_INVOKABLE apply*`. Touching a Q_PROPERTY
-// from the executor thread deadlocks on Win32 -- see AxisController.
+// The rig's session: named capture slots, server-side analysis.
 class SessionController : public QObject {
     Q_OBJECT
     QML_ELEMENT
@@ -58,18 +22,14 @@ class SessionController : public QObject {
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
 
-    // Which slots the SERVER says are filled. A tally kept on this side drifts
-    // the moment a session is reopened or another client shoots into it, so this
-    // is only ever a copy of the server's answer.
+    // Slots the server says are filled.
     Q_PROPERTY(QStringList capturedSlots READ capturedSlots NOTIFY sessionChanged)
 
 public:
     explicit SessionController(QObject *parent = nullptr);
     ~SessionController() override;
 
-    // Reachable from CameraController and ComputeController, which need the
-    // session id and the compute path but must not own them. Same precedent as
-    // MonitorController::instance().
+    // Reachable from Camera and Compute controllers.
     static SessionController *instance();
 
     ProbeStatus::Status status() const { return status_; }
@@ -82,21 +42,14 @@ public:
 
     Q_INVOKABLE void connectTo(int domainId);
 
-    // Open a session of this name, or create one if there is none. Asynchronous;
-    // watch sessionChanged.
+    // Open by name, or create. Asynchronous.
     Q_INVOKABLE void openOrCreate(const QString &name);
     Q_INVOKABLE void closeSession();
 
-    // Capture into a session slot. The frame is written on the RIG; nothing comes
-    // back but the size. Use SessionController for the measurement path and
-    // CameraController's own capture only for a preview.
+    // Capture into a session slot on the rig.
     Q_INVOKABLE void capture(const QString &slot, double timeoutSeconds = 0.0);
 
-    // The op, named not sent. `paramsJson` must carry a "slots" array naming the
-    // capture slots the op should resolve. `token` is the caller's, echoed back
-    // on computeFinished so several ops can be in flight without being confused
-    // for one another -- which they are: a centre fit and a histogram run
-    // concurrently on the Centering panel.
+    // paramsJson names slots; token echoes back.
     void runCompute(const QString &op, const QString &paramsJson, quint64 token);
 
 signals:

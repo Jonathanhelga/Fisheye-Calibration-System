@@ -10,14 +10,12 @@ Rectangle {
 
     readonly property real alphaMax: 90
 
-    // The plots are the server's series, cached against the table version they
-    // were computed from. Nothing here derives a point.
+    // The server's series, cached by table version.
     readonly property var alphaRounds: CalibrationController.alphaRounds
     readonly property var alphaFit: CalibrationController.alphaFit
     readonly property var zflRounds: CalibrationController.zflRounds
 
-    // The ICT axis is sized from the largest ict anywhere, which is a question
-    // only the pipeline can answer (max_ict_all_rounds).
+    // Axis sized from max_ict_all_rounds.
     readonly property real ictMax: CalibrationController.maxIct > 0
                                      ? CalibrationController.maxIct : 2500
 
@@ -29,8 +27,7 @@ Rectangle {
     property string imageHeight: ""
     property string calibrationRatio: ""
 
-    // The camera's FOV belongs to the rig, and the image centre is a measurement.
-    // Both are read here rather than typed.
+    // Read, not typed.
     readonly property string cameraFov: String(CameraController.fov)
     readonly property var posCenter: ComputeController.centers["positive"]
     readonly property string iCx: posCenter && posCenter.ok ? String(posCenter.x) : ""
@@ -38,23 +35,19 @@ Rectangle {
 
     readonly property string distancePerRound: panel.field("lineedit_dis_per_round")
 
-    // Table fields read back as text. Blank rather than "undefined" when the
-    // field has never been set, so an empty box means "not set" and not "broken".
+    // Blank means not set, not broken.
     function field(name) {
         const value = CalibrationController.fields[name]
         return value === undefined ? "" : value
     }
 
-    // Straight from alpha_polynomial. An operator may still type over a slot, but
-    // the next fit wins -- see the Connections below.
+    // Straight from alpha_polynomial; the next fit wins.
     property var coefficients: CalibrationController.coefficients
 
     Connections {
         target: CalibrationController
 
-        // Re-assigned explicitly, not left to the binding: an edit above breaks
-        // the binding, and without this a freshly fitted polynomial would be
-        // silently ignored in favour of a hand-typed one.
+        // Re-assigned explicitly: an edit breaks the binding.
         function onSeriesChanged() {
             panel.coefficients = CalibrationController.coefficients
         }
@@ -75,9 +68,7 @@ Rectangle {
     signal saveParametersRequested()
     signal saveConfigurationRequested()
 
-    // The round colours come with the series. They are the pipeline's own
-    // curve_color table, so a round is the same colour here as it is in every
-    // other tool that reads these files.
+    // The pipeline's own curve_color table.
     function roundColor(index) {
         const given = CalibrationController.roundColors[index]
         return given ? given : Theme.curvePalette[index % Theme.curvePalette.length]
@@ -124,8 +115,7 @@ Rectangle {
         return out
     }
 
-    // Bands scaled to the measured ICT range rather than fixed pixel spans, which
-    // only lined up with the stand-in data they were drawn for.
+    // Scaled to the measured ICT range.
     readonly property var zflRegions: {
         if (panel.ictMax <= 0)
             return []
@@ -201,10 +191,7 @@ Rectangle {
         font.pixelSize: Theme.captionFontSize
     }
 
-    // The inline `component PlotBlock` that used to sit here was extracted to
-    // qml/controls/PlotBlock.qml on the New-UI branch, because Overlap and
-    // Graphs need the same block. The extracted one is a superset -- it adds
-    // `emptyText` and `readoutFontSize` -- so every use below is unchanged.
+    // PlotBlock moved to qml/controls/PlotBlock.qml.
 
     ColumnLayout {
         id: content
@@ -390,9 +377,7 @@ Rectangle {
                                 caption: qsTr("cameraFov")
                                 unit: "°"
                                 value: panel.cameraFov
-                                // The FOV is a property of the rig's camera, so
-                                // it is stored there and shared with the Camera
-                                // panel's spin box rather than kept twice.
+                                // Stored on the rig's camera, not twice.
                                 onEdited: (value) => CameraController.fov = parseInt(value)
                             }
                             ParamField {
@@ -414,9 +399,7 @@ Rectangle {
 
                             SectionTitle { text: qsTr("Image") }
 
-                            // The image centre is what the detect cascade found,
-                            // not a number to type. Blank means no centre was
-                            // established -- run Find in the Centering panel.
+                            // Blank means no centre was established.
                             ParamField {
                                 caption: qsTr("iCx")
                                 unit: qsTr("px")
@@ -485,11 +468,7 @@ Rectangle {
                             }
                         }
 
-                        // The rig profile the Calibration System combo writes.
-                        // Shown because the operator is told to CONFIRM these
-                        // before computing, and a value you cannot see is one
-                        // you cannot confirm. Editable because a rig can differ
-                        // from its profile.
+                        // Shown to confirm, editable because rigs differ.
                         SectionFrame {
                             Layout.fillWidth: true
 
@@ -551,9 +530,7 @@ Rectangle {
                                 caption: qsTr("Distance / Round")
                                 unit: qsTr("px")
                                 value: panel.distancePerRound
-                                // A pipeline field, so it goes into the table
-                                // that travels rather than into a local string
-                                // the server never sees.
+                                // A pipeline field; it travels with the table.
                                 onEdited: (value) =>
                                     CalibrationController.setField("lineedit_dis_per_round", value)
                             }

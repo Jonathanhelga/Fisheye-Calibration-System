@@ -5,37 +5,13 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import FisheyeCaliJojo
 
-// ICT Direction Difference: opposite directions, compared node by node.
-//
-// This is the Widgets client's btn_direction_diff, which is a "?" beside the shot
-// buttons -- an INFO POPUP, not a measurement control. Restored 2026-09-09, when
-// it turned out this app had put the label on something else entirely: pressing
-// Direction Diff here re-ran the curves, which is what a Pos/Neg shot does by
-// itself in the old client.
-//
-// What it is for: a well-aimed capture is symmetric about the centre, so the
-// crossing at ring k going north should sit at the same radius as the one going
-// south. It does not, quite, and the size of that disagreement is the most direct
-// read on whether the rig is aimed properly -- far more direct than looking at
-// the curves. N-S large means the centre is off vertically; W-E large means
-// horizontally; the diagonals catch a tilt the straights miss.
-//
-// Red at |difference| >= 5 px, which is the old client's threshold.
-//
-// The nodes are the SAME ones Update Table writes -- same op, same slots, same
-// parameters. That is the whole value of it: it shows what Update Table is about
-// to record. A second way of getting these numbers would make it show something
-// else, and the difference would look like a measurement.
+// ICT Direction Difference: an info popup, not measurement.
 Dialog {
     id: dialog
 
     property var nodes: ({})
 
-    // find-style access, never nodes[d] with a default. A direction the server
-    // did not return is ABSENT, and inventing an empty list for it turns "this
-    // direction was not detected" into "this direction has no nodes" -- which
-    // reads as a measurement rather than as missing data. The header row prints
-    // both counts so the two stay distinguishable.
+    // find-style: an absent direction stays absent.
     function listFor(direction) {
         const v = dialog.nodes[direction]
         return (v !== undefined && v !== null) ? v : []
@@ -214,8 +190,7 @@ Dialog {
                         horizontalAlignment: Text.AlignRight
                         text: row.modelData.header ? "" : row.modelData.d.toFixed(1)
                         font.pixelSize: Theme.captionFontSize
-                        // The old client's threshold, kept exactly: 5 px is where
-                        // an aiming error stops being noise.
+                        // The old client's threshold, kept exactly.
                         color: (!row.modelData.header && row.modelData.d >= 5.0)
                                    ? Theme.statusFailed : Theme.textPrimary
                         font.bold: !row.modelData.header && row.modelData.d >= 5.0

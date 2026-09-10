@@ -12,8 +12,7 @@ Rectangle {
     property int channel: 1
     property bool showCurves: true
 
-    // Raised when Show Curve is pressed on a panel that has nothing to draw. The
-    // window owns the fetch, because both panels share one measurement.
+    // Raised when Show Curve has nothing to draw.
     signal fetchRequested()
 
     property var posDirections: []
@@ -31,8 +30,7 @@ Rectangle {
         return ""
     }
 
-    // Which curves are picked, no color in here. This is the only thing
-    // curveShapes depends on, so a color edit never touches sampleCurve.
+    // Selection only, so a colour edit never resamples.
     readonly property var curveSelection: {
         const out = []
         if (compareDirection !== "") {
@@ -53,8 +51,7 @@ Rectangle {
         return out
     }
 
-    // The expensive part, keyed by "side:direction". Only resamples when the
-    // selection or channel changes, never on a color-only edit.
+    // The expensive part, keyed by "side:direction".
     readonly property var curveShapes: {
         const out = ({})
         for (let i = 0; i < curveSelection.length; ++i) {
@@ -64,8 +61,7 @@ Rectangle {
         return out
     }
 
-    // Selection plus resolved color. Cheap to rebuild on every colorOverrides
-    // edit since it never touches sampleCurve.
+    // Selection plus resolved colour. Cheap to rebuild.
     readonly property var curveSet: {
         const out = []
         for (let i = 0; i < curveSelection.length; ++i) {
@@ -93,14 +89,7 @@ Rectangle {
         return out
     }
 
-    // The crossings come from the server, not from re-deriving them here.
-    //
-    // get_list_intersecting_nodes is a calibration measurement -- it is what the
-    // ICT columns are built from -- and a second implementation of it in QML
-    // would be a second answer to the same question. The server returns the raw
-    // crossings of exactly this pair of curves, with no diagonal scaling and no
-    // cross-direction reconciliation, so they line up with what is drawn once
-    // this panel applies its own scale.
+    // The crossings come from the server, not here.
     readonly property var intersections: {
         if (!showCurves || compareDirection === "")
             return []
@@ -168,18 +157,8 @@ Rectangle {
         colorOverrides = next
     }
 
-    // The curve is what the rig measured, or nothing.
-    //
-    // This used to be a closed-form formula that produced a plausible-looking
-    // greyscale trace for any direction, which meant the panel drew a full set of
-    // curves whether or not a shot had ever been taken. Reading a node position
-    // off one of those was reading a sine wave. An empty list is the honest
-    // answer until Direction Diff has run.
-    //
-    // The sqrt(2) on the diagonals is this panel's own x-axis scaling: a
-    // diagonal ray crosses sqrt(2) pixels per step, and the server deliberately
-    // does NOT apply it (see histogram_8dir in ComputeDetectOps.cpp) so that the
-    // plotted crossings land where the two drawn curves actually meet.
+    // What the rig measured, or nothing.
+    // The diagonal sqrt(2) is this panel's scaling.
     function sampleCurve(side, direction) {
         const bySide = ComputeController.histogram[side]
         if (!bySide)
@@ -261,19 +240,7 @@ Rectangle {
                 onUpperMoved: (value) => plotView.xMax = value
             }
 
-            // Collects once, then toggles.
-            //
-            // The old Widgets client's Show Curve FETCHED -- showCurve(n) called
-            // histogram_8dir on demand and cached the answer. Here it was a pure
-            // view toggle, so an operator who pressed it on an empty panel got
-            // nothing at all and no explanation, which is exactly how it was
-            // reported on 2026-09-09.
-            //
-            // It does not re-fetch once there is data: one request already carries
-            // all eight directions for both polarities, and the checkboxes filter
-            // that locally. Pressing this again would put an identical request on
-            // the wire and re-measure two 3040x3040 frames for the same answer.
-            // Direction Diff is the deliberate re-measure.
+            // Collects once, then toggles. Never re-fetches.
             ActionButton {
                 text: qsTr("Show Curve")
                 checked: root.showCurves

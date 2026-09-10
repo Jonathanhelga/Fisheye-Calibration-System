@@ -5,9 +5,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import FisheyeCaliJojo
 
-// One row of the concentric table: a ring/layer's shape, radius step, color,
-// and center offset. Column widths are passed in from ConcentricPanel so
-// the header and every row always share the same values.
+// One concentric row; the panel passes widths in.
 RowLayout {
     id: row
 
@@ -75,9 +73,7 @@ RowLayout {
     }
 
     Item {
-        // Stretches with the column like every other cell, but keeps the
-        // swatch itself a fixed square instead of letting it turn into a
-        // rectangle when the window is wider than the minimum.
+        // Stretches with the column; swatch stays square.
         Layout.preferredWidth: row.colorWidth
         Layout.fillWidth: true
         Layout.preferredHeight: row.cellHeight

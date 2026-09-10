@@ -10,18 +10,13 @@ Rectangle {
 
     readonly property var directions: ["N", "S", "W", "E", "NW", "SE", "SW", "NE"]
 
-    // 75, not 74. A round table is 77 rows: two headers then the layer rows, and
-    // the model on the far side (CaliTableData::kRows) is the same table. A
-    // shorter count here does not mean a smaller table, it means a truncated one
-    // -- a real capture's after-bezel segment runs well past layer 40.
+    // 75 layers, matching CaliTableData::kRows.
     readonly property int layerCount: 75
     readonly property int noSideLayer: layerCount
 
     property alias round: roundSelector.currentIndex
 
-    // The table lives in the controller. This panel displays it and sends edits
-    // back; it does not hold a second copy, because the copy that travels to the
-    // rig must be the copy on screen.
+    // The table lives in the controller.
     readonly property var rounds: CalibrationController.rounds
     readonly property var sideLayers: CalibrationController.sideLayers
 
@@ -41,9 +36,7 @@ Rectangle {
         return false
     }
 
-    // Where the centres were found, read straight off the detect results. These
-    // are a read-out of a measurement, not an input -- typing over them would be
-    // claiming a centre nothing measured.
+    // A read-out of a measurement, not an input.
     readonly property var posCenter: ComputeController.centers["positive"]
     readonly property var negCenter: ComputeController.centers["negative"]
 
@@ -55,16 +48,7 @@ Rectangle {
     readonly property string aggregation: CalibrationController.aggregationText
     property string distance: String(CalibrationController.baseDistance)
 
-    // Moved here from MoilCalibrationResult on the New-UI branch: the toggle
-    // belongs next to the Distance field it qualifies, not in the window's
-    // toolbar three panels away. The window keeps an alias so `root.singleDistance`
-    // still reads.
-    //
-    // readonly on purpose. A writable property here would be assigned by the
-    // toggle below, and that assignment DESTROYS the binding to the controller
-    // -- after the first click the switch would stop following anything that
-    // changed the flag elsewhere, while still looking correct. The toggle writes
-    // the controller and the value comes back through this binding.
+    // readonly: assigning here would destroy the binding.
     readonly property bool singleDistance: CalibrationController.singleDistance
 
     signal calculateRequested(int round)
@@ -82,9 +66,7 @@ Rectangle {
         }
     }
 
-    // Edits go to the controller, which owns the table and bumps its version so
-    // every cached series knows it is stale. The display then follows the
-    // controller back; nothing is written locally and re-sent later.
+    // Edits go to the controller, which owns it.
     function setPct(layer, value) {
         CalibrationController.setPct(panel.round, layer, value)
     }
@@ -227,10 +209,7 @@ Rectangle {
             }
         }
 
-        // Which rounds count. round_enabled ships with every request and the
-        // server uses it for the aggregations, the regression fit and the
-        // pooled Overlap -- so without these it silently means "all of them",
-        // including a round you know is bad.
+        // Without these, round_enabled silently means all.
         Flow {
             Layout.fillWidth: true
             Layout.minimumWidth: Math.max(useGroup.implicitWidth, sideGroup.implicitWidth)
@@ -338,23 +317,7 @@ Rectangle {
                     ToolTip.delay: Theme.animSlow
                     ToolTip.text: qsTr("Measure how tightly this round's ZFL values agree with each other.")
                 }
-                // NOT "Clean Noise". Renamed 2026-09-09.
-                //
-                // In the Widgets client "Clean Noise" is a TOGGLE of the global
-                // noise_cleaning flag -- it changes how the rig extracts nodes, and
-                // its effect shows up in the histogram the moment you flip it. That
-                // control exists here too, on the Centering panel, spelled "Noise
-                // cleaning".
-                //
-                // This button is a different operation that shares none of that:
-                // auto_detect_noise_bands finds bands in the round's ICT columns and
-                // REMOVES them from the table. It is destructive, it touches no
-                // histogram, and the Widgets client has no equivalent at all -- it is
-                // a newer server capability.
-                //
-                // Two unrelated things under one name, and an operator who knew the
-                // old client pressed this expecting the curves to change. Same trap as
-                // Update Table, found the same afternoon.
+                // Not "Clean Noise": this removes bands destructively.
                 ActionButton {
                     text: qsTr("Remove Noise Bands")
                     enabled: !CalibrationController.busy && panel.roundHasData
@@ -438,9 +401,7 @@ Rectangle {
                 ActionButton {
                     text: qsTr("Calculate Result")
                     tone: "accent"
-                    // hasRawIct is the engine's own "is there anything worth
-                    // computing yet". Running the pipeline over an empty table
-                    // produced a table of blanks and no explanation.
+                    // The engine's own "anything worth computing yet".
                     enabled: !CalibrationController.busy && CalibrationController.hasRawIct
                     onClicked: panel.calculateRequested(panel.round)
 

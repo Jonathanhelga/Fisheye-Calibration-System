@@ -35,8 +35,7 @@ Rectangle {
     readonly property bool hasPositiveCenter: positiveCpx >= 0 && positiveCpy >= 0
     readonly property bool hasNegativeCenter: negativeCpx >= 0 && negativeCpy >= 0
 
-    // Ring count for the fit. 0 lets auto_center take it from the prepared PNG,
-    // which is the source it trusts most -- see ComputeDetectOps.cpp.
+    // 0 lets auto_center read the prepared PNG.
     property int expectedRings: 0
     property bool noiseCleaning: false
 
@@ -64,15 +63,7 @@ Rectangle {
         return target === "Negative" ? negThreshold : posThreshold
     }
 
-    // Ask the rig where the centre is. The answer may be "nowhere" and that is a
-    // valid answer -- see onCenterRefused.
-    //
-    // NO CALLER since the Find Pos / Find Neg buttons were removed on 2026-09-09.
-    // Kept because it is the only route to the auto_center cascade, which is
-    // specified in doc/auto_center_design.md and still served by the rig; putting
-    // a button back is one call, working out how to ask for it again from scratch
-    // would not be. onCenterFound and onCenterRefused below are its other half
-    // and are equally dormant.
+    // No caller since 2026-09-09. Kept for the cascade.
     function findCenter(target) {
         const slot = slotFor(target)
         if (slot === "" || locked)
@@ -81,9 +72,7 @@ Rectangle {
         ComputeController.autoCenter(slot, expectedRings, noiseCleaning)
     }
 
-    // The edge ring, per polarity. Returned through accessors rather than read
-    // field-by-field at the call site so a caller cannot pick the positive
-    // radius and the negative colour by mistake.
+    // Accessors, so polarities cannot be mixed up.
     function edgeShown(target) {
         return target === "Positive" ? positiveEdge
              : target === "Negative" ? negativeEdge
@@ -120,10 +109,7 @@ Rectangle {
                                      : -1
     }
 
-    // `method` is optional and names where the centre came from, because the
-    // read-out beside it is the only thing telling the operator whether they are
-    // looking at a measurement or a default. Omitted, it stays "picked by hand" --
-    // which is what every existing caller means.
+    // Optional; omitted it stays "picked by hand".
     function setCenter(target, x, y, method) {
         if (locked)
             return
@@ -141,10 +127,7 @@ Rectangle {
         lastConfidence = ""
         centerChanged(target, x, y)
 
-        // In Manual the click is a SEED, not the answer: roi_exact recurses
-        // detect_roi from it until the point stops moving. In Locked nothing is
-        // sent at all, and in Auto the click is an override the operator made
-        // deliberately, so it is left exactly where they put it.
+        // Manual seeds roi_exact; Locked sends nothing.
         if (mode === modeManual && linked)
             ComputeController.refineCenter(slotFor(target), x, y, thresholdFor(target))
     }
@@ -155,8 +138,7 @@ Rectangle {
         function onCenterFound(slot, x, y, method, confidence) {
             if (root.locked)
                 return
-            // Assigned directly rather than through setCenter, which would send
-            // the answer straight back out as a new seed and loop.
+            // Direct, not setCenter, which would loop.
             if (slot === "positive") {
                 root.positiveCpx = x
                 root.positiveCpy = y
@@ -174,10 +156,7 @@ Rectangle {
         }
 
         function onCenterRefused(slot, reason) {
-            // A fit the cascade could not validate is NO CENTRE. It is cleared,
-            // not left showing the previous run's coordinates: the rig drives
-            // five axes off this number, and a stale one looks exactly like a
-            // fresh one to whoever reads it next.
+            // A refused fit is cleared, not left stale.
             if (slot === "positive") {
                 root.positiveCpx = -1
                 root.positiveCpy = -1
@@ -248,8 +227,7 @@ Rectangle {
                 font.pixelSize: Theme.captionFontSize
                 elide: Text.ElideRight
 
-                // The refusal reason is usually longer than the strip it is
-                // elided into, and it is the one thing worth reading in full.
+                // The reason is longer than the strip.
                 MouseArea {
                     anchors.fill: parent
                     hoverEnabled: root.refusalReason !== ""
@@ -261,15 +239,7 @@ Rectangle {
                 }
             }
 
-            // Find Pos / Find Neg removed 2026-09-09. The Widgets client never had
-            // them, and nothing needs them now: in Auto a shot centres on the
-            // middle of its own frame, and in Manual a click seeds roi_exact.
-            //
-            // They were the only callers of ComputeController.autoCenter, so the
-            // auto_center cascade is now unreachable from this UI. The op is
-            // untouched on the server and findCenter() below still calls it, so
-            // restoring them is one button; deleting the C++ would not be, and
-            // doc/auto_center_design.md is the specification for that cascade.
+            // Find Pos/Neg removed 2026-09-09; findCenter() remains.
         }
 
         RowLayout {
@@ -305,9 +275,7 @@ Rectangle {
                 label: qsTr("Rings")
                 text: root.expectedRings
                 validator: IntValidator { bottom: 0; top: 99 }
-                // 0 means "take it from the prepared pattern PNG", which is
-                // measured off the picture that was actually on the glass and
-                // beats the modal count inferred from the capture itself.
+                // 0 reads the count from the prepared PNG.
                 onEdited: (value) => root.expectedRings = parseInt(value)
             }
         }

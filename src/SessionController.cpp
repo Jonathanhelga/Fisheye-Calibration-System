@@ -31,9 +31,7 @@ constexpr int kServiceWaitMs = 5000;
 constexpr int kWaitSliceMs = 200;
 constexpr int kSpinSliceMs = 100;
 
-// A capture is a mechanical shutter plus a 3040x3040 encode on the rig; a detect
-// op is a full ring sweep over two of them. Neither is quick, and a timeout that
-// fires early looks exactly like a rig that ignored the request.
+// Generous: a capture and a sweep are slow.
 constexpr int kCaptureTimeoutMs = 20000;
 constexpr int kComputeTimeoutMs = 120000;
 
@@ -89,7 +87,7 @@ void SessionController::endCall() {
     if (busy_ > 0 && --busy_ == 0) emit busyChanged();
 }
 
-// ---------------------------------------------------------------- GUI slots --
+// ---- GUI slots ----
 
 void SessionController::applyLink(int status, const QString &message, quint64 generation) {
     if (generation != d_->generation.load()) return;
@@ -98,8 +96,7 @@ void SessionController::applyLink(int status, const QString &message, quint64 ge
     setLastError(message);
 
     if (status_ != ProbeStatus::Ok) {
-        // The session belongs to a link that has gone; keeping the id would let
-        // an op be sent against a session this client can no longer prove is open.
+        // The session belonged to a link now gone.
         sessionId_.clear();
         sessionName_.clear();
         capturedSlots_.clear();
@@ -124,10 +121,7 @@ void SessionController::applySession(const QString &id, const QString &name, boo
     setLastError(QString());
     sessionId_ = id;
     sessionName_ = name;
-    // Reopening inherits whatever the session already holds, but this client has
-    // not been told what that is yet -- the server's answer arrives with the next
-    // capture or op. Claiming slots we have not been told about would let a
-    // detect op be issued against a slot that is empty on the rig.
+    // The server reports its slots, not us.
     capturedSlots_.clear();
     emit sessionChanged();
     emit notice(tr("session %1 open").arg(name.isEmpty() ? id : name));
@@ -167,7 +161,7 @@ void SessionController::applyProgress(quint64 token, int done, int total, const 
     emit computeProgress(token, done, total, stage);
 }
 
-// ------------------------------------------------------------------- link ----
+// ---- link ----
 
 void SessionController::connectTo(int domainId) {
     stopWorker();
@@ -274,7 +268,7 @@ void SessionController::connectTo(int domainId) {
 #endif
 }
 
-// ---------------------------------------------------------------- session ----
+// ---- session ----
 
 void SessionController::openOrCreate(const QString &name) {
     if (status_ != ProbeStatus::Ok) {
@@ -300,12 +294,7 @@ void SessionController::openOrCreate(const QString &name) {
     setLastError(QString());
     const quint64 generation = d_->generation.load();
 
-    // "open_or_create" is not a server command. The old client asked for the
-    // list, matched by name, opened the match and created only when there was
-    // none -- open() inherits the shots already in the session, so the curve
-    // panels and Update Table work without re-shooting. That two-step is kept
-    // here rather than collapsed, because "create" on an existing name would
-    // silently start an empty session and lose the pair the operator just shot.
+    // Two steps: create would lose an existing session.
     auto request = std::make_shared<moil_interfaces::srv::SessionCommand::Request>();
     request->command = "list";
 
@@ -385,7 +374,7 @@ void SessionController::closeSession() {
     emit sessionChanged();
 }
 
-// ---------------------------------------------------------------- capture ----
+// ---- capture ----
 
 void SessionController::capture(const QString &slot, double timeoutSeconds) {
     if (status_ != ProbeStatus::Ok) {
@@ -441,13 +430,12 @@ void SessionController::capture(const QString &slot, double timeoutSeconds) {
 
     QTimer::singleShot(kCaptureTimeoutMs, this, [this, slot, generation] {
         if (generation != d_->generation.load()) return;
-        // Fires whether or not the reply arrived; applyCaptured is idempotent
-        // enough that a late answer is simply dropped by the generation check.
+        // Late answers are dropped by the generation check.
     });
 #endif
 }
 
-// ---------------------------------------------------------------- compute ----
+// ---- compute ----
 
 void SessionController::runCompute(const QString &op, const QString &paramsJson, quint64 token) {
     auto fail = [this, token](const QString &message) {
@@ -460,8 +448,7 @@ void SessionController::runCompute(const QString &op, const QString &paramsJson,
         return;
     }
     if (sessionId_.isEmpty()) {
-        // The whole point of this path is that the op resolves its images from
-        // the session. Without one there is nothing for the slot names to mean.
+        // Slot names mean nothing without a session.
         fail(tr("no session is open -- the op resolves its images from the session's "
                 "capture slots"));
         return;
@@ -504,9 +491,7 @@ void SessionController::runCompute(const QString &op, const QString &paramsJson,
 
     options.goal_response_callback = [this, token, op, generation](GoalHandle::SharedPtr handle) {
         if (generation != d_->generation.load() || handle) return;
-        // Rejected outright. Without this the call simply never answers and the
-        // panel sits busy for ever, which reads as a slow rig rather than a
-        // refused goal.
+        // A rejected goal is reported, not left hanging.
         QMetaObject::invokeMethod(this, "applyCompute", Qt::QueuedConnection,
                                   Q_ARG(quint64, token), Q_ARG(bool, false),
                                   Q_ARG(QString, QString()),
@@ -549,10 +534,7 @@ void SessionController::runCompute(const QString &op, const QString &paramsJson,
         if (generation != d_->generation.load()) return;
         Q_UNUSED(token)
         Q_UNUSED(op)
-        // The result callback answers whether the op succeeded, failed or was
-        // cancelled, so there is nothing to synthesise here. Left as a marker
-        // that a goal which never answers at all leaves the call counted busy --
-        // see applyCompute, which is the only place endCall() is reached.
+        // Only applyCompute reaches endCall().
     });
 #endif
 }

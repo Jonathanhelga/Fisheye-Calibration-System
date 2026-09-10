@@ -49,8 +49,7 @@ QString dump(const QJsonObject &o) {
     return QString::fromUtf8(QJsonDocument(o).toJson(QJsonDocument::Compact));
 }
 
-// A JSON object of direction -> number array becomes a QVariantMap of
-// direction -> QVariantList, which is what a QML `var` binding can index.
+// JSON object of arrays -> QVariantMap of lists.
 QVariantMap numbersByDirection(const QJsonObject &o) {
     QVariantMap out;
     for (auto it = o.constBegin(); it != o.constEnd(); ++it) {
@@ -142,8 +141,7 @@ void ComputeController::clearResults() {
     emit nodesChanged();
 }
 
-// NOT named `slots`: that is a Qt keyword macro and expands to nothing, so the
-// parameter silently loses its name and the range-for has no range.
+// Not "slots": that is a Qt keyword macro.
 bool ComputeController::gather(const QStringList &slotNames,
                                QList<QPair<QByteArray, QString>> *out) {
     for (const QString &slot : slotNames) {
@@ -164,7 +162,7 @@ void ComputeController::applyLink(int status, const QString &message, quint64 ge
     setLastError(message);
 
     if (status_ != ProbeStatus::Ok) {
-        // Requests issued on a link that has gone away will never answer.
+        // Requests on a dead link never answer.
         liveTokens_.clear();
         if (busy_ > 0) {
             busy_ = 0;
@@ -220,8 +218,7 @@ void ComputeController::applyResult(const QString &op, const QString &slot, bool
                             .arg(method)
                             .arg(confidence));
         } else {
-            // The cascade ran and declined. Reported as no centre, deliberately:
-            // a refused fit is the correct answer on a badly aimed shot.
+            // A refused fit is the correct answer.
             const QString reason = r.value(QStringLiteral("reason")).toString();
             const QString why =
                 reason.isEmpty()
@@ -423,10 +420,7 @@ bool ComputeController::sendDetect(const QString &op, const QString &slot,
                 Q_ARG(quint64, generation));
         });
 
-    // Detect ops have no progress and no cancel (session_services.cpp:370), and
-    // the auto_center cascade is measured in seconds, so the budget is generous.
-    // Without it a request the node never answers leaves the panel disabled with
-    // no message -- the exact silent failure this app is full of elsewhere.
+    // No progress, no cancel; a generous budget.
     QTimer::singleShot(kOpTimeoutMs, this, [this, generation, token, op] {
         if (generation != d_->generation.load() || !liveTokens_.remove(token)) return;
         endCall();
@@ -438,8 +432,7 @@ bool ComputeController::sendDetect(const QString &op, const QString &slot,
 
 void ComputeController::autoCenter(const QString &slot, int expectedRings, bool noiseCleaning) {
     QJsonObject params;
-    // `slot` also tells auto_center which prepared PNG to count rings from, which
-    // is the source it trusts over the modal count. See ComputeDetectOps.cpp.
+    // slot also picks auto_center's prepared PNG.
     params[QStringLiteral("slot")] = slot;
     params[QStringLiteral("noise_cleaning")] = noiseCleaning;
     if (expectedRings > 0) params[QStringLiteral("expected_rings")] = expectedRings;
@@ -471,7 +464,7 @@ void ComputeController::histogram8Dir(int posCx, int posCy, int negCx, int negCy
     for (const QString &d : dirs8()) dirs.append(d);
     params[QStringLiteral("dirs")] = dirs;
 
-    // Positive first, then negative -- the order every two-image op documents.
+    // Positive first, then negative.
     sendDetect(QString::fromLatin1(kOpHistogram), QString(),
                {QStringLiteral("positive"), QStringLiteral("negative")}, dump(params),
                tr("measuring 8 directions"));

@@ -8,14 +8,10 @@ Rectangle {
 
     property string framePath: ""
 
-    // Anything already carrying a scheme is passed through untouched. The live
-    // frames arrive as image://moilcamera/live/<revision> from the image
-    // provider, and prefixing those with file:// produced a silent blank panel.
+    // A URL with a scheme passes through untouched.
     readonly property url frameUrl: PatternIo.toFileUrl(root.framePath)
 
-    // Owned by the controller: the stream is a ROS subscription, and a local bool
-    // that says "streaming" while nothing is subscribed is exactly the lie this
-    // panel used to tell.
+    // Owned by the controller, which knows the subscription.
     property bool streaming: false
     property real fps: 0
 
@@ -33,13 +29,10 @@ Rectangle {
     property int edgeThickness: 2
     property bool edgeVisible: false
 
-    // Told by the controller whether frames are actually arriving. preview.loaded
-    // only says the last URL decoded, which stays true after the stream stops.
+    // Whether frames are actually arriving.
     property bool receiving: streaming && preview.loaded
 
-    // What the operator should be told the frames come from. It is a ROS topic,
-    // not the HTTP endpoint this used to name -- HTTP is a reachability probe in
-    // this app and carries no image data at all.
+    // A ROS topic, not an HTTP endpoint.
     readonly property string sourceUrl: "/camera/image_raw/compressed"
 
     readonly property string frameSize: preview.sourceWidth + "x" + preview.sourceHeight
@@ -80,9 +73,7 @@ Rectangle {
 
             StatusDot {
                 Layout.alignment: Qt.AlignVCenter
-                // Falls back to the ROS camera link, not the HTTP probe: the
-                // frames come over a ROS topic now, so an HTTP dot here would be
-                // reporting the health of something this panel does not use.
+                // The ROS camera link, not the HTTP probe.
                 status: root.receiving ? ProbeStatus.Ok
                       : root.streaming ? ProbeStatus.Checking
                                        : root.linkStatus
@@ -156,9 +147,7 @@ Rectangle {
             centerY: root.showRoi ? root.centerY : -1
             roiRadius: root.showRoi ? root.roiRadius : 0
 
-            // The ROI button governs both markers: they are the same overlay to
-            // anyone aiming the rig, and one toggle that leaves half of it on
-            // would read as a bug.
+            // One toggle for both markers.
             edgeVisible: root.showRoi && root.edgeVisible
             edgeRadius: root.edgeRadius
             edgeColor: root.edgeColor
@@ -173,9 +162,7 @@ Rectangle {
                 Layout.fillWidth: true
                 tone: root.streaming ? "danger" : "accent"
                 text: root.streaming ? qsTr("Stop") : qsTr("Go Live")
-                // The button asks; the controller decides. `streaming` follows
-                // the subscription, so a Go Live that cannot connect leaves the
-                // button reading Go Live instead of pretending to stream.
+                // The button asks; the controller decides.
                 onClicked: root.streaming ? root.stopRequested() : root.startRequested()
             }
 

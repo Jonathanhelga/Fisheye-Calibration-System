@@ -6,9 +6,7 @@ import QtQuick.Layouts
 import FisheyeCaliJojo
 import "PatternConfig.js" as PatternConfig
 
-// Stripeline pattern: parallel stripes. Usually shown on the side screens
-// (N/W/S/E). Each row's Height is a step, the pixel thickness of that stripe
-// from the previous one, not an absolute position.
+// Stripeline: parallel stripes. Height is a step.
 Rectangle {
     id: panel
 
@@ -23,9 +21,7 @@ Rectangle {
     property color positiveColor: "black"
     property color negativeColor: "white"
 
-    // Whether the layer table still holds a generated alternation of the two
-    // colours above ("positive" / "negative"), or was edited row by row
-    // ("custom"). Only a generated table is recoloured automatically.
+    // Whether the table is still a generated alternation.
     property string colorPolarity: "positive"
 
     property alias direction: directionCombo.currentIndex
@@ -34,8 +30,7 @@ Rectangle {
 
     property bool connected: false
 
-    // See ConcentricPanel: a ListModel gives no bindable change signal, so a
-    // fingerprint built from specJson() alone would miss every layer edit.
+    // ListModel edits fire no binding; see ConcentricPanel.
     property int layerRevision: 0
 
     readonly property string configFingerprint:
@@ -57,12 +52,10 @@ Rectangle {
         return String((index % 2 === 0) === positive ? panel.positiveColor : panel.negativeColor)
     }
 
-    // Every layerModel mutation goes through here or bumps layerRevision itself;
-    // a setProperty that skips it is a change Auto Update will never see.
+    // Every layerModel mutation goes through here.
     function setLayer(index, key, value) {
         layerModel.setProperty(index, key, value)
-        // A hand-picked colour makes the table no longer a generated alternation,
-        // so the colour pickers stop repainting over it.
+        // A hand-picked colour makes the table custom.
         if (key === "color") panel.colorPolarity = "custom"
         panel.layerRevision++
     }
@@ -77,8 +70,7 @@ Rectangle {
     function applyPositivePattern() { panel.applyPattern(true) }
     function applyNegativePattern() { panel.applyPattern(false) }
 
-    // Repaint the table in place when either colour changes, so the rows follow
-    // the picker without a second click. A hand-edited table is left alone.
+    // Repaint generated tables only; custom is left alone.
     function refreshPattern() {
         if (panel.colorPolarity !== "custom")
             panel.applyPattern(panel.colorPolarity === "positive")
@@ -124,17 +116,7 @@ Rectangle {
         if (!PatternConfig.isConfigFor(doc, panel))
             return false
 
-        // Held at "custom" while the envelope's colours land, so the
-        // positiveColor/negativeColor changes it makes do not fire
-        // refreshPattern() and repaint rows the loop below is about to rewrite.
-        // Without this an import repaints the whole table once for nothing and
-        // bumps layerRevision an extra time, firing a spurious auto-render.
-        //
-        // ConcentricPanel has carried this since the 335ee75 port; this panel
-        // did not, and the 2026-09-08 merge did not restore it because
-        // StripelinePanel.qml auto-merged without a conflict. Neither the build,
-        // qmllint, nor an API diff can see a missing guard inside a function
-        // body -- it was found by comparing the two panels against each other.
+        // Held custom so colour changes do not repaint.
         panel.colorPolarity = "custom"
 
         PatternConfig.applyConfigEnvelope(doc, panel)
@@ -153,11 +135,10 @@ Rectangle {
                                            : PatternConfig.toColor(layer.color, "#ffffff"))
         }
 
-        // A file that carried pos_neg_color is a generated alternation and stays
-        // repaintable; one with per-layer colours is custom.
+        // pos_neg_color means generated; per-layer means custom.
         panel.colorPolarity = derived ? "positive" : "custom"
 
-        // Once for the whole import, not once per row.
+        // Once for the whole import.
         panel.layerRevision++
         return true
     }
@@ -365,7 +346,7 @@ Rectangle {
                 Item { Layout.fillWidth: true }
             }
 
-            // table, single source of truth for column widths: both the header row below and every StripelineLayerRow delegate bind to these same values.
+            // ---- table: one source of truth for widths ----
             QtObject {
                 id: tableColumns
                 readonly property int noWidth:     Math.round(Theme.charUnit * 2.5)

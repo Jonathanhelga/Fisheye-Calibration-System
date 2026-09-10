@@ -16,20 +16,7 @@
 
 #include "ProbeStatus.h"
 
-// The Cali Result window's data: eleven round tables, the form's scalar fields,
-// and everything derived from them.
-//
-// THE CLIENT COMPUTES NOTHING. Not the derived columns, not the aggregation, not
-// the regression, not the six polynomial coefficients -- CaliSeries.srv says why
-// at length, and the short version is that a boundary with an arithmetic
-// exception in it is not a boundary. What this class holds is the table (the
-// operator's working copy, which travels whole with every op) and a CACHE of
-// answers the server gave it. There is no code here that could produce those
-// numbers, only code that remembers the ones it was given.
-//
-// The cache is keyed to tableVersion(), bumped on every edit and every op. A
-// redraw, a tab change or a resize reads the cache; the wire is touched only when
-// the table actually changed.
+// The Cali Result window's table and cached answers.
 class CalibrationController : public QObject {
     Q_OBJECT
     QML_ELEMENT
@@ -44,19 +31,17 @@ class CalibrationController : public QObject {
     Q_PROPERTY(ProbeStatus::Status loadStatus READ loadStatus NOTIFY tableChanged)
     Q_PROPERTY(QString loadSummary READ loadSummary NOTIFY tableChanged)
 
-    // The display model: 11 rounds, each a list of row objects shaped exactly
-    // like CaliResultDataPanel.emptyRow().
+    // 11 rounds of row objects.
     Q_PROPERTY(QVariantList rounds READ rounds NOTIFY tableChanged)
     Q_PROPERTY(QVariantList sideLayers READ sideLayers NOTIFY tableChanged)
     Q_PROPERTY(QVariantList roundEnabled READ roundEnabled NOTIFY tableChanged)
     Q_PROPERTY(QVariantMap fields READ fields NOTIFY tableChanged)
     Q_PROPERTY(int tableVersion READ tableVersion NOTIFY tableChanged)
 
-    // The parameter box: six coefficient slots as text, straight from
-    // alpha_polynomial. Never fitted here.
+    // Six coefficient slots as text.
     Q_PROPERTY(QVariantList coefficients READ coefficients NOTIFY seriesChanged)
 
-    // Plot series, as lists of {x, y}. Empty until updateSeries() has answered.
+    // Plot series as lists of {x, y}.
     Q_PROPERTY(QVariantList alphaRounds READ alphaRounds NOTIFY seriesChanged)
     Q_PROPERTY(QVariantList alphaFit READ alphaFit NOTIFY seriesChanged)
     Q_PROPERTY(QVariantList zflRounds READ zflRounds NOTIFY seriesChanged)
@@ -65,12 +50,11 @@ class CalibrationController : public QObject {
     Q_PROPERTY(bool hasRawIct READ hasRawIct NOTIFY seriesChanged)
     Q_PROPERTY(bool seriesFresh READ seriesFresh NOTIFY seriesChanged)
 
-    // Scalar answers the ops hand back, shown next to the buttons that asked.
+    // Scalar answers from the ops.
     Q_PROPERTY(QString aggregationText READ aggregationText NOTIFY resultChanged)
     Q_PROPERTY(QString noiseText READ noiseText NOTIFY resultChanged)
 
-    // ---- the distance searches (CaliJob) -----------------------------------
-    // These run for minutes and CAN be cancelled, unlike every service above.
+    // ---- distance searches (CaliJob) ----
     Q_PROPERTY(bool searchRunning READ searchRunning NOTIFY searchChanged)
     Q_PROPERTY(QString searchStage READ searchStage NOTIFY searchChanged)
     Q_PROPERTY(int searchDone READ searchDone NOTIFY searchChanged)
@@ -80,7 +64,7 @@ class CalibrationController : public QObject {
     Q_PROPERTY(double bestAggregation READ bestAggregation NOTIFY searchChanged)
     Q_PROPERTY(QVariantList searchSamples READ searchSamples NOTIFY searchChanged)
 
-    // ---- extra plot series --------------------------------------------------
+    // ---- extra plot series ----
     Q_PROPERTY(QVariantList globalIctAlpha READ globalIctAlpha NOTIFY seriesChanged)
     Q_PROPERTY(QVariantList roundPoints READ roundPoints NOTIFY roundPointsChanged)
     Q_PROPERTY(int roundPointsRound READ roundPointsRound NOTIFY roundPointsChanged)
@@ -144,7 +128,7 @@ public:
 
     Q_INVOKABLE void connectTo(int domainId);
 
-    // ---- the table ---------------------------------------------------------
+    // ---- the table ----
     Q_INVOKABLE void setPct(int round, int layer, const QString &value);
     Q_INVOKABLE void setIct(int round, int layer, int direction, const QString &value);
     Q_INVOKABLE void setSideLayer(int round, int layer);
@@ -153,49 +137,42 @@ public:
     Q_INVOKABLE void clearTable(int round);
     Q_INVOKABLE void clearAllTables();
 
-    // ---- Excel -------------------------------------------------------------
+    // ---- Excel ----
     Q_INVOKABLE void loadExcel(int round, const QUrl &fileUrl);
     Q_INVOKABLE void loadAllExcel(const QUrl &folderUrl);
     Q_INVOKABLE void saveExcel(int round, const QUrl &fileUrl);
 
-    // ---- the pipeline ------------------------------------------------------
+    // ---- the pipeline ----
     Q_INVOKABLE void computeAll();
     Q_INVOKABLE void calculateRound(int round);
     Q_INVOKABLE void aggregationForRound(int round);
 
-    // Every ENABLED round scored together at one distance -- the number you judge
-    // a whole run on, as opposed to how tight a single round is with itself.
+    // Every enabled round scored at one distance.
     Q_INVOKABLE void aggregationAllRounds(bool useRange, double xLo, double xHi);
 
     Q_INVOKABLE void cleanNoise(int round);
 
-    // Fill a round's ICT columns from the crossings ComputeController just found.
+    // Fill a round's ICT columns from crossings.
     Q_INVOKABLE void updateFromCapture(int round, const QVariantList &pct, const QVariantMap &nodes);
 
-    // ---- the graphs --------------------------------------------------------
+    // ---- the graphs ----
     Q_INVOKABLE void updateSeries();
 
-    // One round's ZFL curve on its own, IGNORING its enabled flag -- which is
-    // exactly what you need when deciding whether to disable it.
+    // One round's ZFL curve, ignoring its enabled flag.
     Q_INVOKABLE void fetchRoundPoints(int round);
 
-    // ---- the distance searches ---------------------------------------------
+    // ---- the distance searches ----
     // Ternary search over one round.
     Q_INVOKABLE void findMinForRound(int round, double distMin, double distMax);
-    // Coarse sweep then refine, over every enabled round.
+    // Coarse sweep then refine, every enabled round.
     Q_INVOKABLE void findMinInWindow(bool useWindow, double xLo, double xHi);
-    // 282 probes, each recomputing all eleven rounds. The reason this is an
-    // action rather than a service.
+    // 282 probes; hence an action, not service.
     Q_INVOKABLE void findDistanceForTarget(double target, bool useRange, double xLo, double xHi);
 
-    // Asks the rig to unwind the search. The table comes back at whatever the
-    // last probe wrote -- a cancelled search produced a partial answer, it did
-    // not fail.
+    // Unwind the search; partial table comes back.
     Q_INVOKABLE void cancelSearch();
 
-    // Drops whatever is in flight so the window unblocks. The op itself is a
-    // plain service with no cancel, so it finishes on the rig regardless -- say
-    // so rather than pretend it stopped.
+    // Drop in-flight replies; the op still finishes.
     Q_INVOKABLE void stop();
 
 signals:
@@ -245,12 +222,10 @@ private:
 
     void rebuildModel();
 
-    // One round's display rows. Typing in a cell must not rebuild all eleven
-    // tables: that is ~24k QVariant constructions per keystroke in a table the
-    // operator types into all day.
+    // One round's rows, to avoid rebuilding eleven.
     void rebuildRound(int round);
 
-    // round < 0 rebuilds everything, for the ops that replace the whole table.
+    // round < 0 rebuilds everything.
     void bumpVersion(int round = -1);
     QString tableJson() const;
     QString paramsJson(int round, const QJsonObject &extra = {}) const;
@@ -258,7 +233,7 @@ private:
     bool sendCaliOp(const QString &op, int round, const QJsonObject &extra, const QString &activity);
     bool sendSeries(const QString &kind, const QJsonObject &extra);
 
-    // Noise bands are removed strictly one at a time -- see applyCaliOp.
+    // Noise bands are removed one at a time.
     void sendNextBand();
 
     void setCell(int round, int row, int col, const QString &text);
@@ -274,8 +249,7 @@ private:
     ProbeStatus::Status loadStatus_ = ProbeStatus::Unknown;
     QString loadSummary_;
 
-    // The wire format itself, kept as the single source of truth so the table
-    // that travels is exactly the table that is displayed.
+    // The wire format, single source of truth.
     QJsonObject table_;
 
     QVariantList rounds_;
@@ -297,8 +271,7 @@ private:
     QString aggregationText_;
     QString noiseText_;
 
-    // The noise-band queue. Each removal returns the whole table, so they cannot
-    // overlap without silently undoing one another.
+    // Noise-band queue; removals must not overlap.
     QList<QJsonObject> pendingBands_;
     int pendingBandRound_ = 0;
     int bandsFound_ = 0;
@@ -308,8 +281,7 @@ private:
     double baseDistance_ = 250.0;
     int degree_ = 4;
 
-    // Pending load-all bookkeeping: which rounds are still expected, so the
-    // summary can say "8 of 10 loaded" instead of only reporting the last one.
+    // Which rounds a load-all is still awaiting.
     int pendingLoads_ = 0;
     int loadedOk_ = 0;
     QStringList loadFailures_;

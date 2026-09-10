@@ -20,25 +20,17 @@ Rectangle {
     property color positiveColor: "black"
     property color negativeColor: "white"
 
-    // Whether the layer table still holds a generated alternation of the two
-    // colours above ("positive" / "negative"), or was edited row by row
-    // ("custom"). Only a generated table is recoloured automatically.
+    // Whether the table is still a generated alternation.
     property string colorPolarity: "positive"
 
     property alias direction: directionCombo.currentIndex
 
     property url previewSource: ""
 
-    // Auto Update only renders when there is something to render to.
+    // Only render when there is somewhere to render.
     property bool connected: false
 
-    // Bumped by every edit that touches the layer table.
-    //
-    // specJson() reads the layers through layerModel.get(), and a ListModel
-    // emits no signal a QML binding can depend on -- so a fingerprint built from
-    // specJson() alone re-evaluates for the scalar fields (resolution, colours,
-    // crossline) and NEVER for a layer's radius, shape or centre, which is the
-    // edit an operator actually makes. This counter is what makes those visible.
+    // ListModel edits fire no binding; this counter does.
     property int layerRevision: 0
 
     readonly property string configFingerprint:
@@ -60,18 +52,14 @@ Rectangle {
         return String((index % 2 === 0) === positive ? panel.positiveColor : panel.negativeColor)
     }
 
-    // The two colours as [r, g, b], for PreparePatterns. The server applies the
-    // odd/even inversion itself -- these are just the pair, not a polarity.
+    // The colour pair for PreparePatterns, not a polarity.
     function positiveRgb() { return PatternConfig.rgbArray(panel.positiveColor) }
     function negativeRgb() { return PatternConfig.rgbArray(panel.negativeColor) }
 
-    // One edit to a layer, announced. Every mutation of layerModel goes through
-    // here or bumps layerRevision itself; a setProperty that skips it is a change
-    // Auto Update will never see.
+    // One layer edit, announced.
     function setLayer(index, key, value) {
         layerModel.setProperty(index, key, value)
-        // A hand-picked colour makes the table no longer a generated alternation,
-        // so the colour pickers stop repainting over it.
+        // A hand-picked colour makes the table custom.
         if (key === "color") panel.colorPolarity = "custom"
         panel.layerRevision++
     }
@@ -80,20 +68,14 @@ Rectangle {
         panel.colorPolarity = positive ? "positive" : "negative"
         for (let i = 0; i < layerModel.count; i++)
             layerModel.setProperty(i, "color", panel.layerColorAt(i, positive))
-        // Once for the whole repaint. Bumped here rather than through setLayer()
-        // so Auto Update sees one change, not twenty-five.
+        // Once for the whole repaint.
         panel.layerRevision++
     }
 
     function applyPositivePattern() { panel.applyPattern(true) }
     function applyNegativePattern() { panel.applyPattern(false) }
 
-    // Repaint the table in place when either colour changes, so the rows follow
-    // the picker without a second click on Positive/Negative.
-    //
-    // A hand-edited table is "custom" and is left alone: recolouring it would
-    // silently throw away per-layer colours the operator set deliberately, and
-    // nothing would say so.
+    // Repaint generated tables only; custom is left alone.
     function refreshPattern() {
         if (panel.colorPolarity !== "custom")
             panel.applyPattern(panel.colorPolarity === "positive")
@@ -145,11 +127,7 @@ Rectangle {
         if (!PatternConfig.isConfigFor(doc, panel))
             return false
 
-        // Held at "custom" while the envelope's colours land, so the
-        // positiveColor/negativeColor changes it makes do not fire
-        // refreshPattern() and repaint rows the loop below is about to rewrite.
-        // Without this an import repaints the whole table once for nothing and
-        // bumps layerRevision an extra time, firing a spurious auto-render.
+        // Held custom so colour changes do not repaint.
         panel.colorPolarity = "custom"
 
         PatternConfig.applyConfigEnvelope(doc, panel)
@@ -172,13 +150,10 @@ Rectangle {
                                            : PatternConfig.toColor(layer.color, "#000000"))
         }
 
-        // A file that carried pos_neg_color is a generated alternation and stays
-        // repaintable; one with per-layer colours is custom and must not be
-        // overwritten by the next colour-picker change.
+        // pos_neg_color means generated; per-layer means custom.
         panel.colorPolarity = derived ? "positive" : "custom"
 
-        // Once for the whole import rather than per row: an imported file is one
-        // change, and bumping per layer would fire 25 auto-renders.
+        // Once for the whole import.
         panel.layerRevision++
         return true
     }
@@ -356,9 +331,7 @@ Rectangle {
                 ActionButton {
                     Layout.fillWidth: true
                     text: qsTr("( + ) Positive Pattern")
-                    // Lit while the table still holds that generated
-                    // alternation, so which polarity is loaded is visible
-                    // rather than something you have to remember.
+                    // Lit while that generated alternation still holds.
                     checked: panel.colorPolarity === "positive"
                     onClicked: panel.applyPositivePattern()
                 }
@@ -388,10 +361,7 @@ Rectangle {
                 Item { Layout.fillWidth: true }
             }
 
-            // ---- table ----
-            // Single source of truth for column widths: both the header row below
-            // and every ConcentricLayerRow delegate bind to these same values, so
-            // they can never drift apart.
+            // ---- table: one source of truth for widths ----
             QtObject {
                 id: tableColumns
                 readonly property int noWidth:     Math.round(Theme.charUnit * 2.5)

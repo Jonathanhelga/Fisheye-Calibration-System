@@ -131,20 +131,7 @@ Window {
         saveImageDialog.open()
     }
 
-    // The PCT column, in the exact order update_table_from_capture expects:
-    // 25 concentric radii, THEN 50 stripeline intervals. Not one or the other --
-    // both go in every time, whichever pattern is currently on screen.
-    //
-    // CaliCompute splits them at the "*" row: rows above it are the TOP panel and
-    // read entries 0..24; rows from the "*" down are the SIDE panel and read
-    // 25 + (layer - sideStartLayer). So sending only the concentric radii would
-    // pair every side row's ICT with a ring radius, and pct_cal is a RUNNING SUM
-    // -- the error compounds down the column instead of staying local. It would
-    // also be invisible: a pattern whose 50 side intervals are all equal produces
-    // a table that looks perfectly reasonable.
-    //
-    // Strings, not numbers, because "" and "0" are different answers to
-    // updateTableFromCapture and a blank must stay blank.
+    // PCT: 25 concentric radii, then 50 stripeline intervals.
     function pctList() {
         const out = []
         for (let i = 0; i < concentricPanel.layers.count; ++i)
@@ -351,9 +338,7 @@ Window {
                                 id: fourSidePathField
                                 Layout.fillWidth: true
                                 readOnly: true
-                                // toLocalPath, not localPath: this branch's PatternIo
-                                // spells it that way and also carries toFileUrl, which
-                                // the pattern panels need. Same function, one name.
+                                // toLocalPath, not localPath, on this branch.
                                 text: PatternIo.toLocalPath(root.fourSideUrl)
                                 placeholderText: qsTr("No pattern file loaded")
                                 color: Theme.textPrimary
@@ -542,19 +527,7 @@ Window {
         }
     }
 
-    // Setup Monitor Direction. The dialog only collects the five display numbers;
-    // sending them is the window's job, because the dialog has no controller of
-    // its own and should not grow one.
-    //
-    // Wired to PatternController, not MonitorController. Both can do this, and
-    // that duplication is the open question this branch keeps colliding on -- but
-    // this window drives every other monitor operation through PatternController,
-    // and a dialog that reached a different controller than the panel beside it
-    // would connect to the rig twice and answer to neither.
-    //
-    // Re-wired 2026-09-08: this window came from v2.1_2026_New-UI-CPP-ROS, which
-    // opens the dialog but handles neither signal, so both buttons emitted into
-    // nothing. Build and qmllint were clean -- an unhandled signal is not an error.
+    // The window sends; the dialog only collects.
     MonitorDirectionDialog {
         id: directionDialog
         anchors.centerIn: parent

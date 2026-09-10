@@ -6,9 +6,7 @@ import QtQuick.Layouts
 import FisheyeCaliJojo
 import "PatternConfig.js" as PatternConfig
 
-// Chessboard pattern: a checkerboard tiled outward from the screen center.
-// An extra pattern, separate from the 75 PCT values, so it has no layer
-// table and no Import/Export (there is no PCT JSON for it).
+// Chessboard: no layer table, no Import/Export.
 Rectangle {
     id: panel
 
@@ -20,10 +18,7 @@ Rectangle {
     property int resolutionW: 1920
     property real squareMm: 45
 
-    // Declared here because the Auto Update switch below binds to it. Without it
-    // the binding assigned [undefined] to a bool and the engine logged
-    // "Unable to assign [undefined] to bool" on every startup -- the sibling
-    // Concentric and Stripeline panels both declare it and this one did not.
+    // Declared because the Auto Update switch binds it.
     property bool autoUpdate: false
 
     property bool crossLine: false
@@ -39,9 +34,7 @@ Rectangle {
 
     property bool connected: false
 
-    // No layer table here, so every input is a bindable property and specJson()
-    // alone is a sufficient fingerprint -- no revision counter needed, unlike the
-    // concentric and stripeline panels.
+    // specJson() alone is enough; no revision counter.
     readonly property string configFingerprint: JSON.stringify(panel.specJson())
 
     AutoRefresh {
@@ -231,7 +224,6 @@ Rectangle {
                 spacing: Theme.rowSpacing
 
                 LabeledField {
-                    // Layout.preferredWidth: Math.round(Theme.charUnit * 9)
                     label: qsTr("Square (mm)")
                     text: panel.squareMm
                     validator: DecimalValidator { bottom: 0.1; top: 999; decimals: 2 }

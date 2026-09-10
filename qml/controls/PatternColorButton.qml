@@ -4,8 +4,7 @@ import QtQuick
 import QtQuick.Controls
 import FisheyeCaliJojo
 
-// Small color swatch that opens a palette popup when clicked. Used for the
-// Positive/Negative pattern colors and for each layer row's own color.
+// Colour swatch that opens a palette popup.
 AbstractButton {
     id: control
 

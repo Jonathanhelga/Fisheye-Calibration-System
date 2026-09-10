@@ -5,21 +5,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import FisheyeCaliJojo
 
-// Overlap: the old client's tab_overlap, ported.
-//
-// Two plots side by side, exactly as `cali_result.ui` had them:
-//   left  -- label_overlap,        driven by btn_update_overlap
-//   right -- label_dist_vs_aggr,   driven by btn_update_dist_vs_aggr
-//
-// The right plot does NOT run a search. In the old controller
-// `updatePlotDistVsAggr()` only redraws `distAggrSamples_`, which the
-// Aggregation tab's searches filled. Wiring it to a search here would start a
-// minutes-long job from a button labelled "update", so it stays a redraw.
-//
-// The panel is a pure view: every series arrives as a property and every button
-// leaves as a signal. MoilCalibrationResult.qml binds them to
-// CalibrationController. That is how the New-UI branch wrote it and it keeps the
-// two plots testable without a rig.
+// Overlap: the old tab_overlap. A pure view.
 Rectangle {
     id: panel
 
@@ -28,14 +14,10 @@ Rectangle {
     property var zflRounds: []
     property var distAggrSamples: []
 
-    // Per-round colours from the table, so a round is the same colour here as in
-    // the Data tab's rows. Empty falls back to the palette, which is what the
-    // New-UI branch did unconditionally.
+    // Per-round colours from the table.
     property var roundColors: []
 
-    // One round drawn on top, fetched with ict_zfl_points. That op ignores the
-    // round's enabled flag on purpose -- you need to see a round you have
-    // switched OFF in order to decide whether switching it off was right.
+    // One round on top, ignoring its enabled flag.
     property var inspected: []
 
     property bool busy: false
@@ -65,8 +47,7 @@ Rectangle {
             out.push({ color: panel.roundColor(r), points: panel.zflRounds[r], style: "scatter" })
         if (panel.snakePoints.length >= 2)
             out.push({ color: Theme.textPrimary, points: panel.snakePoints })
-        // Drawn last and in the marker colour so it reads on top of the rest
-        // rather than becoming one more indistinguishable scatter.
+        // Drawn last so it reads on top.
         if (panel.inspected.length > 0)
             out.push({ color: Theme.previewMarker, points: panel.inspected, style: "scatter" })
         return out

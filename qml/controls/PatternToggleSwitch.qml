@@ -3,7 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import FisheyeCaliJojo
 
-// Small pill switch with a trailing label, e.g. the CrossLine toggle.
+// Small pill switch with a trailing label.
 RowLayout {
     id: control
 

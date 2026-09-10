@@ -5,32 +5,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import FisheyeCaliJojo
 
-// Aggregation: the old client's tab_aggr_by_sitance_and_range, ported.
-//
-// This is the range workspace -- Global plus Range_1..20 as columns, the pattern
-// gaps, the sensor/round fields, and the per-IH-range result table. Its five
-// buttons are the old client's, name for name:
-//
-//   btn_range_window                -> Range Window
-//   btn_min_aggregation_by_interval -> Min Aggregation by Interval
-//   btn_aggr_by_range_and_distance  -> Aggr by Range and Distance
-//   btn_keep_round_data             -> Keep Round Data
-//   btn_save_history_distance       -> Save Distance History
-//
-// The searches live HERE, not in Overlap. In the old controller
-// `minAggregationByInterval()` and `aggrByRangeAndDistance()` are what fill
-// `distAggrSamples_`; Overlap's "Update Dist vs. Aggr" only redraws them. That
-// is why this panel carries the Stop button and the progress strip: these are
-// the only cancellable jobs in the window, and the target search is 282 probes
-// each recomputing all eleven rounds -- minutes, not seconds.
-//
-// IH FIELDS ARE PERCENTAGES, THE OPS TAKE PIXELS. The old client converts with
-//     xLo = pct / 100 * maxIctAllRounds()
-// before every call (see aggrByRangeAndDistance). Passing the percentages
-// straight through is the silent failure to watch for here: 0..100 is a valid
-// pixel window, so the search runs, converges, and returns a plausible wrong
-// distance with no error anywhere. windowXLo/windowXHi below do the conversion
-// once so no caller can forget it.
+// Aggregation: the range workspace. IH fields are percent.
 Rectangle {
     id: panel
 
@@ -67,8 +42,7 @@ Rectangle {
 
     property bool historyDistance: false
 
-    // Search state, bound to CalibrationController by the window. Kept as plain
-    // properties so the panel still lays out and can be read without a rig.
+    // Search state, bound by the window.
     property bool searching: false
     property bool busy: false
     property string searchStage: ""
@@ -76,14 +50,13 @@ Rectangle {
     property int searchDone: 0
     property int searchTotal: 0
 
-    // maxIctAllRounds() in the old client. Zero means no IH data has been
-    // loaded, which is exactly when a percent->pixel conversion must NOT run.
+    // maxIctAllRounds(); zero blocks the conversion.
     property real maxIct: 0
 
     readonly property var blankRange: panel.emptyRange("")
     readonly property var blankResult: panel.emptyResult()
 
-    // ---- percent -> pixel, done once so no caller can forget it -------------
+    // ---- percent -> pixel, done once ----
 
     function pixelFor(percentText) {
         const pct = panel.numberOf(percentText)
@@ -97,12 +70,11 @@ Rectangle {
         return String(text).trim().length > 0 && isFinite(value) ? value : null
     }
 
-    // The IH window the "Aggr by Range and Distance" group asks for, in pixels.
+    // The IH window in pixels.
     readonly property real windowXLo: panel.pixelFor(panel.targetIhMin)
     readonly property real windowXHi: panel.pixelFor(panel.targetIhMax)
 
-    // The old client rejected anything outside 0..100 with min<max before
-    // converting, and so do we -- an inverted window silently scores nothing.
+    // Reject anything outside 0..100 with min<max.
     readonly property bool windowValid: {
         const lo = panel.numberOf(panel.targetIhMin)
         const hi = panel.numberOf(panel.targetIhMax)
@@ -110,8 +82,7 @@ Rectangle {
                && panel.maxIct > 0
     }
 
-    // Blank distance means "search for the target aggregation instead"; that is
-    // the branch the old aggrByRangeAndDistance() takes on an empty line-edit.
+    // Blank distance means search for the target.
     readonly property real requestedDistance: {
         const d = panel.numberOf(panel.targetDistance)
         return d === null ? NaN : d
@@ -122,7 +93,7 @@ Rectangle {
     }
     readonly property bool hasRequestedDistance: !isNaN(panel.requestedDistance)
 
-    // The sliding-window interval, also in pixels.
+    // The sliding-window interval, in pixels.
     readonly property real intervalXLo: panel.pixelFor(panel.ihMinInterval)
     readonly property real intervalXHi: panel.pixelFor(panel.ihMaxInterval)
     readonly property bool intervalValid: !isNaN(panel.intervalXLo) && !isNaN(panel.intervalXHi)
@@ -200,14 +171,7 @@ Rectangle {
         panel.rangeEdited(index, field, value)
     }
 
-    // Ports rangeWindow(): step a window of `windowInterval` across
-    // [ihMinInterval, ihMaxInterval] by `stepInterval` and write the resulting
-    // IH Min/Max into Range_1..Range_20.
-    //
-    // The old client read these four numbers out of a JSON file chosen from a
-    // dialog (range_min / range_max / step / window); the New-UI layout puts
-    // them on the panel instead, which is the same arithmetic without the file.
-    // Range 0 is Global and is deliberately not touched.
+    // Ports rangeWindow(); Range 0 is Global, untouched.
     function fillRangeWindows() {
         const rangeMin = panel.numberOf(panel.ihMinInterval)
         const rangeMax = panel.numberOf(panel.ihMaxInterval)
@@ -218,8 +182,7 @@ Rectangle {
         if (!(step > 0) || !(window > 0) || rangeMax < rangeMin)
             return false
 
-        // Whole numbers stay whole -- the old client's fmt() did this so the
-        // filled cells read like the ones an operator types by hand.
+        // Whole numbers stay whole, as fmt() did.
         const fmt = (v) => Math.abs(v - Math.round(v)) < 1e-9
                              ? String(Math.round(v)) : String(Number(v.toPrecision(7)))
 
@@ -393,10 +356,7 @@ Rectangle {
         anchors.margins: Theme.panelMargin
         spacing: Theme.panelGap
 
-        // The old client ran these searches behind a modal progress dialog with
-        // a Cancel button. This is the same affordance without the modality --
-        // the searches are minutes long and blocking the whole window for them
-        // is what made the old one feel hung.
+        // Same affordance as the old modal, without modality.
         RowLayout {
             id: searchStrip
 
@@ -417,8 +377,7 @@ Rectangle {
                 elide: Text.ElideRight
             }
 
-            // Indeterminate when the op cannot report a total, rather than a 0%
-            // bar that looks stuck.
+            // Indeterminate beats a 0% bar that looks stuck.
             ProgressBar {
                 Layout.preferredWidth: Math.round(Theme.charUnit * 24)
                 visible: panel.searching
@@ -735,11 +694,7 @@ Rectangle {
 
                     Item { Layout.fillHeight: true }
 
-                    // Two ops behind one button, exactly as the old client had
-                    // it: a Distance in the box means "score that distance"; an
-                    // empty Distance with an Aggregation means "search for the
-                    // distance that hits it". The window reads
-                    // hasRequestedDistance to pick.
+                    // Distance scores it; blank searches for it.
                     ActionButton {
                         Layout.fillWidth: true
                         Layout.topMargin: Theme.spaceXs

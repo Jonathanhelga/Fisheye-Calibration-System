@@ -28,7 +28,7 @@ QUrl PatternIo::defaultImageDirectory() const {
 
 QUrl PatternIo::toFileUrl(const QString &path) const {
     if (path.isEmpty()) return {};
-    // Already a URL of some kind (image://, qrc:, file:) -- leave it alone.
+    // Already a URL; leave it alone.
     if (path.contains(QStringLiteral("://"))) return QUrl(path);
     return QUrl::fromLocalFile(path);
 }

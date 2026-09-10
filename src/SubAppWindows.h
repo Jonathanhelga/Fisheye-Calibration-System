@@ -15,9 +15,7 @@ public:
     explicit SubAppWindows(QObject *parent = nullptr) : QObject(parent) {}
     ~SubAppWindows();
 
-    // Opens the 3D Verification sub-app. That screen is still the old QWidget +
-    // uic dialog, copied unchanged from v2.0_2026_main-cpp-ros, so it appears as
-    // its own top-level window rather than inside the QML scene.
+    // Opens 3D Verification as its own window.
     Q_INVOKABLE void openMeasure3d();
     Q_INVOKABLE void openCenterSetup();
 

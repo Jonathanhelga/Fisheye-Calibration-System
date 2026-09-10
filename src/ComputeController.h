@@ -14,19 +14,7 @@
 
 #include "ProbeStatus.h"
 
-// Image analysis, addressed by name, over /compute/detect.
-//
-// NOTHING HERE COMPUTES. Every op runs on the rig; this class marshals the
-// captures out of ImageStore, sends the ORIGINAL compressed bytes, and turns the
-// result JSON into something QML can bind to. That boundary is the one described
-// in ComputeOps.h and it is not negotiable here: there is no OpenCV in this
-// target and no second implementation of a centre fit to drift from the engine's.
-//
-// A CENTRE THAT IS NOT TRUSTWORTHY IS REPORTED AS NO CENTRE. auto_center answers
-// with ok=false or (-1,-1) when its cascade cannot validate a fit, and that
-// answer is passed straight through to centerRefused() -- it is never rounded up
-// into a plausible-looking coordinate. The rig moves five axes off these numbers
-// (see doc/auto_center_design.md), so a wrong centre is worse than none.
+// Image analysis by name over /compute/detect.
 class ComputeController : public QObject {
     Q_OBJECT
     QML_ELEMENT
@@ -37,18 +25,14 @@ class ComputeController : public QObject {
     Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged)
     Q_PROPERTY(QString activity READ activity NOTIFY busyChanged)
 
-    // The last answer per slot: {"positive": {ok, x, y, method, confidence,
-    // offsetPx, cost}, "negative": {...}}. Bound by the Centering panel.
+    // Last centre answer per slot.
     Q_PROPERTY(QVariantMap centers READ centers NOTIFY centersChanged)
 
-    // {"pos": {dir: [counts]}, "neg": {dir: [counts]}, "nodes": {dir: [x]}}.
-    // Empty until a Direction Diff has run; the histogram panels draw nothing
-    // rather than inventing a curve when it is.
+    // Histogram curves per polarity and direction.
     Q_PROPERTY(QVariantMap histogram READ histogram NOTIFY histogramChanged)
     Q_PROPERTY(bool hasHistogram READ hasHistogram NOTIFY histogramChanged)
 
-    // Per-direction intersecting-node lists from nodes_8dir, which is what a
-    // round's ICT columns are built from.
+    // Per-direction intersecting nodes from nodes_8dir.
     Q_PROPERTY(QVariantMap nodes READ nodes NOTIFY nodesChanged)
     Q_PROPERTY(bool hasNodes READ hasNodes NOTIFY nodesChanged)
 
@@ -68,16 +52,13 @@ public:
 
     Q_INVOKABLE void connectTo(int domainId);
 
-    // slot is "positive" or "negative" -- both an ImageStore key and the name
-    // auto_center uses to find the prepared PNG it should count rings from.
+    // slot is "positive" or "negative".
     Q_INVOKABLE void autoCenter(const QString &slot, int expectedRings, bool noiseCleaning);
 
-    // Settle an operator's click. roi_exact recurses detect_roi until the point
-    // stops moving; a click that does not converge keeps the raw click and says
-    // so rather than silently drifting somewhere else.
+    // Settle an operator's click via roi_exact.
     Q_INVOKABLE void refineCenter(const QString &slot, int x, int y, int threshold);
 
-    // One call for the whole curve panel, both polarities, all eight directions.
+    // One call: both polarities, eight directions.
     Q_INVOKABLE void histogram8Dir(int posCx, int posCy, int negCx, int negCy, bool noiseCleaning);
 
     Q_INVOKABLE void nodes8Dir(int posCx, int posCy, int negCx, int negCy, bool noiseCleaning);
@@ -111,13 +92,7 @@ private:
     void endCall();
     void stopWorker();
 
-    // Collects the compressed bytes for the named slots out of ImageStore, or
-    // reports exactly which one is missing. Returns false without sending
-    // anything.
-    //
-    // The parameter is `slotNames`, not `slots`, because `slots` is a Qt keyword
-    // macro that expands to nothing -- naming it that way silently strips the
-    // parameter name and leaves the range-for with no range.
+    // Gathers slot bytes, or names the missing one.
     bool gather(const QStringList &slotNames, QList<QPair<QByteArray, QString>> *out);
 
     bool sendDetect(const QString &op, const QString &slot, const QStringList &imageSlots,
@@ -131,10 +106,7 @@ private:
     QVariantMap histogram_;
     QVariantMap nodes_;
 
-    // Tokens of the requests still expected to answer. Several ops can be in
-    // flight (the two histogram panels and a centre fit are independent), so a
-    // single "latest token" would drop the older reply AND leak its busy count,
-    // leaving the panel disabled forever. Membership is the receipt.
+    // Requests still expected to answer.
     QSet<quint64> liveTokens_;
     quint64 nextToken_ = 0;
 
