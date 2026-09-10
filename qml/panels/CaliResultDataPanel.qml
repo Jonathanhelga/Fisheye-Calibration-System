@@ -100,6 +100,7 @@ Rectangle {
     color: Theme.panelBackground
     border.color: Theme.panelBorder
     radius: Theme.radius
+    clip: true
 
     QtObject {
         id: cols
@@ -199,6 +200,8 @@ Rectangle {
         spacing: Theme.rowSpacing
 
         RowLayout {
+            id: roundGroup
+
             Layout.fillWidth: true
             spacing: Theme.labelSpacing
 
@@ -222,41 +225,52 @@ Rectangle {
                 color: Theme.textCaption
                 font.pixelSize: Theme.captionFontSize
             }
+        }
 
-            // Which rounds count. round_enabled ships with every request and the
-            // server uses it for the aggregations, the regression fit and the
-            // pooled Overlap -- so without these it silently means "all of them",
-            // including a round you know is bad.
-            Label {
-                Layout.leftMargin: Theme.spaceMd
-                text: qsTr("Use:")
-                color: Theme.textCaption
-                font.pixelSize: Theme.captionFontSize
-            }
+        // Which rounds count. round_enabled ships with every request and the
+        // server uses it for the aggregations, the regression fit and the
+        // pooled Overlap -- so without these it silently means "all of them",
+        // including a round you know is bad.
+        Flow {
+            Layout.fillWidth: true
+            Layout.minimumWidth: Math.max(useGroup.implicitWidth, sideGroup.implicitWidth)
+            spacing: Theme.spaceMd
 
-            Repeater {
-                model: 10
+            RowLayout {
+                id: useGroup
 
-                CheckBox {
-                    id: roundBox
+                spacing: Theme.labelSpacing
 
-                    required property int index
-
-                    text: String(roundBox.index + 1)
+                Label {
+                    text: qsTr("Use:")
+                    color: Theme.textCaption
                     font.pixelSize: Theme.captionFontSize
-                    checked: CalibrationController.roundEnabled[roundBox.index] !== false
-                    onToggled: CalibrationController.setRoundEnabled(roundBox.index + 1, checked)
+                }
 
-                    ToolTip.visible: hovered
-                    ToolTip.delay: Theme.animSlow
-                    ToolTip.text: qsTr("Include round %1 in the aggregations, the regression "
-                                     + "fit and the Overlap plot.").arg(roundBox.index + 1)
+                Repeater {
+                    model: 10
+
+                    CheckBox {
+                        id: roundBox
+
+                        required property int index
+
+                        text: String(roundBox.index + 1)
+                        font.pixelSize: Theme.captionFontSize
+                        checked: CalibrationController.roundEnabled[roundBox.index] !== false
+                        onToggled: CalibrationController.setRoundEnabled(roundBox.index + 1, checked)
+
+                        ToolTip.visible: hovered
+                        ToolTip.delay: Theme.animSlow
+                        ToolTip.text: qsTr("Include round %1 in the aggregations, the regression "
+                                         + "fit and the Overlap plot.").arg(roundBox.index + 1)
+                    }
                 }
             }
 
-            Item { Layout.fillWidth: true }
-
             ToolField {
+                id: sideGroup
+
                 caption: qsTr("Side starts at layer:")
                 fieldWidth: Math.round(Theme.charUnit * 10)
                 value: panel.sideLayer === panel.noSideLayer ? qsTr("none")
@@ -265,156 +279,175 @@ Rectangle {
             }
         }
 
-        RowLayout {
+        Flow {
             Layout.fillWidth: true
-            spacing: Theme.spaceSm
+            Layout.minimumWidth: Math.max(centreGroup.implicitWidth,
+                                          distanceGroup.implicitWidth,
+                                          actionGroup.implicitWidth)
+            spacing: Theme.spaceMd
 
-            ToolField { caption: qsTr("pos_iCx:"); value: panel.posICx; editable: false }
-            ToolField { caption: qsTr("pos_iCy:"); value: panel.posICy; editable: false }
-            ToolField { caption: qsTr("neg_iCx:"); value: panel.negICx; editable: false }
-            ToolField { caption: qsTr("neg_iCy:"); value: panel.negICy; editable: false }
+            RowLayout {
+                id: centreGroup
 
-            Item { Layout.fillWidth: true }
+                spacing: Theme.spaceSm
 
-            ToolField {
-                caption: qsTr("Aggregation:")
-                value: panel.aggregation
-                editable: false
+                ToolField { caption: qsTr("pos_iCx:"); value: panel.posICx; editable: false }
+                ToolField { caption: qsTr("pos_iCy:"); value: panel.posICy; editable: false }
+                ToolField { caption: qsTr("neg_iCx:"); value: panel.negICx; editable: false }
+                ToolField { caption: qsTr("neg_iCy:"); value: panel.negICy; editable: false }
             }
-            ToolField {
-                caption: qsTr("Distance:")
-                value: panel.distance
-                onEdited: (value) => {
-                    panel.distance = value
-                    CalibrationController.baseDistance = parseFloat(value)
+
+            RowLayout {
+                id: distanceGroup
+
+                spacing: Theme.spaceSm
+
+                ToolField {
+                    caption: qsTr("Aggregation:")
+                    value: panel.aggregation
+                    editable: false
+                }
+                ToolField {
+                    caption: qsTr("Distance:")
+                    value: panel.distance
+                    onEdited: (value) => {
+                        panel.distance = value
+                        CalibrationController.baseDistance = parseFloat(value)
+                    }
+                }
+
+                PatternToggleSwitch {
+                    text: qsTr("Per-round distance")
+                    checked: panel.singleDistance
+                    onToggled: (value) => CalibrationController.singleDistance = value
+                    tooltip: qsTr("Give each round its own distance instead of deriving every round from one base value.")
                 }
             }
 
-            PatternToggleSwitch {
-                text: qsTr("Per-round distance")
-                checked: panel.singleDistance
-                onToggled: (value) => CalibrationController.singleDistance = value
-                tooltip: qsTr("Give each round its own distance instead of deriving every round from one base value.")
-            }
+            RowLayout {
+                id: actionGroup
 
-            ActionButton {
-                text: qsTr("Aggr Round %1").arg(panel.round)
-                enabled: !CalibrationController.busy
-                onClicked: panel.aggrRoundRequested(panel.round)
+                spacing: Theme.spaceSm
 
-                ToolTip.visible: hovered
-                ToolTip.delay: Theme.animSlow
-                ToolTip.text: qsTr("Measure how tightly this round's ZFL values agree with each other.")
-            }
-            // NOT "Clean Noise". Renamed 2026-09-09.
-            //
-            // In the Widgets client "Clean Noise" is a TOGGLE of the global
-            // noise_cleaning flag -- it changes how the rig extracts nodes, and
-            // its effect shows up in the histogram the moment you flip it. That
-            // control exists here too, on the Centering panel, spelled "Noise
-            // cleaning".
-            //
-            // This button is a different operation that shares none of that:
-            // auto_detect_noise_bands finds bands in the round's ICT columns and
-            // REMOVES them from the table. It is destructive, it touches no
-            // histogram, and the Widgets client has no equivalent at all -- it is
-            // a newer server capability.
-            //
-            // Two unrelated things under one name, and an operator who knew the
-            // old client pressed this expecting the curves to change. Same trap as
-            // Update Table, found the same afternoon.
-            ActionButton {
-                text: qsTr("Remove Noise Bands")
-                enabled: !CalibrationController.busy && panel.roundHasData
-                onClicked: panel.cleanNoiseRequested(panel.round)
+                ActionButton {
+                    text: qsTr("Aggr Round %1").arg(panel.round)
+                    enabled: !CalibrationController.busy
+                    onClicked: panel.aggrRoundRequested(panel.round)
 
-                ToolTip.visible: hovered
-                ToolTip.delay: Theme.animSlow
-                ToolTip.text: qsTr("Find dense bands of false crossings in round %1 and delete "
-                                 + "them from the table. This edits the data and cannot be "
-                                 + "undone. It is not the Noise cleaning switch on the "
-                                 + "Centering panel, which changes how the rig detects.")
-                                  .arg(panel.round)
-            }
-            ActionButton {
-                id: formulaButton
+                    ToolTip.visible: hovered
+                    ToolTip.delay: Theme.animSlow
+                    ToolTip.text: qsTr("Measure how tightly this round's ZFL values agree with each other.")
+                }
+                // NOT "Clean Noise". Renamed 2026-09-09.
+                //
+                // In the Widgets client "Clean Noise" is a TOGGLE of the global
+                // noise_cleaning flag -- it changes how the rig extracts nodes, and
+                // its effect shows up in the histogram the moment you flip it. That
+                // control exists here too, on the Centering panel, spelled "Noise
+                // cleaning".
+                //
+                // This button is a different operation that shares none of that:
+                // auto_detect_noise_bands finds bands in the round's ICT columns and
+                // REMOVES them from the table. It is destructive, it touches no
+                // histogram, and the Widgets client has no equivalent at all -- it is
+                // a newer server capability.
+                //
+                // Two unrelated things under one name, and an operator who knew the
+                // old client pressed this expecting the curves to change. Same trap as
+                // Update Table, found the same afternoon.
+                ActionButton {
+                    text: qsTr("Remove Noise Bands")
+                    enabled: !CalibrationController.busy && panel.roundHasData
+                    onClicked: panel.cleanNoiseRequested(panel.round)
 
-                text: qsTr("Formulas")
-                onClicked: formulaPopup.open()
+                    ToolTip.visible: hovered
+                    ToolTip.delay: Theme.animSlow
+                    ToolTip.text: qsTr("Find dense bands of false crossings in round %1 and delete "
+                                     + "them from the table. This edits the data and cannot be "
+                                     + "undone. It is not the Noise cleaning switch on the "
+                                     + "Centering panel, which changes how the rig detects.")
+                                      .arg(panel.round)
+                }
+                ActionButton {
+                    id: formulaButton
 
-                ToolTip.visible: hovered
-                ToolTip.delay: Theme.animSlow
-                ToolTip.text: qsTr("Show how α and ZFL are derived from PCT, ICT, and distance.")
+                    text: qsTr("Formulas")
+                    onClicked: formulaPopup.open()
 
-                Popup {
-                    id: formulaPopup
+                    ToolTip.visible: hovered
+                    ToolTip.delay: Theme.animSlow
+                    ToolTip.text: qsTr("Show how α and ZFL are derived from PCT, ICT, and distance.")
 
-                    y: formulaButton.height + Theme.spaceXs
-                    x: -width + formulaButton.width
-                    padding: Theme.panelMargin
-                    closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+                    Popup {
+                        id: formulaPopup
 
-                    background: Rectangle {
-                        color: Theme.panelBackground
-                        border.color: Theme.panelBorder
-                        radius: Theme.radius
-                    }
+                        y: formulaButton.height + Theme.spaceXs
+                        x: -width + formulaButton.width
+                        padding: Theme.panelMargin
+                        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
 
-                    contentItem: ColumnLayout {
-                        spacing: Theme.rowSpacing
-
-                        Label {
-                            text: qsTr("How the computed columns are derived")
-                            font.bold: true
-                            font.pixelSize: Theme.fontTitle
-                            color: Theme.accent
+                        background: Rectangle {
+                            color: Theme.panelBackground
+                            border.color: Theme.panelBorder
+                            radius: Theme.radius
                         }
 
-                        Repeater {
-                            model: [
-                                { caption: qsTr("α, top monitor"),
-                                  formula: "α = atan(PCT / distance)" },
-                                { caption: qsTr("α, side monitors"),
-                                  formula: "α = π/2 − atan[(distance − PCT − V_Gap) / H_Gap]" },
-                                { caption: qsTr("ZFL"),
-                                  formula: "ZFL = 1 / tan(α) × image height" }
-                            ]
+                        contentItem: ColumnLayout {
+                            spacing: Theme.rowSpacing
 
-                            ColumnLayout {
-                                id: formulaEntry
+                            Label {
+                                text: qsTr("How the computed columns are derived")
+                                font.bold: true
+                                font.pixelSize: Theme.fontTitle
+                                color: Theme.accent
+                            }
 
-                                required property var modelData
+                            Repeater {
+                                model: [
+                                    { caption: qsTr("α, top monitor"),
+                                      formula: "α = atan(PCT / distance)" },
+                                    { caption: qsTr("α, side monitors"),
+                                      formula: "α = π/2 − atan[(distance − PCT − V_Gap) / H_Gap]" },
+                                    { caption: qsTr("ZFL"),
+                                      formula: "ZFL = 1 / tan(α) × image height" }
+                                ]
 
-                                Layout.fillWidth: true
-                                spacing: 0
+                                ColumnLayout {
+                                    id: formulaEntry
 
-                                Label {
-                                    text: formulaEntry.modelData.caption
-                                    color: Theme.textCaption
-                                    font.pixelSize: Theme.captionFontSize
-                                }
-                                Label {
-                                    text: formulaEntry.modelData.formula
-                                    color: Theme.textPrimary
-                                    font.bold: true
+                                    required property var modelData
+
+                                    Layout.fillWidth: true
+                                    spacing: 0
+
+                                    Label {
+                                        text: formulaEntry.modelData.caption
+                                        color: Theme.textCaption
+                                        font.pixelSize: Theme.captionFontSize
+                                    }
+                                    Label {
+                                        text: formulaEntry.modelData.formula
+                                        color: Theme.textPrimary
+                                        font.bold: true
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
-            ActionButton {
-                text: qsTr("Calculate Result")
-                tone: "accent"
-                // hasRawIct is the engine's own "is there anything worth
-                // computing yet". Running the pipeline over an empty table
-                // produced a table of blanks and no explanation.
-                enabled: !CalibrationController.busy && CalibrationController.hasRawIct
-                onClicked: panel.calculateRequested(panel.round)
+                ActionButton {
+                    text: qsTr("Calculate Result")
+                    tone: "accent"
+                    // hasRawIct is the engine's own "is there anything worth
+                    // computing yet". Running the pipeline over an empty table
+                    // produced a table of blanks and no explanation.
+                    enabled: !CalibrationController.busy && CalibrationController.hasRawIct
+                    onClicked: panel.calculateRequested(panel.round)
 
-                ToolTip.visible: hovered
-                ToolTip.delay: Theme.animSlow
-                ToolTip.text: qsTr("Fill the computed columns of this round from its measured PCT and ICT values.")
+                    ToolTip.visible: hovered
+                    ToolTip.delay: Theme.animSlow
+                    ToolTip.text: qsTr("Fill the computed columns of this round from its measured PCT and ICT values.")
+                }
             }
         }
 

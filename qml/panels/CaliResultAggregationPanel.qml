@@ -248,6 +248,7 @@ Rectangle {
     color: Theme.panelBackground
     border.color: Theme.panelBorder
     radius: Theme.radius
+    clip: true
 
     QtObject {
         id: metrics

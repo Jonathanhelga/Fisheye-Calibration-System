@@ -36,6 +36,9 @@ QtObject {
     readonly property int designWidth:  minColumnLeft + minColumnCenter + minColumnRight + 2 * spaceMd
     readonly property int designHeight: minPanelHeight + 2 * minHistogramHeight + 2 * spaceMd
 
+    readonly property int minCaliViewWidth:  Math.round(unit * 95)
+    readonly property int minCaliViewHeight: Math.round(unit * 47)
+
     readonly property real ratioLeft:   0.35
     readonly property real ratioCenter: 0.40
     readonly property real ratioRight:  0.25

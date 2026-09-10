@@ -9,13 +9,20 @@ Window {
     id: root
 
     title: qsTr("MOIL Calibration Result")
-    width:  Theme.designWidth
-    height: Theme.designHeight
 
-    Component.onCompleted: {
-        width  = Math.min(Theme.designWidth,  Screen.desktopAvailableWidth)
-        height = Math.min(Theme.designHeight, Screen.desktopAvailableHeight)
-    }
+    readonly property real availableWidth:  Math.min(Screen.width,  Screen.desktopAvailableWidth)
+    readonly property real availableHeight: Math.min(Screen.height, Screen.desktopAvailableHeight)
+
+    readonly property real naturalWidth:  Math.min(fit.contentWidth,  root.availableWidth)
+    readonly property real naturalHeight: Math.min(fit.contentHeight, root.availableHeight)
+
+    minimumWidth:  Math.round(root.naturalWidth  * Theme.minCanvasScale)
+    minimumHeight: Math.round(root.naturalHeight * Theme.minCanvasScale)
+    maximumWidth:  root.availableWidth
+    maximumHeight: root.availableHeight
+
+    width:  root.naturalWidth
+    height: root.naturalHeight
 
     // All of it belongs to the controller. The window is the form; the table, the
     // load state and the option flags live where the ops that use them live.
@@ -420,6 +427,8 @@ Window {
 
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                Layout.minimumWidth:  Theme.minCaliViewWidth
+                Layout.minimumHeight: Theme.minCaliViewHeight
                 visible: root.view === root.viewData
 
                 onCalculateRequested: (round) => CalibrationController.calculateRound(round)
@@ -432,6 +441,8 @@ Window {
 
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                Layout.minimumWidth:  Theme.minCaliViewWidth
+                Layout.minimumHeight: Theme.minCaliViewHeight
                 visible: root.view === root.viewParameter
 
                 // Update All recomputes the pipeline and then re-reads the
@@ -461,6 +472,8 @@ Window {
 
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                Layout.minimumWidth:  Theme.minCaliViewWidth
+                Layout.minimumHeight: Theme.minCaliViewHeight
                 visible: root.view === root.viewOverlap
 
                 zflRounds: CalibrationController.zflRounds
@@ -489,6 +502,8 @@ Window {
 
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                Layout.minimumWidth:  Theme.minCaliViewWidth
+                Layout.minimumHeight: Theme.minCaliViewHeight
                 visible: root.view === root.viewAggregation
 
                 searching: CalibrationController.searchRunning
@@ -537,8 +552,12 @@ Window {
             }
 
             CaliResultGraphsPanel {
+                id: graphsPanel
+
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                Layout.minimumWidth:  Theme.minCaliViewWidth
+                Layout.minimumHeight: Theme.minCaliViewHeight
                 visible: root.view === root.viewGraphs
 
                 // Entirely client-side arithmetic over the range table, exactly

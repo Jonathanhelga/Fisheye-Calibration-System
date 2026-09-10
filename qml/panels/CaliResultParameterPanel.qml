@@ -143,6 +143,7 @@ Rectangle {
     color: Theme.panelBackground
     border.color: Theme.panelBorder
     radius: Theme.radius
+    clip: true
 
     component ParamField: RowLayout {
         id: field
