@@ -800,6 +800,20 @@ The rig drives five axes off this number, and a stale one looks exactly like a f
 
 The refusal reason is usually longer than the strip it is elided into, and it is the one thing worth reading in full.
 
+### The dot answers one question, not two
+
+It used to fall through to the link state whenever there was no confidence to report, so a connected rig with no fit yet drew the same green dot as a trusted `auto_center` result, and a hand-picked centre drew it too.
+Green then meant "the compute node answers" in one moment and "this centre can be driven on" in the next.
+
+`detectState` now reports the centre and only the centre.
+`ProbeStatus.Ok` is reserved for `confidence == "good"`, which is the one case `doc/auto_center_design.md` allows a move on; `marginal` is amber, a refusal is red, and everything else -- no fit yet, picked by hand, compute node absent -- is grey.
+Grey is deliberate for the hand-picked case: the operator supplied that point and nothing measured it, so there is no verdict to show.
+
+A missing compute node is grey rather than red for the same reason `CLAUDE.md` gives: an idle rig is a missing rig, not a fault, and it outranks a stale refusal from the session before it.
+
+The label is coloured only in the two states that need acting on, and carries the long form in its tooltip.
+The strip is about 40 characters wide and the refusal sentences run past 60, so the short text names the state and the tooltip quotes the stage reason verbatim.
+
 ### The click means different things per mode
 
 In Manual the click is a **seed**, not the answer: `roi_exact` recurses `detect_roi` from it until the point stops moving.
@@ -851,6 +865,35 @@ Direction Diff is the deliberate re-measure.
 `sampleCurve` is the expensive part, keyed by `"side:direction"`, and only resamples when the selection or channel changes.
 `curveShapes` is selection plus resolved colour, cheap to rebuild on every `colorOverrides` edit, and never touches `sampleCurve`.
 That split is why a colour edit does not resample.
+
+### The legend lives in the Pop Up window, not in the panel
+
+The direction box used to carry a `Flow` of legend chips under the two rosettes, shown whenever a direction was selected.
+It overflowed the panel.
+At `unit = 16` the panel needs about 190 px with no direction selected against a `Theme.minHistogramHeight` of 208, so there were 18 px of slack; the chip row cost 30 px (8 px of `SectionFrame` spacing, another 8 px of its own `Layout.topMargin`, and 14 px of chips) and put the content 12 px past the border.
+Nothing reported it, because the panel is a plain `Rectangle` and a `Rectangle` does not clip: the direction box simply drew over the panel below it.
+The two histogram panels had been absorbing the difference out of leftover height, and the `HelpButton` added to `Main.qml`'s header row took `unit * 1.25` out of `rootColumn.free`, which pushed them both down onto their minimum and exposed it.
+
+The chips were also redundant here.
+A rosette cell that is switched on is filled with that curve's own colour (`DirectionRosette`'s `tint`, fed by `posColors` / `negColors`, which resolve `colorOverrides`), so a red "Pos N" chip under a red N cell repeated what the cell already showed.
+
+The Pop Up window keeps its legend.
+It has the width for it, its header row was already laid out that way, and its rosettes are not on screen.
+
+## qml/controls/HistogramPlotView.qml
+
+### axisTitles, and why the margins move with it
+
+The two axis titles are drawn outside `area`, in margin space reserved for them: `plotMarginLeft` carried a `+ unit` for the rotated y title and `plotMarginBottom` was `unit * 2.8` where the tick numbers alone need about `unit * 1.6`.
+Hiding the labels without touching the margins wins nothing -- the canvas keeps the same size and the reserved strip is simply blank.
+
+So `Theme` now names the two parts separately (`plotTickLabelWidth`, `plotTickLabelHeight`, `plotAxisTitleSpace`) and the view picks its own `marginLeft` / `marginBottom` from `axisTitles`.
+At `unit = 16` that is 16 px of width and 16 px of height handed back to the plot, on a canvas about 150 px tall in the docked panel.
+
+It is a property rather than a deletion because the two users disagree.
+`HistogramPanel` puts a `RangeControl` labelled "Gray Scale" and another labelled "IH" directly beside the plot, so the in-plot titles repeat what is already on screen.
+`PlotBlock` -- the Cali Result graphs -- has a title above the plot and unlabelled readouts below it, so in `CaliResultGraphsPanel` the in-plot titles are the **only** place the axes are named.
+Deleting them there would leave "Shift of Entrance Pupil" with two anonymous axes.
 
 ## qml/controls/DirectionDiffDialog.qml
 

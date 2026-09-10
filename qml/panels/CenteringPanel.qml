@@ -46,12 +46,34 @@ Rectangle {
     readonly property bool linked: ComputeController.status === ProbeStatus.Ok
     readonly property bool computing: ComputeController.busy
 
-    readonly property string detectStatus: computing
-        ? ComputeController.activity
-        : refusalReason !== "" ? refusalReason
-        : lastMethod !== "" ? qsTr("%1, %2 confidence").arg(lastMethod).arg(lastConfidence)
-        : linked ? qsTr("Ready")
-                 : qsTr("Not connected -- press Update in the Server panel")
+    // Ok means a trusted fit, nothing else.
+    readonly property int detectState:
+          computing                     ? ProbeStatus.Checking
+        : !linked                       ? ProbeStatus.Unknown
+        : refusalReason !== ""          ? ProbeStatus.Failed
+        : lastConfidence === "good"     ? ProbeStatus.Ok
+        : lastConfidence === "marginal" ? ProbeStatus.Partial
+                                        : ProbeStatus.Unknown
+
+    readonly property string detectStatus:
+          computing                     ? ComputeController.activity
+        : !linked                       ? qsTr("Compute node not connected")
+        : refusalReason !== ""          ? qsTr("No centre found")
+        : lastConfidence === "good"     ? qsTr("Centre found by %1").arg(lastMethod)
+        : lastConfidence === "marginal" ? qsTr("Marginal fit, do not drive on it")
+        : lastMethod !== ""             ? qsTr("Picked by hand, not verified")
+                                        : qsTr("Ready")
+
+    // Full sentence, too long for the strip.
+    readonly property string detectDetail:
+          refusalReason !== ""  ? refusalReason
+        : lastConfidence !== "" ? qsTr("%1, %2 confidence").arg(lastMethod).arg(lastConfidence)
+                                : ""
+
+    readonly property color detectColor:
+          detectState === ProbeStatus.Failed  ? Theme.danger
+        : detectState === ProbeStatus.Partial ? Theme.statusPartial
+                                              : Theme.textCaption
 
     signal centerChanged(string target, int x, int y)
 
@@ -210,12 +232,7 @@ Rectangle {
 
             StatusDot {
                 Layout.alignment: Qt.AlignVCenter
-                status: root.computing ? ProbeStatus.Checking
-                      : root.refusalReason !== "" ? ProbeStatus.Failed
-                      : root.lastConfidence === "good" ? ProbeStatus.Ok
-                      : root.lastConfidence === "marginal" ? ProbeStatus.Partial
-                      : root.linked ? ProbeStatus.Unknown
-                                    : ProbeStatus.Failed
+                status: root.detectState
             }
 
             Label {
@@ -223,19 +240,18 @@ Rectangle {
                 Layout.minimumWidth: 0
                 Layout.preferredWidth: 0
                 text: root.detectStatus
-                color: root.refusalReason !== "" ? Theme.danger : Theme.textCaption
+                color: root.detectColor
                 font.pixelSize: Theme.captionFontSize
                 elide: Text.ElideRight
 
-                // The reason is longer than the strip.
                 MouseArea {
                     anchors.fill: parent
-                    hoverEnabled: root.refusalReason !== ""
+                    hoverEnabled: root.detectDetail !== ""
                     acceptedButtons: Qt.NoButton
 
                     ToolTip.visible: containsMouse
                     ToolTip.delay: Theme.animSlow
-                    ToolTip.text: root.refusalReason
+                    ToolTip.text: root.detectDetail
                 }
             }
 

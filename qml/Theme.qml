@@ -83,10 +83,14 @@ QtObject {
         return columns * padButtonSize + (columns - 1) * spaceXs + 2 * spaceSm
     }
 
-    readonly property int plotMarginLeft:   Math.round(charUnit * 5) + unit
+    readonly property int plotTickLabelWidth:  Math.round(charUnit * 5)
+    readonly property int plotTickLabelHeight: Math.round(unit * 1.6)
+    readonly property int plotAxisTitleSpace:  unit
+
+    readonly property int plotMarginLeft:   plotTickLabelWidth + plotAxisTitleSpace
     readonly property int plotMarginRight:  Math.round(charUnit * 2) + spaceXs
     readonly property int plotMarginTop:    spaceSm
-    readonly property int plotMarginBottom: Math.round(unit * 2.8)
+    readonly property int plotMarginBottom: plotTickLabelHeight + plotAxisTitleSpace
 
     readonly property int plotXDivisions: 10
     readonly property int plotYDivisions: 9

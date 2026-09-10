@@ -9,12 +9,20 @@ Rectangle {
 
     property string xLabel: qsTr("IH")
     property string yLabel: qsTr("Gray Scale")
+
+    // Off gives their margin back to the canvas.
+    property bool axisTitles: true
+
+    readonly property int marginLeft: axisTitles ? Theme.plotMarginLeft
+                                                 : Theme.plotTickLabelWidth
+    readonly property int marginBottom: axisTitles ? Theme.plotMarginBottom
+                                                   : Theme.plotTickLabelHeight
     property string emptyText: qsTr("No curve selected")
 
     property real defaultXMin: 0
     property real defaultXMax: 2000
     property real defaultYMin: 0
-    property real defaultYMax: 270
+    property real defaultYMax: 200
 
     property real xMin: defaultXMin
     property real xMax: defaultXMax
@@ -175,10 +183,10 @@ Rectangle {
     Item {
         id: area
 
-        x: Theme.plotMarginLeft
+        x: root.marginLeft
         y: Theme.plotMarginTop
-        width: Math.max(1, root.width - Theme.plotMarginLeft - Theme.plotMarginRight)
-        height: Math.max(1, root.height - Theme.plotMarginTop - Theme.plotMarginBottom)
+        width: Math.max(1, root.width - root.marginLeft - Theme.plotMarginRight)
+        height: Math.max(1, root.height - Theme.plotMarginTop - root.marginBottom)
 
         Repeater {
             model: root.xDivisions + 1
@@ -471,6 +479,7 @@ Rectangle {
         anchors.bottom: parent.bottom
         anchors.bottomMargin: Theme.spaceXs
 
+        visible: root.axisTitles
         text: root.xLabel
         color: Theme.accent
         font.pixelSize: Theme.captionFontSize
@@ -484,6 +493,7 @@ Rectangle {
         rotation: -90
         transformOrigin: Item.Center
 
+        visible: root.axisTitles
         text: root.yLabel
         color: Theme.accent
         font.pixelSize: Theme.captionFontSize

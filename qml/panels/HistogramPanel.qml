@@ -303,48 +303,12 @@ Rectangle {
                         onCleared: root.negDirections = []
                     }
                 }
-
-                Flow {
-                    Layout.fillWidth: true
-                    Layout.topMargin: Theme.rowSpacing
-
-                    spacing: Theme.labelSpacing
-                    visible: root.curveSet.length > 0
-
-                    Repeater {
-                        model: root.curveSet
-
-                        RowLayout {
-                            id: legendChip
-
-                            required property var modelData
-
-                            spacing: Theme.labelSpacing
-
-                            Rectangle {
-                                Layout.alignment: Qt.AlignVCenter
-
-                                implicitWidth: Math.round(Theme.unit * 0.5)
-                                implicitHeight: implicitWidth
-                                radius: width / 2
-                                antialiasing: true
-                                color: legendChip.modelData.color
-                            }
-
-                            Label {
-                                text: qsTr("%1 %2")
-                                        .arg(legendChip.modelData.side === "pos" ? qsTr("Pos") : qsTr("Neg"))
-                                        .arg(legendChip.modelData.direction.toUpperCase())
-                                color: Theme.textPrimary
-                                font.pixelSize: Theme.captionFontSize
-                            }
-                        }
-                    }
-                }
             }
 
             HistogramPlotView {
                 id: plotView
+
+                axisTitles: false
 
                 Layout.fillWidth: true
                 Layout.fillHeight: true
@@ -458,6 +422,8 @@ Rectangle {
 
             HistogramPlotView {
                 id: popPlotView
+
+                axisTitles: false
 
                 Layout.fillWidth: true
                 Layout.fillHeight: true
