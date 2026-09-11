@@ -238,7 +238,7 @@ ApplicationWindow {
                     Layout.preferredWidth: workRow.free * Theme.ratioCenter
                     Layout.minimumWidth: Math.max(Theme.minColumnCenter, camera.implicitWidth)
 
-                    roiRadius: centering.centerRoi
+                    roiRadius: window.reticleRadius
                     centerLocked: centering.locked
                     manualCenter: centering.mode === centering.modeManual
                     centerX: camera.patternMode === "Positive" ? centering.positiveCpx
@@ -297,7 +297,7 @@ ApplicationWindow {
                         onStopRequested: CameraController.stopStream()
                         onSnapshotRequested: CameraController.snapshot()
 
-                        roiRadius: centering.centerRoi
+                        roiRadius: window.reticleRadius
                         centerX: centering.hasPositiveCenter ? centering.positiveCpx
                                                              : centering.negativeCpx
                         centerY: centering.hasPositiveCenter ? centering.positiveCpy
@@ -318,8 +318,8 @@ ApplicationWindow {
                         // Only a capture's centre triggers a refresh.
                         onCenterChanged: (target, x, y) => {
                             const slot = target === "Positive" ? "positive" : "negative"
-                            if (!window.autoCentrePending[slot])
-                                return
+
+                            if (!window.autoCentrePending[slot]) return
                             delete window.autoCentrePending[slot]
 
                             // Both halves, and nothing still being centred.
@@ -472,6 +472,10 @@ ApplicationWindow {
         id: patternAndMonitor
     }
 
+    // Only concentric rings have a centre to aim at.
+    readonly property int reticleRadius:
+        patternAndMonitor.shownPatternType === "concentric" ? centering.centerRoi : 0
+
     // This window's own error line.
     StatusToast {
         id: toast
@@ -499,6 +503,17 @@ ApplicationWindow {
 
         function onNotice(message) {
             toast.show(message, false)
+        }
+
+        // A refusal must not strand the pending flag.
+        function onCenterRefused(slot, reason) {
+            delete window.autoCentrePending[slot]
+        }
+
+        // A dropped link abandons every request in flight.
+        function onStatusChanged() {
+            if (ComputeController.status !== ProbeStatus.Ok)
+                window.autoCentrePending = ({})
         }
 
         function onNodesChanged() {
@@ -537,19 +552,9 @@ ApplicationWindow {
             if (slot !== "positive" && slot !== "negative") return
             if (centering.mode !== centering.modeAuto) return
 
-            // Auto is the frame's middle, not a fit.
-            // imageSizes, not frameSizes: the picture's own pixels.
-            const size = CameraController.imageSizes[slot]
-            if (!size || size.width <= 0 || size.height <= 0) {
-                toast.show(qsTr("The %1 image has no size yet, so there is no middle to take.")
-                               .arg(slot), true)
-                return
-            }
-
+            // Auto measures the centre on the server.
             window.autoCentrePending[slot] = true
-            centering.setCenter(slot === "positive" ? "Positive" : "Negative",
-                                Math.round(size.width / 2), Math.round(size.height / 2),
-                                qsTr("frame centre"))
+            centering.findCenter(slot === "positive" ? "Positive" : "Negative")
         }
     }
 

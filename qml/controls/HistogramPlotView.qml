@@ -22,7 +22,7 @@ Rectangle {
     property real defaultXMin: 0
     property real defaultXMax: 2000
     property real defaultYMin: 0
-    property real defaultYMax: 200
+    property real defaultYMax: 280
 
     property real xMin: defaultXMin
     property real xMax: defaultXMax

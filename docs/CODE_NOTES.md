@@ -483,21 +483,44 @@ A manual click in the image sets a centre too, and re-measuring both 8-direction
 The refresh waits for both halves and for nothing still being centred.
 `histogram_8dir` measures the pair against the two centres, so running it half-centred measures the second image from wherever the last pair left it.
 
-### Auto is the middle of the frame, not a fit
+### Auto measures the centre on the server
 
-Deliberately not `auto_center`.
-The cascade is still there and `findCenter()` still runs it, but it is no longer on the path a shot takes.
-It can refuse, correctly, on a shot it does not trust, and then nothing happens and the operator is stuck with no centre and no obvious next move.
+Changed 2026-09-11, reversing the 2026-09-09 decision recorded here before it.
 
-The frame centre cannot refuse.
-It is exact, it is instant, and it is honest in a way a doubtful fit is not: nobody can mistake "half the width" for a measurement of where the lens actually is.
-On a rig aimed even roughly it is also close, which is the whole reason it works as a starting point.
+From 2026-09-09 an Auto capture filled CPX and CPY with `Math.round(size.width / 2), Math.round(size.height / 2)`, labelled "frame centre".
+The argument was that a frame centre cannot refuse, so the operator is never left with no centre and no next move.
+That argument traded the only property this number has to have.
+CPX and CPY are what the rig drives five axes from, and half the image width is not a measurement of anything.
+A wrong number that always answers is worse here than no number, which is the same reason a centre fit returns `(-1,-1)` rather than its best guess.
 
-This is not what the Widgets client does.
-Its Auto runs `pattern_center`, and its boxes start at hardcoded 1003/836.
-The change is a deliberate improvement, asked for on 2026-09-09.
+The Widgets client measured, and this branch's fill was a migration stopgap rather than a design.
+Every Positive or Negative shot there called the server's `pattern_center` op and wrote the answer into the fields, and the crosshair was drawn at that answer, so the marker moved with the measurement.
+Grepping `cpp/src/controllers/controller_main.cpp` on `v2.0_2026_main-cpp-ros` for `cols/2`, `rows/2`, `width()/2` and `height()/2` returns nothing: the old app never used the frame middle anywhere.
 
-It uses `imageSizes`, not `frameSizes`: the middle of the picture, in the same pixel coordinates the detect ops will measure.
+`onCaptured` now calls `centering.findCenter()`, which reaches `auto_center` through `ComputeController`.
+The op is not the one v2.0 used: v2.0 called `pattern_center` and fell back to `roi_exact` by hand, while `auto_center` is that cascade with its gates built in, specified in `doc/auto_center_design.md`.
+
+A refusal is now a normal outcome on this path, and all three consequences are handled.
+The centre is cleared to `-1` rather than left stale, the reason is shown in the Centering panel, and the pending checklist below is released.
+
+The size guard that read `imageSizes` went with the fill.
+Nothing client-side needs the picture's dimensions any more, because the server measures from the slot's own bytes.
+
+### The pending checklist has three release paths
+
+`autoCentrePending` marks a slot as awaiting a centre, so that only a centre a **capture** asked for triggers a curve refresh.
+`onCenterChanged` crosses a slot off, and runs the Direction Diff once the checklist is empty and both halves have a centre.
+
+A slot left on the checklist is never crossed off by anything later, so the Direction Diff stops running for the rest of the session and nothing is logged.
+Every path that ends a request therefore has to release it:
+
+- `centerChanged`, the answer arrived;
+- `centerRefused`, the server declined the fit, which `applyResult` also emits when the op itself returns `!ok`;
+- `statusChanged` away from `Ok`, the link dropped.
+
+The third is the one that is easy to miss.
+`applyLink` and `connectTo` both call `liveTokens_.clear()`, so a reply that arrives after either of them returns early at the top of `applyResult` and emits no signal at all.
+Without the status handler a rig that disconnects mid-capture strands the flag permanently, and only restarting the app clears it.
 
 ### The offline path
 
@@ -784,14 +807,17 @@ The sibling Concentric and Stripeline panels both declare it and this one did no
 
 ## qml/panels/CenteringPanel.qml
 
-### findCenter has no caller
+### findCenter is what an Auto capture calls
 
-Find Pos and Find Neg were removed on 2026-09-09.
-The Widgets client never had them, and nothing needs them now: in Auto a shot centres on the middle of its own frame, and in Manual a click seeds `roi_exact`.
+Find Pos and Find Neg were removed on 2026-09-09, and the Widgets client never had them.
+That left `findCenter()` with no caller for two days, and the `auto_center` cascade unreachable from this UI, because Auto filled the frame's middle instead.
 
-They were the only callers of `ComputeController.autoCenter`, so the `auto_center` cascade is now unreachable from this UI.
-The op is untouched on the server and `findCenter()` still calls it, so restoring a button is one line; deleting the C++ would not be, and `doc/auto_center_design.md` is the specification for that cascade.
-`onCenterFound` and `onCenterRefused` are its other half and are equally dormant.
+Since 2026-09-11 `Main.qml`'s `onCaptured` calls it on every Auto capture.
+There is still no button, and there should not be one: an operator shoots the pair and reads the curves, and a separate press to measure the centre is a step the old app never asked for.
+`onCenterFound` and `onCenterRefused` are the other half of this and are live with it.
+
+Manual is the other caller and does not come through here.
+A click sets the centre by hand and seeds `roi_exact` through `setCenter`.
 
 ### A refused fit clears the centre
 
@@ -967,6 +993,38 @@ It is separate from the ROI because it means something different: the ROI is the
 
 It draws just the circle, with no crosshair and no bounding square.
 Those belong to the ROI marker and would clutter the one thing this ring is for, which is seeing whether the radius matches where the image circle actually ends.
+
+### The ROI marker is a readout, not a reticle
+
+The X is drawn where the server measured the pattern centre, and nowhere else.
+No capture, or a refused fit, means no X.
+
+A fallback to the middle of the frame was added on 2026-09-10 and removed on 2026-09-11.
+It existed so that something was on screen to aim at while jogging, before any capture had been taken.
+What it did instead was make a refusal indistinguishable from a success.
+`onCenterRefused` sets CPX and CPY to `-1`, the fallback then placed the X in the middle of the frame, and nothing on screen separated that mark from a measurement.
+The rig drives five axes off this number, and the rule for the whole centring path is that a fit which cannot be trusted reads as "no centre", never as a plausible-looking wrong one.
+
+An aiming point for jogging is still a real need and is currently unmet.
+If it returns it has to be drawn differently from the measurement, in another colour or shape, so that the two can never be read as the same mark.
+
+Either switch hides the marker.
+`roiRadius: 0` is what `LiveCameraPanel` passes through `showRoi` and what `CameraPanel` passes in fold view, and `centerX: -1` hides it as well.
+
+### Only the concentric pattern gets a centre marker
+
+`Main.qml` derives `reticleRadius` from `patternAndMonitor.shownPatternType` and feeds it to both previews as `roiRadius`.
+A stripeline or chessboard pattern has no single centre, so a centre marker drawn over one reports something that does not exist.
+
+`shownPatternType` is set in `PatternAndMonitor.showOnMonitor`, which every path that puts a pattern on a screen already funnels through: the three panels' `onShowRequested`, and the Monitor Viewer's per-slot show.
+Nothing in `PatternController` or `MonitorController` records the type, so without this the app has no idea what is on the screens.
+
+It tracks what is displayed now, not what a capture contained.
+Switching the monitor to stripeline therefore removes the X from a concentric capture that is still on screen.
+Recording the type per slot at capture time would fix that, and would need a place to put it next to the capture in `CameraController`.
+
+Closing a pattern does not clear it either.
+`DpadMonitorViewer` calls `PatternController.closeMonitor` directly, per direction, and the reticle is not per direction.
 
 ## qml/panels/MonitorSlotPanel.qml
 

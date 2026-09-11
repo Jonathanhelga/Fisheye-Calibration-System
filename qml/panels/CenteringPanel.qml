@@ -85,7 +85,7 @@ Rectangle {
         return target === "Negative" ? negThreshold : posThreshold
     }
 
-    // No caller since 2026-09-09. Kept for the cascade.
+    // Called by Main.qml on every Auto capture.
     function findCenter(target) {
         const slot = slotFor(target)
         if (slot === "" || locked)

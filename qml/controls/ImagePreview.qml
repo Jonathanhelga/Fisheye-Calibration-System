@@ -50,7 +50,8 @@ Rectangle {
     readonly property bool hasEdge: loaded && edgeVisible && edgeRadius > 0
                                     && centerX >= 0 && centerY >= 0
 
-    readonly property bool hasCenter: loaded && centerX >= 0 && centerY >= 0 && roiRadius > 0
+    readonly property bool hasCenter: loaded && roiRadius > 0
+                                      && centerX >= 0 && centerY >= 0
     readonly property real markerThickness: Math.max(1, Math.round(Theme.unit / 8))
     readonly property real hairline: 1
 

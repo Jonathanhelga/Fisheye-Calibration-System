@@ -293,9 +293,10 @@ Rectangle {
             frameWidth: root.checkMode ? 0 : root.frameWidth
             frameHeight: root.checkMode ? 0 : root.frameHeight
 
-            centerX: root.checkMode ? -1 : root.centerX
-            centerY: root.checkMode ? -1 : root.centerY
-            roiRadius: root.roiRadius
+            centerX: root.centerX
+            centerY: root.centerY
+            // Fold view carries no reticle.
+            roiRadius: root.checkMode ? 0 : root.roiRadius
 
             onPicked: (x, y) => root.centerPicked(root.patternMode, x, y)
         }
