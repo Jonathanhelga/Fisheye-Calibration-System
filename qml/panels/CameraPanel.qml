@@ -213,6 +213,19 @@ Rectangle {
                     ToolTip.delay: Theme.animSlow
                 }
             }
+
+            // Offline path: follows the view, not the rig.
+            ActionButton {
+                text: qsTr("Open Img")
+                onClicked: root.openImageRequested(root.patternMode)
+
+                ToolTip.visible: hovered
+                ToolTip.delay: Theme.animSlow
+                ToolTip.text: qsTr("Load a saved capture into the %1 slot, to analyse it "
+                                 + "without the rig.")
+                                  .arg(root.patternMode === "" ? qsTr("Single")
+                                                               : root.patternMode)
+            }
         }
 
         RowLayout {
@@ -248,7 +261,8 @@ Rectangle {
                 visible: !root.checkMode
                 label: qsTr("Zoom")
                 fieldWidth: Theme.charUnit * 12
-                value: preview.loaded ? Math.round(preview.zoom * 100) + "%" : "?"
+                value: preview.loaded
+                    ? Math.round(preview.zoom * preview.viewScale * 100) + "%" : "?"
             }
 
             AxisReadout {
@@ -345,20 +359,6 @@ Rectangle {
                 ToolTip.visible: hovered
                 ToolTip.delay: Theme.animSlow
                 ToolTip.text: qsTr("Retake the negative shot only")
-            }
-
-            // Offline path: follows the view, not the rig.
-            ActionButton {
-                Layout.preferredWidth: Math.round(Theme.charUnit * 10)
-                text: qsTr("Open Img")
-                onClicked: root.openImageRequested(root.patternMode)
-
-                ToolTip.visible: hovered
-                ToolTip.delay: Theme.animSlow
-                ToolTip.text: qsTr("Load a saved capture into the %1 slot, to analyse it "
-                                 + "without the rig.")
-                                  .arg(root.patternMode === "" ? qsTr("Single")
-                                                               : root.patternMode)
             }
 
             ActionButton {

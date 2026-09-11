@@ -28,9 +28,6 @@ Window {
     property int chessboardMode: 2
     property alias mode: patternSelector.currentIndex
 
-    // Last pattern put on a screen; gates the reticle.
-    property string shownPatternType: ""
-
     property alias concentric: concentricPanel
     property alias stripeline:  stripelinePanel
     property alias chessboard: chessboardPanel
@@ -85,7 +82,6 @@ Window {
 
     function showOnMonitor(target, direction) {
         root.preparePattern(target)
-        root.shownPatternType = target.patternType
         PatternController.showOnMonitor(direction, JSON.stringify(target.specJson()))
     }
 

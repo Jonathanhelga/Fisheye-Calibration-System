@@ -1034,12 +1034,23 @@ If it returns it has to be drawn differently from the measurement, in another co
 Either switch hides the marker.
 `roiRadius: 0` is what `LiveCameraPanel` passes through `showRoi` and what `CameraPanel` passes in fold view, and `centerX: -1` hides it as well.
 
-### Only the concentric pattern gets a centre marker
+### The measurement is its own gate
 
-`Main.qml` derives `reticleRadius` from `patternAndMonitor.shownPatternType` and feeds it to both previews as `roiRadius`.
-A stripeline or chessboard pattern has no single centre, so a centre marker drawn over one reports something that does not exist.
+There is no pattern-type check in front of the marker, and adding one back would be a mistake.
 
-`shownPatternType` is set in `PatternAndMonitor.showOnMonitor`, which every path that puts a pattern on a screen already funnels through: the three panels' `onShowRequested`, and the Monitor Viewer's per-slot show.
+A `reticleRadius` property existed for a day, on 2026-09-10.
+It read `patternAndMonitor.shownPatternType` and forced `roiRadius` to 0 unless the last pattern shown was concentric, because the marker fell back to the middle of the frame back then and would otherwise have drawn an X over a stripeline or chessboard capture.
+
+It was removed on 2026-09-11 for two reasons.
+
+The first is that its premise went away with the fallback.
+The X is now drawn only where a fit landed, and a fit only lands on concentric rings.
+A stripeline capture has parallel gradients everywhere, so the least-squares intersection in `patternCenterFit` is degenerate and the op answers `(-1,-1)`, which draws nothing without anyone checking a pattern type.
+
+The second is that the gate did not actually work.
+`shownPatternType` was written in exactly one place, `PatternAndMonitor.showOnMonitor`, and a pair shot never goes through it: `Main.qml`'s capture handler calls `PatternController.showPrepared` directly, and the rig keeps its rendered pattern PNGs between sessions.
+So a fresh app could take a perfectly good pair, fill CPX and CPY, and draw no crosshair at all, with nothing logged.
+That is the failure it was reported as, and it is the ordinary shape of a state variable that has one writer and a path that bypasses it.
 Nothing in `PatternController` or `MonitorController` records the type, so without this the app has no idea what is on the screens.
 
 It tracks what is displayed now, not what a capture contained.
@@ -1048,6 +1059,25 @@ Recording the type per slot at capture time would fix that, and would need a pla
 
 Closing a pattern does not clear it either.
 `DpadMonitorViewer` calls `PatternController.closeMonitor` directly, per direction, and the reticle is not per direction.
+
+### Wheel zoom scales one wrapper, not the image
+
+Added 2026-09-11.
+The `Image`, the picker `MouseArea`, the grid, the edge circle and the ROI marker all sit inside one `Item` called `stage`, and the wheel changes only that item's `scale` and `x`/`y`.
+
+Nothing else in the file had to learn about zoom.
+`padLeft`, `padTop`, `zoom` and `coordScale` are all still derived from `image.paintedWidth`, which does not change when a parent is scaled, so every marker keeps landing on the same image pixel and the click-to-pick maths is untouched.
+Qt inverts the parent transform before delivering mouse positions to a `MouseArea`, so `toFrameX` still receives coordinates in unscaled preview space.
+
+The scale pivots on the cursor rather than the centre.
+`zoomAt` recomputes `panX` and `panY` so the pixel under the pointer stays where it is, which is what makes a wheel the only control needed: there is no drag-to-pan, you point at what you want and scroll.
+Scrolling back down to `viewScale === 1` resets the pan to zero, so fit-to-panel is always exactly reachable.
+
+`smooth` and `mipmap` are switched off above fit.
+Both are for downscaling; left on while magnified they interpolate the very pixel values a centre fit is measured from, which is the opposite of what a closer look is for.
+
+`zoom` still reports the fit scale alone, so `CameraPanel`'s Zoom readout multiplies it by `viewScale`.
+The loupe deliberately does not: it is a fixed 18x magnifier over the source image and is anchored outside `stage`, so it never scales with the view.
 
 ## qml/panels/MonitorSlotPanel.qml
 

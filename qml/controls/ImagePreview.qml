@@ -57,6 +57,22 @@ Rectangle {
 
     signal picked(int x, int y)
 
+    property real viewScale: 1
+    property real panX: 0
+    property real panY: 0
+
+    // Scales about the cursor, that pixel stays put.
+    function zoomAt(target, cx, cy) {
+        const next = Math.max(1, Math.min(20, target))
+        panX = cx - width / 2 - (cx - panX - width / 2) * next / viewScale
+        panY = cy - height / 2 - (cy - panY - height / 2) * next / viewScale
+        viewScale = next
+        if (next === 1) {
+            panX = 0
+            panY = 0
+        }
+    }
+
     implicitWidth: Theme.unit * 16
     implicitHeight: Theme.unit * 12
 
@@ -65,15 +81,183 @@ Rectangle {
     radius: Theme.radius
     clip: true
 
-    Image {
-        id: image
-        anchors.fill: parent
-        anchors.margins: root.border.width + root.radius * (1 - 1 / Math.SQRT2)
-        source: root.source
-        fillMode: Image.PreserveAspectFit
-        asynchronous: true
-        smooth: true
-        mipmap: true
+    WheelHandler {
+        onWheel: (event) => root.zoomAt(root.viewScale * Math.pow(1.0015, event.angleDelta.y),
+                                        event.x, event.y)
+    }
+
+    Item {
+        id: stage
+
+        width: root.width
+        height: root.height
+        x: root.panX
+        y: root.panY
+        scale: root.viewScale
+
+        Image {
+            id: image
+            anchors.fill: parent
+            anchors.margins: root.border.width + root.radius * (1 - 1 / Math.SQRT2)
+            source: root.source
+            fillMode: Image.PreserveAspectFit
+            asynchronous: true
+            // Nearest pixels once magnified past fit.
+            smooth: root.viewScale <= 1
+            mipmap: root.viewScale <= 1
+        }
+
+        MouseArea {
+            id: picker
+
+            x: root.padLeft
+            y: root.padTop
+            width: image.paintedWidth
+            height: image.paintedHeight
+
+            enabled: root.loaded
+            hoverEnabled: true
+            cursorShape: root.pickEnabled ? Qt.CrossCursor : Qt.ArrowCursor
+
+            function toFrameX(px) { return Math.floor(px / image.paintedWidth * root.coordWidth) }
+            function toFrameY(py) { return Math.floor(py / image.paintedHeight * root.coordHeight) }
+
+            onPositionChanged: (mouse) => {
+                root.hoverX = toFrameX(mouse.x)
+                root.hoverY = toFrameY(mouse.y)
+            }
+
+            onExited: {
+                root.hoverX = -1
+                root.hoverY = -1
+            }
+
+            onClicked: (mouse) => {
+                if (root.pickEnabled)
+                    root.picked(toFrameX(mouse.x), toFrameY(mouse.y))
+            }
+        }
+
+        Item {
+            id: guides
+
+            visible: root.showGrid && root.loaded
+
+            x: root.padLeft
+            y: root.padTop
+            width: image.paintedWidth
+            height: image.paintedHeight
+
+            Repeater {
+                model: [1 / 3, 2 / 3]
+
+                Rectangle {
+                    required property real modelData
+
+                    x: Math.round(guides.width * modelData)
+                    width: root.hairline
+                    height: guides.height
+                    color: Theme.previewGrid
+                }
+            }
+
+            Repeater {
+                model: [1 / 3, 2 / 3]
+
+                Rectangle {
+                    required property real modelData
+
+                    y: Math.round(guides.height * modelData)
+                    width: guides.width
+                    height: root.hairline
+                    color: Theme.previewGrid
+                }
+            }
+
+            Rectangle {
+                x: Math.round(guides.width / 2)
+                width: root.hairline
+                height: guides.height
+                color: Theme.previewGuide
+            }
+
+            Rectangle {
+                y: Math.round(guides.height / 2)
+                width: guides.width
+                height: root.hairline
+                color: Theme.previewGuide
+            }
+        }
+
+        // Just the circle; markers belong to the ROI.
+        Item {
+            id: edge
+
+            readonly property real half: root.edgeRadius * root.zoom
+
+            visible: root.hasEdge
+
+            x: root.padLeft + (root.centerX + 0.5) * root.zoom - half
+            y: root.padTop + (root.centerY + 0.5) * root.zoom - half
+            width: 2 * half
+            height: 2 * half
+
+            Rectangle {
+                anchors.fill: parent
+                radius: width / 2
+                color: "transparent"
+                border.color: root.edgeColor
+                border.width: root.edgeThickness
+                antialiasing: true
+            }
+        }
+
+        Item {
+            id: roi
+
+            readonly property real half: root.roiRadius * root.coordScale
+
+            visible: root.hasCenter
+
+            x: root.padLeft + (root.centerX + 0.5) * root.coordScale - half
+            y: root.padTop + (root.centerY + 0.5) * root.coordScale - half
+            width: 2 * half
+            height: 2 * half
+
+            Rectangle {
+                anchors.fill: parent
+                color: "transparent"
+                border.color: Theme.previewMarker
+                border.width: root.markerThickness
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                radius: width / 2
+                color: "transparent"
+                border.color: Theme.previewMarker
+                border.width: root.markerThickness
+                antialiasing: true
+            }
+
+            Rectangle {
+                anchors.centerIn: parent
+                width: roi.width * Math.SQRT2
+                height: root.markerThickness
+                color: Theme.previewMarker
+                rotation: 45
+                antialiasing: true
+            }
+
+            Rectangle {
+                anchors.centerIn: parent
+                width: roi.width * Math.SQRT2
+                height: root.markerThickness
+                color: Theme.previewMarker
+                rotation: -45
+                antialiasing: true
+            }
+        }
     }
 
     Label {
@@ -84,158 +268,6 @@ Rectangle {
                                            : root.emptyText
         color: Theme.textOnPreview
         font.pixelSize: Theme.fontTitle
-    }
-
-    MouseArea {
-        id: picker
-
-        x: root.padLeft
-        y: root.padTop
-        width: image.paintedWidth
-        height: image.paintedHeight
-
-        enabled: root.loaded
-        hoverEnabled: true
-        cursorShape: root.pickEnabled ? Qt.CrossCursor : Qt.ArrowCursor
-
-        function toFrameX(px) { return Math.floor(px / image.paintedWidth * root.coordWidth) }
-        function toFrameY(py) { return Math.floor(py / image.paintedHeight * root.coordHeight) }
-
-        onPositionChanged: (mouse) => {
-            root.hoverX = toFrameX(mouse.x)
-            root.hoverY = toFrameY(mouse.y)
-        }
-
-        onExited: {
-            root.hoverX = -1
-            root.hoverY = -1
-        }
-
-        onClicked: (mouse) => {
-            if (root.pickEnabled)
-                root.picked(toFrameX(mouse.x), toFrameY(mouse.y))
-        }
-    }
-
-    Item {
-        id: guides
-
-        visible: root.showGrid && root.loaded
-
-        x: root.padLeft
-        y: root.padTop
-        width: image.paintedWidth
-        height: image.paintedHeight
-
-        Repeater {
-            model: [1 / 3, 2 / 3]
-
-            Rectangle {
-                required property real modelData
-
-                x: Math.round(guides.width * modelData)
-                width: root.hairline
-                height: guides.height
-                color: Theme.previewGrid
-            }
-        }
-
-        Repeater {
-            model: [1 / 3, 2 / 3]
-
-            Rectangle {
-                required property real modelData
-
-                y: Math.round(guides.height * modelData)
-                width: guides.width
-                height: root.hairline
-                color: Theme.previewGrid
-            }
-        }
-
-        Rectangle {
-            x: Math.round(guides.width / 2)
-            width: root.hairline
-            height: guides.height
-            color: Theme.previewGuide
-        }
-
-        Rectangle {
-            y: Math.round(guides.height / 2)
-            width: guides.width
-            height: root.hairline
-            color: Theme.previewGuide
-        }
-    }
-
-    // Just the circle; markers belong to the ROI.
-    Item {
-        id: edge
-
-        readonly property real half: root.edgeRadius * root.zoom
-
-        visible: root.hasEdge
-
-        x: root.padLeft + (root.centerX + 0.5) * root.zoom - half
-        y: root.padTop + (root.centerY + 0.5) * root.zoom - half
-        width: 2 * half
-        height: 2 * half
-
-        Rectangle {
-            anchors.fill: parent
-            radius: width / 2
-            color: "transparent"
-            border.color: root.edgeColor
-            border.width: root.edgeThickness
-            antialiasing: true
-        }
-    }
-
-    Item {
-        id: roi
-
-        readonly property real half: root.roiRadius * root.coordScale
-
-        visible: root.hasCenter
-
-        x: root.padLeft + (root.centerX + 0.5) * root.coordScale - half
-        y: root.padTop + (root.centerY + 0.5) * root.coordScale - half
-        width: 2 * half
-        height: 2 * half
-
-        Rectangle {
-            anchors.fill: parent
-            color: "transparent"
-            border.color: Theme.previewMarker
-            border.width: root.markerThickness
-        }
-
-        Rectangle {
-            anchors.fill: parent
-            radius: width / 2
-            color: "transparent"
-            border.color: Theme.previewMarker
-            border.width: root.markerThickness
-            antialiasing: true
-        }
-
-        Rectangle {
-            anchors.centerIn: parent
-            width: roi.width * Math.SQRT2
-            height: root.markerThickness
-            color: Theme.previewMarker
-            rotation: 45
-            antialiasing: true
-        }
-
-        Rectangle {
-            anchors.centerIn: parent
-            width: roi.width * Math.SQRT2
-            height: root.markerThickness
-            color: Theme.previewMarker
-            rotation: -45
-            antialiasing: true
-        }
     }
 
     Rectangle {

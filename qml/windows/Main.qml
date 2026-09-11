@@ -238,7 +238,7 @@ ApplicationWindow {
                     Layout.preferredWidth: workRow.free * Theme.ratioCenter
                     Layout.minimumWidth: Math.max(Theme.minColumnCenter, camera.implicitWidth)
 
-                    roiRadius: window.reticleRadius
+                    roiRadius: centering.centerRoi
                     centerLocked: centering.locked
                     manualCenter: centering.mode === centering.modeManual
                     centerX: camera.patternMode === "Positive" ? centering.positiveCpx
@@ -297,7 +297,7 @@ ApplicationWindow {
                         onStopRequested: CameraController.stopStream()
                         onSnapshotRequested: CameraController.snapshot()
 
-                        roiRadius: window.reticleRadius
+                        roiRadius: centering.centerRoi
                         centerX: centering.hasPositiveCenter ? centering.positiveCpx
                                                              : centering.negativeCpx
                         centerY: centering.hasPositiveCenter ? centering.positiveCpy
@@ -471,10 +471,6 @@ ApplicationWindow {
     PatternAndMonitor {
         id: patternAndMonitor
     }
-
-    // Only concentric rings have a centre to aim at.
-    readonly property int reticleRadius:
-        patternAndMonitor.shownPatternType === "concentric" ? centering.centerRoi : 0
 
     // This window's own error line.
     StatusToast {
