@@ -34,6 +34,7 @@ constexpr int kSpinSliceMs = 100;
 constexpr int kOpTimeoutMs = 90000;
 
 constexpr char kOpAutoCenter[] = "auto_center";
+constexpr char kOpPatternCenter[] = "pattern_center";
 constexpr char kOpRoiExact[] = "roi_exact";
 constexpr char kOpHistogram[] = "histogram_8dir";
 constexpr char kOpNodes[] = "nodes_8dir";
@@ -180,8 +181,13 @@ void ComputeController::applyResult(const QString &op, const QString &slot, bool
 
     if (!ok) {
         const QString why = message.isEmpty() ? tr("%1 failed").arg(op) : message;
+        if (op == QLatin1String(kOpAutoCenter) &&
+            why.contains(QLatin1String("unknown detect op"), Qt::CaseInsensitive) &&
+            degradeToPatternCenter(slot))
+            return;
         setLastError(why);
-        if (op == QLatin1String(kOpAutoCenter) || op == QLatin1String(kOpRoiExact))
+        if (op == QLatin1String(kOpAutoCenter) || op == QLatin1String(kOpPatternCenter) ||
+            op == QLatin1String(kOpRoiExact))
             emit centerRefused(slot, why);
         return;
     }
@@ -224,6 +230,33 @@ void ComputeController::applyResult(const QString &op, const QString &slot, bool
                 reason.isEmpty()
                     ? tr("no centre found in the %1 shot -- the fit could not be trusted").arg(slot)
                     : tr("no centre in the %1 shot: %2").arg(slot, reason);
+            emit centerRefused(slot, why);
+            setLastError(why);
+        }
+        return;
+    }
+
+    if (op == QLatin1String(kOpPatternCenter)) {
+        const int x = r.value(QStringLiteral("cx")).toInt(-1);
+        const int y = r.value(QStringLiteral("cy")).toInt(-1);
+        const bool good = x >= 0 && y >= 0;
+
+        QVariantMap entry;
+        entry[QStringLiteral("ok")] = good;
+        entry[QStringLiteral("x")] = x;
+        entry[QStringLiteral("y")] = y;
+        entry[QStringLiteral("method")] = QStringLiteral("pattern_center");
+        entry[QStringLiteral("confidence")] = QString();
+        centers_[slot] = entry;
+        emit centersChanged();
+
+        if (good) {
+            emit centerFound(slot, x, y, QStringLiteral("pattern_center"), QString());
+            emit notice(tr("%1 centre at %2, %3 by pattern_center").arg(slot).arg(x).arg(y));
+        } else {
+            // A refused fit is the correct answer.
+            const QString why =
+                tr("no centre found in the %1 shot -- the fit could not be trusted").arg(slot);
             emit centerRefused(slot, why);
             setLastError(why);
         }
@@ -437,8 +470,22 @@ void ComputeController::autoCenter(const QString &slot, int expectedRings, bool 
     params[QStringLiteral("noise_cleaning")] = noiseCleaning;
     if (expectedRings > 0) params[QStringLiteral("expected_rings")] = expectedRings;
 
+    lastNoiseCleaning_[slot] = noiseCleaning;
     sendDetect(QString::fromLatin1(kOpAutoCenter), slot, {slot}, dump(params),
                tr("finding the %1 centre").arg(slot));
+}
+
+bool ComputeController::degradeToPatternCenter(const QString &slot) {
+    QJsonObject params;
+    params[QStringLiteral("slot")] = slot;
+    params[QStringLiteral("noise_cleaning")] = lastNoiseCleaning_.value(slot, false);
+
+    if (!sendDetect(QString::fromLatin1(kOpPatternCenter), slot, {slot}, dump(params),
+                    tr("finding the %1 centre").arg(slot)))
+        return false;
+
+    emit notice(tr("this server has no auto_center; using pattern_center for %1").arg(slot));
+    return true;
 }
 
 void ComputeController::refineCenter(const QString &slot, int x, int y, int threshold) {

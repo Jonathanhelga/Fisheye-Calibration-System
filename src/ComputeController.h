@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QByteArray>
+#include <QHash>
 #include <QList>
 #include <QObject>
 #include <QPair>
@@ -92,6 +93,9 @@ private:
     void endCall();
     void stopWorker();
 
+    // Older servers have pattern_center but not auto_center.
+    bool degradeToPatternCenter(const QString &slot);
+
     // Gathers slot bytes, or names the missing one.
     bool gather(const QStringList &slotNames, QList<QPair<QByteArray, QString>> *out);
 
@@ -105,6 +109,9 @@ private:
     QVariantMap centers_;
     QVariantMap histogram_;
     QVariantMap nodes_;
+
+    // noise_cleaning per slot, replayed by the degrade path.
+    QHash<QString, bool> lastNoiseCleaning_;
 
     // Requests still expected to answer.
     QSet<quint64> liveTokens_;

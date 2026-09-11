@@ -132,6 +132,29 @@ That boundary is the one described in `ComputeOps.h` and it is not negotiable he
 That answer reaches `centerRefused()` unchanged and is never rounded up into a plausible-looking coordinate.
 A refused fit is the correct answer on a badly aimed shot.
 
+### The degrade to pattern_center
+
+Added 2026-09-11, after the rig answered `unknown detect op: auto_center` while the Widgets client kept drawing its crosshair against the same server.
+That is the whole diagnosis: the rig runs a server binary older than this source tree, and `auto_center` was added after it was built.
+`pattern_center` is older, the Widgets client's Auto has always called it, and it is demonstrably answering on that rig today.
+
+`applyResult` therefore treats one specific failure as a version signal rather than a refusal.
+When `auto_center` comes back with a message containing "unknown detect op", the request is reissued as `pattern_center` and the original failure is never reported.
+Every other failure, including a genuine `ok=false`, is still passed straight through as a refusal.
+
+The two ops are not equivalent and the substitution is not silent.
+`auto_center` is the validated cascade in `doc/auto_center_design.md`, with the offset, basin and coverage gates; `pattern_center` is the bare gradient fit those gates are applied to.
+So the degrade buys an answer at the cost of the validation, which is why it emits a `notice` naming the op and why `centerFound` carries `pattern_center` as its method.
+The Centering panel shows that method, and its confidence is empty because this op reports none.
+
+`lastNoiseCleaning_` exists because the reissue happens long after `autoCenter()` returned.
+It is the only parameter the two ops share; `expected_rings` is meaningless to `pattern_center`, which counts nothing.
+
+The degrade runs only from `auto_center`, never from `pattern_center`, so a server missing both refuses once and stops.
+`degradeToPatternCenter` returns whatever `sendDetect` returned, and a false there falls back into the ordinary refusal path, which is what keeps the no-ROS build and a dead link behaving as before.
+
+The real fix is rebuilding the server, and this does not replace it.
+
 ### The in-flight token set
 
 Several ops can be in flight at once: the two histogram panels and a centre fit are independent.
