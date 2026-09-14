@@ -252,7 +252,8 @@ Rectangle {
 
                 caption: qsTr("Side starts at layer:")
                 fieldWidth: Math.round(Theme.charUnit * 10)
-                value: panel.sideLayer === panel.noSideLayer ? qsTr("none")
+                // The rig's fallback when unmarked.
+                value: panel.sideLayer === panel.noSideLayer ? qsTr("40 (default)")
                                                              : panel.sideLayer
                 editable: false
             }

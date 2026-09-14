@@ -304,8 +304,15 @@ A round the operator has not filled in is an **empty** table, not a missing one.
 
 ### One side marker per round
 
-The column records where the after-bezel segment starts, and there is only one start.
+The marker records where the after-bezel segment starts, and there is only one start.
 First marked row wins; two starts is not a thing the pipeline can read.
+
+The marker is `*` in column 0 (`Round`) of the data row, because that is the only place the rig looks: `CaliCompute::startInWhichLayer` scans column 0 for `*`, and with none found `updateSideLayer` uses layer 40.
+Every cali op runs `updateSideLayer` first, so the rig then overwrites row 1, column 1 with the layer it found.
+Column 1 of a data row is not the marker.
+Before 2026-09-14 the client wrote the layer number there; the rig never read it, so a clicked side layer showed in the panel and computed at layer 40.
+Old-app Excel files also hold `0 ... 74` in that column, which made a loaded file show "Side starts at layer: 0".
+With no `*` the panel shows `40 (default)`, the layer the rig will really use, rather than "none".
 
 ### Noise bands are removed one at a time
 

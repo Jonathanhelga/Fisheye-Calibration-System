@@ -48,13 +48,16 @@ constexpr int kFirstDataRow = 2;
 constexpr int kLayers = kRows - kFirstDataRow;
 
 // Wire-format column indices, mirrored from CaliCompute.cpp.
-constexpr int kColSide = 1;
+constexpr int kColRound = 0;
 constexpr int kColPct = 2;
 constexpr int kColIctAvg = 12;
 constexpr int kColPctCal = 13;
 constexpr int kColDistance = 14;
 constexpr int kColAlphaAvg = 33;
 constexpr int kColZflAvg = 34;
+
+// The rig finds the side layer by this.
+const QString kSideMark = QStringLiteral("*");
 
 // The eight directions in table column order.
 const QStringList &dirs8() {
@@ -247,7 +250,7 @@ void CalibrationController::rebuildRound(int round) {
         entry[QStringLiteral("zflAvg")] = cell(round, row, kColZflAvg);
 
         // First marked row wins; one start only.
-        if (!cell(round, row, kColSide).isEmpty() && sideLayer == kLayers) sideLayer = layer;
+        if (cell(round, row, kColRound) == kSideMark && sideLayer == kLayers) sideLayer = layer;
 
         table.append(entry);
     }
@@ -509,11 +512,11 @@ void CalibrationController::setSideLayer(int round, int layer) {
     if (layer < 0 || layer >= kLayers) return;
 
     const int row = kFirstDataRow + layer;
-    const bool wasSet = !cell(round, row, kColSide).isEmpty();
+    const bool wasSet = cell(round, row, kColRound) == kSideMark;
 
     // One side marker per round.
-    for (int l = 0; l < kLayers; ++l) setCell(round, kFirstDataRow + l, kColSide, QString());
-    if (!wasSet) setCell(round, row, kColSide, QString::number(layer));
+    for (int l = 0; l < kLayers; ++l) setCell(round, kFirstDataRow + l, kColRound, QString());
+    if (!wasSet) setCell(round, row, kColRound, kSideMark);
 
     bumpVersion(round);
 }
