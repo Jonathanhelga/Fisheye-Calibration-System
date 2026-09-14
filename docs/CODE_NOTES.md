@@ -650,6 +650,22 @@ Edits bump the controller's table version so every cached series knows it is sta
 The centre read-outs are a read-out of a measurement, not an input.
 Typing over them would be claiming a centre nothing measured.
 
+### Displayed values are rounded, stored values are not
+
+Added 2026-09-14.
+The computed columns carried the engine's full precision (`0.7853982`), which did not fit the columns and was cut off.
+They now show 2 decimals, and the α columns (per direction and α avg) show 4.
+α is in radians: at 2 decimals one step is 0.01 rad, about 0.57°, and neighbouring layers would show the same α.
+
+The rounding happens only in `shownRows`, a display copy of the computed fields.
+`rows`, and the controller behind it, keep the full value, because that is what Calculate, the regression and the plots read.
+Hovering a rounded cell shows the full value in a tooltip.
+
+The editable PCT and ICT cells are not rounded.
+A `ValueField` shows its text when focused, so a rounded text there would be saved over the real number on the next edit.
+
+Values that are empty, not a number, or already short enough pass through unchanged, so a blank cell never turns into `0.00`.
+
 ### singleDistance is readonly on purpose
 
 A writable property here would be assigned by the toggle, and that assignment **destroys** the binding to the controller.

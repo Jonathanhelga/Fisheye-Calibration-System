@@ -22,6 +22,12 @@ Rectangle {
 
     readonly property var rows: round < rounds.length ? rounds[round] : []
     readonly property var blankRow: panel.emptyRow()
+
+    // Display only; the controller keeps full values.
+    readonly property int valueDecimals: 2
+    readonly property int alphaDecimals: 4
+    readonly property var shownRows: rows.map((row) => panel.roundedRow(row))
+
     readonly property int sideLayer: round < sideLayers.length ? sideLayers[round]
                                                               : noSideLayer
     // The rig's fallback when unmarked.
@@ -66,6 +72,29 @@ Rectangle {
             alpha: ["", "", "", "", "", "", "", ""],
             zfl: ["", "", "", "", "", "", "", ""],
             alphaAvg: "", zflAvg: ""
+        }
+    }
+
+    function rounded(text, decimals) {
+        const shown = String(text)
+        const number = Number(shown)
+        const dot = shown.indexOf(".")
+        if (shown === "" || !isFinite(number) || dot < 0)
+            return shown
+        if (shown.length - dot - 1 <= decimals)
+            return shown
+        return number.toFixed(decimals)
+    }
+
+    function roundedRow(row) {
+        return {
+            ictAvg: panel.rounded(row.ictAvg, panel.valueDecimals),
+            pctCal: panel.rounded(row.pctCal, panel.valueDecimals),
+            distance: panel.rounded(row.distance, panel.valueDecimals),
+            alpha: row.alpha.map((v) => panel.rounded(v, panel.alphaDecimals)),
+            zfl: row.zfl.map((v) => panel.rounded(v, panel.valueDecimals)),
+            alphaAvg: panel.rounded(row.alphaAvg, panel.alphaDecimals),
+            zflAvg: panel.rounded(row.zflAvg, panel.valueDecimals)
         }
     }
 
@@ -290,6 +319,7 @@ Rectangle {
 
                 ToolField {
                     caption: qsTr("Aggregation:")
+                    fieldWidth: Math.round(Theme.charUnit * 12)
                     value: panel.aggregation
                     editable: false
                 }
@@ -532,6 +562,7 @@ Rectangle {
                 required property int index
 
                 readonly property var values: panel.rows[cell.index] || panel.blankRow
+                readonly property var shown: panel.shownRows[cell.index] || panel.blankRow
                 readonly property bool onSide: cell.index >= panel.sideStartLayer
                 readonly property bool opensSection: cell.index === 0
                                                      || cell.index === panel.sideStartLayer
@@ -587,6 +618,7 @@ Rectangle {
 
                     layerIndex: cell.index
                     values: cell.values
+                    shownValues: cell.shown
                     directions: panel.directions
                     syncToken: panel.round
                     sideStart: cell.index === panel.sideLayer

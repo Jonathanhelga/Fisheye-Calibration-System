@@ -10,6 +10,7 @@ RowLayout {
 
     required property int layerIndex
     required property var values
+    required property var shownValues
 
     property var directions: []
     property var syncToken
@@ -34,6 +35,10 @@ RowLayout {
     spacing: columnSpacing
 
     component ComputedCell: Label {
+        id: computed
+
+        property string full: ""
+
         Layout.preferredHeight: row.cellHeight
         Layout.alignment: Qt.AlignVCenter
         color: Theme.textPrimary
@@ -41,6 +46,12 @@ RowLayout {
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
+
+        ToolTip.visible: computedHover.hovered && computed.text !== computed.full
+        ToolTip.delay: Theme.animSlow
+        ToolTip.text: computed.full
+
+        HoverHandler { id: computedHover }
     }
 
     component ColumnDivider: Rectangle {
@@ -106,9 +117,9 @@ RowLayout {
 
     ColumnDivider {}
 
-    ComputedCell { Layout.preferredWidth: row.coreWidth; text: row.values.ictAvg }
-    ComputedCell { Layout.preferredWidth: row.coreWidth; text: row.values.pctCal }
-    ComputedCell { Layout.preferredWidth: row.coreWidth; text: row.values.distance }
+    ComputedCell { Layout.preferredWidth: row.coreWidth; text: row.shownValues.ictAvg; full: row.values.ictAvg }
+    ComputedCell { Layout.preferredWidth: row.coreWidth; text: row.shownValues.pctCal; full: row.values.pctCal }
+    ComputedCell { Layout.preferredWidth: row.coreWidth; text: row.shownValues.distance; full: row.values.distance }
 
     ColumnDivider {}
 
@@ -125,17 +136,19 @@ RowLayout {
 
             ComputedCell {
                 Layout.preferredWidth: row.alphaWidth
-                text: row.values.alpha[pair.index]
+                text: row.shownValues.alpha[pair.index]
+                full: row.values.alpha[pair.index]
             }
             ComputedCell {
                 Layout.preferredWidth: row.zflWidth
-                text: row.values.zfl[pair.index]
+                text: row.shownValues.zfl[pair.index]
+                full: row.values.zfl[pair.index]
             }
         }
     }
 
     ColumnDivider {}
 
-    ComputedCell { Layout.preferredWidth: row.avgWidth; text: row.values.alphaAvg }
-    ComputedCell { Layout.preferredWidth: row.avgWidth; text: row.values.zflAvg }
+    ComputedCell { Layout.preferredWidth: row.avgWidth; text: row.shownValues.alphaAvg; full: row.values.alphaAvg }
+    ComputedCell { Layout.preferredWidth: row.avgWidth; text: row.shownValues.zflAvg; full: row.values.zflAvg }
 }
