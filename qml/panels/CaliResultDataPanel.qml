@@ -369,11 +369,11 @@ Rectangle {
                             Repeater {
                                 model: [
                                     { caption: qsTr("α, top monitor"),
-                                      formula: "α = atan(PCT / distance)" },
+                                      formula: "α = atan(PCT cal / distance)" },
                                     { caption: qsTr("α, side monitors"),
-                                      formula: "α = π/2 − atan[(distance − PCT − V_Gap) / H_Gap]" },
+                                      formula: "α = π/2 − atan[(distance − PCT cal − V_Gap) / H_Gap]" },
                                     { caption: qsTr("ZFL"),
-                                      formula: "ZFL = 1 / tan(α) × image height" }
+                                      formula: "ZFL = ICT / tan(α)" }
                                 ]
 
                                 ColumnLayout {
@@ -436,7 +436,7 @@ Rectangle {
                     HeaderDivider {}
                     BandCell { Layout.preferredWidth: cols.computedBand; text: qsTr("Computed") }
                     HeaderDivider {}
-                    BandCell { Layout.preferredWidth: cols.perDirBand;   text: qsTr("α (°) and ZFL (px) per direction") }
+                    BandCell { Layout.preferredWidth: cols.perDirBand;   text: qsTr("α (rad) and ZFL (px) per direction") }
                     HeaderDivider {}
                     BandCell { Layout.preferredWidth: cols.averageBand;  text: qsTr("Average") }
                 }
