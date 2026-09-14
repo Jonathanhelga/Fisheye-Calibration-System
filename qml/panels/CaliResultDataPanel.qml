@@ -153,6 +153,7 @@ Rectangle {
         property var value: ""
         property bool editable: true
         property int fieldWidth: Math.round(Theme.charUnit * 7)
+        property int fieldAlignment: TextInput.AlignLeft
 
         signal edited(string value)
 
@@ -168,6 +169,7 @@ Rectangle {
         ValueField {
             Layout.preferredWidth: toolField.fieldWidth
             Layout.preferredHeight: Theme.controlHeight
+            horizontalAlignment: toolField.fieldAlignment
             editable: toolField.editable
             value: toolField.value
             onEdited: (value) => toolField.edited(value)
@@ -252,6 +254,7 @@ Rectangle {
 
                 caption: qsTr("Side starts at layer:")
                 fieldWidth: Math.round(Theme.charUnit * 17)
+                fieldAlignment: TextInput.AlignHCenter
                 // The rig's fallback when unmarked.
                 value: panel.sideLayer === panel.noSideLayer ? qsTr("40 (default)")
                                                              : panel.sideLayer
