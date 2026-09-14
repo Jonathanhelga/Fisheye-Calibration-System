@@ -24,6 +24,9 @@ Rectangle {
     readonly property var blankRow: panel.emptyRow()
     readonly property int sideLayer: round < sideLayers.length ? sideLayers[round]
                                                               : noSideLayer
+    // The rig's fallback when unmarked.
+    readonly property int defaultSideLayer: 40
+    readonly property int sideStartLayer: sideLayer === noSideLayer ? defaultSideLayer : sideLayer
 
     readonly property bool roundHasData: {
         for (let i = 0; i < rows.length; i++) {
@@ -255,9 +258,9 @@ Rectangle {
                 caption: qsTr("Side starts at layer:")
                 fieldWidth: Math.round(Theme.charUnit * 17)
                 fieldAlignment: TextInput.AlignHCenter
-                // The rig's fallback when unmarked.
-                value: panel.sideLayer === panel.noSideLayer ? qsTr("40 (default)")
-                                                             : panel.sideLayer
+                value: panel.sideLayer === panel.noSideLayer
+                       ? qsTr("%1 (default)").arg(panel.defaultSideLayer)
+                       : panel.sideLayer
                 editable: false
             }
         }
@@ -294,7 +297,6 @@ Rectangle {
                     caption: qsTr("Distance:")
                     value: panel.distance
                     onEdited: (value) => {
-                        panel.distance = value
                         CalibrationController.baseDistance = parseFloat(value)
                     }
                 }
@@ -530,28 +532,56 @@ Rectangle {
                 required property int index
 
                 readonly property var values: panel.rows[cell.index] || panel.blankRow
+                readonly property bool onSide: cell.index >= panel.sideStartLayer
+                readonly property bool opensSection: cell.index === 0
+                                                     || cell.index === panel.sideStartLayer
 
                 width: cols.totalWidth
-                height: layerRow.implicitHeight + Theme.spaceXs
+                height: sectionBand.height + layerRow.implicitHeight + Theme.spaceXs
 
+                // Names the section this row starts.
                 Rectangle {
-                    anchors.fill: parent
-                    color: cell.index % 2 === 0 ? "transparent" : Theme.fieldDisabledBackground
+                    id: sectionBand
+
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    height: cell.opensSection ? layerRow.cellHeight : 0
+                    visible: cell.opensSection
+                    color: Theme.accent
+
+                    Label {
+                        anchors.fill: parent
+                        leftPadding: Theme.spaceSm
+                        verticalAlignment: Text.AlignVCenter
+                        text: cell.onSide
+                              ? (panel.sideLayer === panel.noSideLayer
+                                 ? qsTr("Side monitors, from layer %1 (default)").arg(panel.sideStartLayer)
+                                 : qsTr("Side monitors, from layer %1").arg(panel.sideStartLayer))
+                              : qsTr("Top monitor")
+                        color: Theme.textOnAccent
+                        font.pixelSize: Theme.captionFontSize
+                        font.bold: true
+                    }
                 }
 
                 Rectangle {
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    anchors.top: parent.top
-                    height: 1
-                    color: Theme.accent
-                    visible: cell.index === panel.sideLayer
+                    anchors.top: sectionBand.bottom
+                    anchors.bottom: parent.bottom
+                    color: cell.onSide
+                           ? (cell.index % 2 === 0 ? Theme.sideRowBackground : Theme.sideRowAltBackground)
+                           : (cell.index % 2 === 0 ? "transparent" : Theme.fieldDisabledBackground)
                 }
 
                 CaliResultRow {
                     id: layerRow
 
-                    anchors.fill: parent
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: sectionBand.bottom
+                    anchors.bottom: parent.bottom
                     anchors.topMargin: Math.round(Theme.spaceXs / 2)
                     anchors.bottomMargin: Math.round(Theme.spaceXs / 2)
 

@@ -125,6 +125,8 @@ QtObject {
     readonly property color accent: "#2f6fbf"
     readonly property color accentHover: "#5a93d4"
     readonly property color accentIdle: "#7fb3e6"
+    readonly property color sideRowBackground: "#edf3fa"
+    readonly property color sideRowAltBackground: "#dde8f5"
 
     readonly property color danger: "#b3261e"
     readonly property color dangerHover: "#d1453b"
