@@ -251,7 +251,7 @@ Rectangle {
                 id: sideGroup
 
                 caption: qsTr("Side starts at layer:")
-                fieldWidth: Math.round(Theme.charUnit * 10)
+                fieldWidth: Math.round(Theme.charUnit * 17)
                 // The rig's fallback when unmarked.
                 value: panel.sideLayer === panel.noSideLayer ? qsTr("40 (default)")
                                                              : panel.sideLayer
