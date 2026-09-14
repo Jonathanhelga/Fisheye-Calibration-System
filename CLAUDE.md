@@ -163,7 +163,7 @@ still gets a browsable UI:
 
 | Option | Needs | Off means |
 |---|---|---|
-| `FISHEYE_ENABLE_ROS` (default ON on Linux, OFF elsewhere) | `rclcpp`, `rclcpp_action`, `moil_interfaces` | `FISHEYE_ROS_ENABLED` undefined; `RosServerProbe`, `AxisController`, `CameraController`, `MonitorController`, `PatternController`, `ComputeController` and `CalibrationController` compile to inert stubs that report "this build has no ROS 2 support" rather than failing silently; rig controls do nothing |
+| `FISHEYE_ENABLE_ROS` (default ON on Linux, OFF elsewhere) | `rclcpp`, `rclcpp_action`, `moil_interfaces` | `FISHEYE_ROS_ENABLED` undefined; `RosServerProbe`, `AxisController`, `CameraController`, `PatternController`, `ComputeController` and `CalibrationController` compile to inert stubs that report "this build has no ROS 2 support" rather than failing silently; rig controls do nothing |
 | `FISHEYE_ENABLE_SUBAPPS` (default ON) | Qt Widgets/Concurrent/OpenGLWidgets, OpenCV **4**, Eigen3 | `FISHEYE_SUBAPPS_ENABLED` undefined; 3D Verification and Center Setup unavailable, and `src/main.cpp` falls back from `QApplication` to `QGuiApplication` |
 
 Keep the `#ifdef FISHEYE_ROS_ENABLED` and `#ifdef FISHEYE_SUBAPPS_ENABLED` guards
@@ -254,8 +254,7 @@ also `QML_SINGLETON`, so QML calls them by type name:
 |---|---|
 | `AxisController` + `AxisState` | the live rig: connection state, capabilities, jog, drive-to-limit, home, stop |
 | `CameraController` | `/camera/capture` into named slots, the live topic subscription, FOV |
-| `MonitorController` | brightness, `show_pattern`, `close_pattern`, screen mapping, `prepare`/`show_prepared` |
-| `PatternController` | renders a pattern spec and shows it — the spec editor's controller, not a device one |
+| `PatternController` | renders a pattern spec and shows it, plus every `/monitor` call: brightness set and read, close, screen mapping, `prepare`/`show_prepared` |
 | `ComputeController` | `/compute/detect`: centres, histogram curves, nodes |
 | `CalibrationController` | `/compute/xlsx`, `/compute/cali`, `/compute/series` — the Cali Result window |
 | `PatternIo` | local file read/write, and path↔URL conversion QML must not do by hand |

@@ -60,6 +60,17 @@ Rectangle {
         function onBrightnessApplied(direction, brightness) {
             if (direction === root.direction) root.appliedBrightness = brightness
         }
+
+        function onStatusChanged() {
+            if (PatternController.status === ProbeStatus.Ok && root.brightnessSupported)
+                PatternController.readMonitorBrightness(root.direction)
+        }
+
+        function onBrightnessRead(direction, brightness) {
+            if (direction !== root.direction) return
+            root.brightness = Math.round(brightness)
+            root.appliedBrightness = root.brightness
+        }
     }
 
     readonly property real minimumWidth:  content.Layout.minimumWidth  + 2 * Theme.panelMargin

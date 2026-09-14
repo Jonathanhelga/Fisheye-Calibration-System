@@ -421,7 +421,6 @@ round whether or not it was any good.
 
 | Control | Backend | Old UI | Why it is worth having |
 |---|---|---|---|
-| **Read** per monitor slot | `MonitorController::readBrightness()` | **none** — the old client was write-only too. `lineedit_brightness_<dir>` was pushed by that direction's **Update** button in *Monitor Viewer*; nothing ever asked the panel what it was at. | ⚠️ **Not a convenience — this one is a live bug.** See below. |
 | **auto_center** | `ComputeController::autoCenter()` — unreachable since 2026-09-09, when Find Pos / Find Neg were removed. Auto now takes the middle of the frame and Manual seeds `roi_exact`, so nothing calls the cascade. `CenteringPanel.findCenter()` and its `onCenterFound` / `onCenterRefused` handlers are intact and dormant: restoring it is one button. The op itself is untouched on the rig and specified in `doc/auto_center_design.md`. |
 | **Per-axis Stop** | `AxisController::stopAxis(axis)` | `btn_stop_x`, `btn_stop_y`, `btn_stop_z`, `btn_stop_pitch`, `btn_stop_yaw` — five buttons labelled **"Stop"**, one beside each axis's jog cluster in the *Main window*. There was no Stop All; `btn_all_home` was the only whole-rig button. | Only *Stop All* is exposed. Stopping one axis mid-jog needs this. |
 | **Disconnect** | `AxisController::disconnectFromRig()` | **none** — the old client had no connect or disconnect control at all. | There is *Update* to connect and nothing to drop the link deliberately. |
@@ -430,47 +429,12 @@ The old rig panel is the reverse of this one: five per-axis Stops and no Stop
 All, against our one Stop All and no per-axis. Both halves exist in the backend;
 this is a layout decision, not a wiring one.
 
-### Read brightness: the missing button leaves a dead signal and a stuck indicator
+### Read brightness — FIXED 2026-09-14
 
-`brightnessRead` is emitted from exactly one place
-([MonitorController.cpp:262](../src/MonitorController.cpp#L262)), reached only
-from `readBrightness`'s reply. The `KindBrightnessSet` case in `applyCommand`
-does nothing. **Nothing calls `readBrightness`, so the signal can never fire.**
-
-Two panels nevertheless handle it —
-[MonitorSlotPanel.qml:74](../qml/panels/MonitorSlotPanel.qml#L74) and
-[DpadMonitorViewer.qml:97](../qml/panels/DpadMonitorViewer.qml#L97) — and in
-`MonitorSlotPanel` it is the **only** writer of `appliedBrightness`:
-
-```qml
-property real appliedBrightness: 5              // line 29, never updated
-
-readonly property bool pendingChanges: root.on
-    && (root.imagePath !== root.appliedImagePath
-        || root.brightness !== root.appliedBrightness)
-```
-
-`onImageShown` updates `appliedImagePath` but not `appliedBrightness`. So the
-unsaved-changes indicator compares the typed brightness against the literal `5`
-forever: a slot set to anything else reads "unsaved changes" permanently and
-Update never clears it. That is exactly the confusion the comment at line 23 says
-the property exists to prevent — an un-pushed edit and a pushed one looking
-identical — arrived at from the other side.
-
-Two fixes, and they are not equivalent:
-
-1. **`appliedBrightness = root.brightness` in `onImageShown`.** Matches how
-   `appliedImagePath` is handled, no extra round trip. Optimistic: `show_pattern`
-   can succeed while the panel refuses `set_brightness` over DDC/CI, and the
-   indicator would then clear on a brightness that never landed. The old client
-   reported those two outcomes separately for this reason — see the four distinct
-   messages in `controller_monitor_viewer.cpp` `updateDir()`.
-2. **Add the Read button** and call `readBrightness(direction)` after a
-   successful show. Truthful, costs a round trip, and is evidently what the panel
-   was designed around.
-
-Whichever is chosen, note that `MonitorSlotPanel.qml` has collided on every merge
-with `v2.1_2026_New-UI-CPP-ROS` so far — agree the change before making it.
+The stuck indicator described here was already gone after the 2026-09-08 merge: `MonitorSlotPanel` listens to `PatternController.brightnessApplied`, which fires only on a confirmed `set_brightness`.
+What remained was startup: the panel assumed 5% until the first Update.
+`readBrightness` moved into `PatternController` as `readMonitorBrightness`, the TOP slot calls it when the link comes up, and `MonitorController` was deleted.
+See `docs/CODE_NOTES.md`, `qml/panels/MonitorSlotPanel.qml`.
 
 ---
 
@@ -515,9 +479,7 @@ Methods the audit lists that are wired, just not from QML:
 
 | Method | Called from |
 |---|---|
-| `MonitorController::showPrepared` | `CameraController`, for the Pos / Neg / Pair shot sequence |
 | `PatternController::refreshDirection` | `PatternController::applyShow`, after a pattern reaches a screen |
-| `MonitorController::showImage(QUrl)` | redundant overload of `showImagePath`; QML uses the path form |
 | `AxisController::axesInGroup` | helper used by the home/limit paths |
 
 ---

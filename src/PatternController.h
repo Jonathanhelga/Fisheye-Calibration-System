@@ -49,6 +49,7 @@ public:
     Q_INVOKABLE void refreshDirection(const QString &direction);
     Q_INVOKABLE void closeMonitor(const QString &direction);
     Q_INVOKABLE void setMonitorBrightness(const QString &direction, double brightness);
+    Q_INVOKABLE void readMonitorBrightness(const QString &direction);
     Q_INVOKABLE void showDisplayNumbers();
     Q_INVOKABLE void applyDisplayDirection(int top, int north, int west, int south, int east);
 
@@ -61,6 +62,7 @@ signals:
     void patternShown(const QString &direction, int width, int height, const QString &imagePath);
     void monitorClosed(const QString &direction);
     void brightnessApplied(const QString &direction, double brightness);
+    void brightnessRead(const QString &direction, double brightness);
     void displaySetupReplied(bool ok, const QString &message);
     void patternsPrepared(bool ok, const QStringList &prepared, const QString &directory,
                           const QString &message);
@@ -78,6 +80,8 @@ private:
                                 quint64 token, quint64 generation);
     Q_INVOKABLE void applyBrightness(const QString &direction, double brightness, bool ok,
                                      const QString &message, quint64 token, quint64 generation);
+    Q_INVOKABLE void applyBrightnessRead(const QString &direction, double brightness, bool ok,
+                                         const QString &message, quint64 generation);
     Q_INVOKABLE void applyDisplaySetup(bool ok, const QString &message, quint64 token,
                                        quint64 generation);
     Q_INVOKABLE void applyPrepare(bool ok, const QStringList &prepared, const QString &directory,

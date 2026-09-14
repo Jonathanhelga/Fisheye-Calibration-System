@@ -231,42 +231,29 @@ Without that the call simply never answers and the panel sits busy for ever, whi
 The session id is dropped.
 It belongs to a link that has gone, and keeping it would let an op be sent against a session this client can no longer prove is open.
 
-## src/MonitorController.h, src/MonitorController.cpp
+## src/MonitorController.h, src/MonitorController.cpp (removed 2026-09-14)
 
-### Why this is split from PatternController
+### Why it was removed
 
-Both talk to `/monitor`.
-`PatternController`'s job is a pattern **spec**, the thing the operator is authoring in the Pattern & Monitor window, and it renders through `/compute/render_pattern` before anything reaches a screen.
-`MonitorController` never renders: it pushes a file the operator picked, sets a brightness, closes a panel, or asks the server which screens it can actually see.
-Those are device operations, and folding them into the spec editor's controller would have made "show this PNG" and "show this JSON" look like the same call when they are not.
+Two branches each wrote a client for `/monitor`: `MonitorController` on this branch, `PatternController` on `v2.1_2026_New-UI-CPP-ROS`.
+After the 2026-09-08 merge every monitor control in QML called `PatternController`, and `MonitorController` was no longer connected on Update.
+Its one unique call, `readBrightness`, moved into `PatternController` as `readMonitorBrightness`, and the files were deleted.
+The old class is still in git history before this change.
 
-### Direction strings are the server's
+### What went with it, unused at the time
 
-`top`, `n`, `w`, `s`, `e`, or `all`.
-Not the UI's labels.
-The QML slots already carry them in their `direction` property.
+- `describeScreens`, with `screens`, `mappingComplete` and `screensSummary`: asks the server which screens it can see.
+- Transcoding a picked image that is not `png` or `jpeg` into PNG before `show_pattern`.
 
-### An incomplete screen mapping is the most common silent failure
+Neither had a QML caller. If screen reporting is wanted, port `describeScreens` from history into `PatternController`.
 
-A pattern lands nowhere and `show_pattern` still answers success for the panels it did reach.
-It is said once, at the mapping check, rather than letting every later call look mysteriously half-broken.
+### Facts that still hold
 
-Short of five panels means one is unmapped or refused.
-The shot would still be taken, against a rig that is not showing what was asked for, so this is reported rather than assumed away.
+Direction strings are the server's: `top`, `n`, `w`, `s`, `e`, or `all`, not the UI's labels.
+The QML slots carry them in their `direction` property.
 
-### Format transcoding
-
-`CompressedImage` wants `png` or `jpeg`.
-Anything else the operator picked is transcoded to PNG rather than refused: the file dialog's filter is a suggestion, and a `.bmp` on the glass is still a valid calibration target.
-
-### On disconnect
-
-Outstanding calls will never answer on a link that just went away, and a busy flag that never clears leaves every Update button disabled with no way back.
-
-### Shape of the service bodies
-
-They all share one shape: bail unless connected, take a client copy under the mutex, send, and route the reply back through an `apply*` on the GUI thread carrying the generation it was issued under.
-Every one of them is called from QML on the GUI thread.
+An incomplete screen mapping is the most common silent failure.
+`show_pattern` answers success for the panels it did reach, so a pattern can land on four screens and the shot is still taken.
 
 ## src/CalibrationController.h, src/CalibrationController.cpp
 
@@ -443,10 +430,8 @@ The app deliberately does not connect on startup, so pressing Update is what cre
 A controller missing from that list does not fail; it sits idle for ever with no message, which reads as a dead rig rather than an unwired button.
 That is how the last three went missing in the 2026-09-08 merge.
 
-`MonitorController` is deliberately not there.
-After that merge the monitor work is `PatternController`'s, and nothing in QML calls `MonitorController` any more.
-Connecting it would build a context, node and executor to serve no caller, and each one adds to the XTYPES wall Windows prints on Update.
-Re-add the line the moment something needs it; do not add it back speculatively.
+`MonitorController` used to be missing from that list on purpose, since nothing called it.
+It was deleted on 2026-09-14; all monitor work is `PatternController`'s.
 
 ### The error line on this window
 
@@ -1089,6 +1074,14 @@ Turn off asks the rig to close the pattern on it, so the panel returns to its de
 
 `PatternIo` on this branch spells the conversion `toLocalPath`, not `localPath`, and also carries `toFileUrl`.
 Same function, one name.
+
+### Brightness starts from the rig, not from 5
+
+`appliedBrightness` is what the rig last confirmed; "Press Update" shows while the spin box differs from it.
+Both used to start at `5`, so a TOP panel really at 60% showed 5 and no pending change.
+When `PatternController.status` becomes `Ok`, a slot with `brightnessSupported` calls `readMonitorBrightness(direction)`.
+The reply, `brightnessRead`, sets both values, so the panel opens clean at the real brightness.
+The read reports nothing if the call cannot be sent: it runs on its own, not from a button.
 
 ## qml/panels/CaliSystems.js
 

@@ -23,6 +23,7 @@
 #include <rclcpp/rclcpp.hpp>
 
 #include "moil_interfaces/srv/close_pattern.hpp"
+#include "moil_interfaces/srv/get_brightness.hpp"
 #include "moil_interfaces/srv/monitor_command.hpp"
 #include "moil_interfaces/srv/prepare_patterns.hpp"
 #include "moil_interfaces/srv/render_for_direction.hpp"
@@ -44,6 +45,7 @@ constexpr char kShowImageService[] = "/monitor/show_pattern";
 constexpr char kDirectionService[] = "/monitor/render_for_direction";
 constexpr char kCloseService[] = "/monitor/close_pattern";
 constexpr char kBrightnessService[] = "/monitor/set_brightness";
+constexpr char kGetBrightnessService[] = "/monitor/get_brightness";
 constexpr char kMonitorCommandService[] = "/monitor/command";
 constexpr char kSetDirectionService[] = "/monitor/set_display_direction";
 constexpr char kPrepareService[] = "/monitor/prepare_patterns";
@@ -119,6 +121,7 @@ struct PatternController::Impl {
     rclcpp::Client<moil_interfaces::srv::RenderForDirection>::SharedPtr directionClient;
     rclcpp::Client<moil_interfaces::srv::ClosePattern>::SharedPtr closeClient;
     rclcpp::Client<moil_interfaces::srv::SetBrightness>::SharedPtr brightnessClient;
+    rclcpp::Client<moil_interfaces::srv::GetBrightness>::SharedPtr getBrightnessClient;
     rclcpp::Client<moil_interfaces::srv::MonitorCommand>::SharedPtr commandClient;
     rclcpp::Client<moil_interfaces::srv::SetDisplayDirection>::SharedPtr directionMapClient;
     rclcpp::Client<moil_interfaces::srv::PreparePatterns>::SharedPtr prepareClient;
@@ -243,6 +246,21 @@ void PatternController::applyBrightness(const QString &direction, double brightn
     emit brightnessApplied(direction, brightness);
 }
 
+void PatternController::applyBrightnessRead(const QString &direction, double brightness, bool ok,
+                                            const QString &message, quint64 generation) {
+    if (generation != d_->generation.load()) return;
+
+    if (!ok) {
+        setLastError(message.isEmpty()
+                         ? tr("could not read the brightness of %1").arg(direction.toUpper())
+                         : message);
+        return;
+    }
+
+    setLastError(QString());
+    emit brightnessRead(direction, brightness);
+}
+
 void PatternController::applyDisplaySetup(bool ok, const QString &message, quint64 token,
                                           quint64 generation) {
     if (generation != d_->generation.load() || token != displaySetupToken_) return;
@@ -333,6 +351,7 @@ void PatternController::connectTo(int domainId) {
             auto perDirection = node->create_client<moil_interfaces::srv::RenderForDirection>(kDirectionService);
             auto close = node->create_client<moil_interfaces::srv::ClosePattern>(kCloseService);
             auto brightness = node->create_client<moil_interfaces::srv::SetBrightness>(kBrightnessService);
+            auto getBrightness = node->create_client<moil_interfaces::srv::GetBrightness>(kGetBrightnessService);
             auto command = node->create_client<moil_interfaces::srv::MonitorCommand>(kMonitorCommandService);
             auto directionMap = node->create_client<moil_interfaces::srv::SetDisplayDirection>(kSetDirectionService);
             auto prepare = node->create_client<moil_interfaces::srv::PreparePatterns>(kPrepareService);
@@ -358,6 +377,7 @@ void PatternController::connectTo(int domainId) {
                     d_->directionClient = perDirection;
                     d_->closeClient = close;
                     d_->brightnessClient = brightness;
+                    d_->getBrightnessClient = getBrightness;
                     d_->commandClient = command;
                     d_->directionMapClient = directionMap;
                     d_->prepareClient = prepare;
@@ -374,6 +394,7 @@ void PatternController::connectTo(int domainId) {
                 d_->directionClient.reset();
                 d_->closeClient.reset();
                 d_->brightnessClient.reset();
+                d_->getBrightnessClient.reset();
                 d_->commandClient.reset();
                 d_->directionMapClient.reset();
                 d_->prepareClient.reset();
@@ -951,6 +972,35 @@ void PatternController::setMonitorBrightness(const QString &direction, double br
                          .arg(QString::fromLatin1(kBrightnessService))
                          .arg(kShowTimeoutMs / 1000));
     });
+#endif
+}
+
+void PatternController::readMonitorBrightness(const QString &direction) {
+#ifndef FISHEYE_ROS_ENABLED
+    Q_UNUSED(direction)
+#else
+    rclcpp::Client<moil_interfaces::srv::GetBrightness>::SharedPtr client;
+    {
+        std::lock_guard<std::mutex> lock(d_->clientMutex);
+        client = d_->getBrightnessClient;
+    }
+    if (!client) return;
+
+    const quint64 generation = d_->generation.load();
+
+    auto request = std::make_shared<moil_interfaces::srv::GetBrightness::Request>();
+    request->direction = direction.toStdString();
+
+    client->async_send_request(
+        request, [this, generation, direction](
+                     rclcpp::Client<moil_interfaces::srv::GetBrightness>::SharedFuture future) {
+            const auto response = future.get();
+            QMetaObject::invokeMethod(this, "applyBrightnessRead", Qt::QueuedConnection,
+                                      Q_ARG(QString, direction), Q_ARG(double, response->brightness),
+                                      Q_ARG(bool, response->success),
+                                      Q_ARG(QString, QString::fromStdString(response->message)),
+                                      Q_ARG(quint64, generation));
+        });
 #endif
 }
 

@@ -668,7 +668,6 @@ Copy the **whole** error, not the last line — the useful part of a CMake error
 src/                     QML app C++: HttpServerProbe (HTTP dots), RosServerProbe (ROS dots),
                          AxisState + AxisController (live axis, jog, stop),
                          CameraController (captures, slots, live preview),
-                         MonitorController (brightness, images, screen mapping),
                          PatternController (render + show a pattern spec),
                          ComputeController (/compute/detect: centres, curves, nodes),
                          CalibrationController (Excel, the cali pipeline, plot series),
@@ -719,7 +718,7 @@ The rest of `docs/` is local-only and does not ship -- `.gitignore` keeps only t
 3. Replace the matching placeholder in the relevant window.
 4. Live data goes on an existing controller singleton, or a new one, as `Q_PROPERTY` / `Q_INVOKABLE`.
 
-There is no `setContextProperty`. C++ types reach QML through `QML_ELEMENT`, which is what lets `qmllint` see them statically. `SubAppWindows`, `HttpServerProbe`, `RosServerProbe`, `AxisController`, `CameraController`, `MonitorController`, `PatternController`, `ComputeController`, `CalibrationController` and `PatternIo` are `QML_SINGLETON` too, so QML calls them directly — `SubAppWindows.openMeasure3d()` — rather than instantiating them.
+There is no `setContextProperty`. C++ types reach QML through `QML_ELEMENT`, which is what lets `qmllint` see them statically. `SubAppWindows`, `HttpServerProbe`, `RosServerProbe`, `AxisController`, `CameraController`, `PatternController`, `ComputeController`, `CalibrationController` and `PatternIo` are `QML_SINGLETON` too, so QML calls them directly — `SubAppWindows.openMeasure3d()` — rather than instantiating them.
 
 ---
 
