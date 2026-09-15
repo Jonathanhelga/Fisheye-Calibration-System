@@ -76,43 +76,17 @@ void CaliCompute::updateAggregationSingleRound(int i) {
 }
 
 // ---- pipeline -------------------------------------------------------------
+// The distance column is always refilled, so a changed base, step or round
+// distance takes effect on the next calculate. Ports update_distance_auto.
 void CaliCompute::calculateResult(int i) {
-    updateSideLayer(i);
-    updateRoundNum(i);
-    remove45SideData(i);
+    calculateResultWithBaseDistance(i, lineEdit(kBaseDistanceField, 250.0));
+}
 
-    clearColumn(i, "ict_avg");
-    updateIctAvg(i);
-    clearColumn(i, "pct_cal");
-    updatePctCal(i);
-
-    // distance: in single-round mode (cb_distance) always fill from the round's
-    // own line-edit; otherwise (re)fill from the global range_0 base only when
-    // the column is empty. Ports update_distance_auto.
-    if (useSingleRoundDistance_) {
-        clearColumn(i, "distance");
-        const double d = lineEdit(QString("lineedit_distance_round_%1").arg(i), 200.0);
-        const int col = colIndex("distance");
-        const int rowsOfLayers = maxLayer(i, 40);
-        for (int layer = 0; layer < rowsOfLayers; ++layer) setCell(i, rowByLayer(layer), col, d);
-    } else if (distanceColumnHasEmpty(i)) {
-        clearColumn(i, "distance");
-        updateDistance(i, lineEdit("lineedit_distance_range_0", 250.0));
-    }
-
-    for (const QString &d : dirs8()) {
-        clearColumn(i, "alpha_" + d);
-        clearColumn(i, "zfl_" + d);
-    }
-    updateAlpha8(i);
-    updateZfl8(i);
-
-    clearColumn(i, "alpha_avg");
-    updateAlphaAvg(i);
-    clearColumn(i, "zfl_avg");
-    updateZflAvg(i);
-
-    updateAggregationSingleRound(i);
+double CaliCompute::roundAggregation(int i) {
+    QVector<double> xs, ys;
+    ictZflXY(i, xs, ys);
+    if (xs.isEmpty() || ys.isEmpty()) return 1e300;
+    return aggregationTotal(xs, ys);
 }
 
 void CaliCompute::computeAll() {
@@ -121,17 +95,14 @@ void CaliCompute::computeAll() {
 }
 
 bool CaliCompute::hasAnyRawIct() const {
-    static const QStringList dirs = {"n", "s", "w", "e", "nw", "se", "sw", "ne"};
-    for (int i = 1; i <= 10; ++i) {
-        if (!hasTable(i)) continue;
-        const int maxLayer = this->maxLayer(i, 0);
-        for (const QString &d : dirs) {
-            const int col = colIndex("ict_" + d);
-            for (int layer = 0; layer < maxLayer; ++layer)
-                if (isFloat(cell(i, rowByLayer(layer), col))) return true;
-        }
-    }
+    for (int i = 1; i <= 10; ++i)
+        if (roundHasRawIct(i)) return true;
     return false;
+}
+
+void CaliCompute::recomputeAllAtBase() {
+    const double base = lineEdit(kBaseDistanceField, 250.0);
+    for (int page = 0; page <= 10; ++page) calculateResultWithBaseDistance(page, base);
 }
 
 namespace {

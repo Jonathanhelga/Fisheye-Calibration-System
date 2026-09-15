@@ -73,7 +73,8 @@ bool runCaliOp(const QString &op, CaliTableData &table, const QString &paramsJso
 
     CaliCompute c(&table);
     applyRoundFlags(c, p);
-    c.setUseSingleRoundDistance(getBool(p, "use_single_round_distance", false));
+    // Per request, like round_enabled: the node holds no session.
+    c.setUseRoundDistances(getBool(p, "use_round_distances", false));
 
     // Only the distance searches report progress; naming the stage here rather than
     // inside CaliCompute keeps the label a presentation concern of the boundary,
@@ -93,9 +94,15 @@ bool runCaliOp(const QString &op, CaliTableData &table, const QString &paramsJso
         return done({});
     }
 
+    // Answers with the round's aggregation, so Aggr Round needs no second op.
     if (op == cali::kCalculateResult) {
         c.calculateResult(round);
-        return done({});
+        bool found = false;
+        const double v = finiteOrZero(c.roundAggregation(round), &found);
+        QJsonObject out;
+        out["found"] = found;
+        out["value"] = v;
+        return done(out);
     }
 
     if (op == cali::kCalculateResultSingleRound) {

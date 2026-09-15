@@ -55,10 +55,13 @@ Rectangle {
     readonly property string negICy: negCenter && negCenter.ok ? String(negCenter.y) : ""
 
     readonly property string aggregation: CalibrationController.aggregationText
-    property string distance: String(CalibrationController.baseDistance)
 
     // readonly: assigning here would destroy the binding.
-    readonly property bool singleDistance: CalibrationController.singleDistance
+    readonly property string baseDistance: String(CalibrationController.baseDistance)
+    readonly property string distanceStep: String(CalibrationController.distanceStep)
+    readonly property var roundDistance: CalibrationController.roundDistances[round]
+                                         ?? ({ formula: "", own: "" })
+    readonly property bool manualRoundDistance: CalibrationController.manualRoundDistance
 
     signal calculateRequested(int round)
     signal aggrRoundRequested(int round)
@@ -186,11 +189,21 @@ Rectangle {
         property bool editable: true
         property int fieldWidth: Math.round(Theme.charUnit * 7)
         property int fieldAlignment: TextInput.AlignLeft
+        property alias validator: valueField.validator
+        property alias placeholderText: valueField.placeholderText
+        property alias allowEmpty: valueField.allowEmpty
+        property string tooltip: ""
 
         signal edited(string value)
 
         Layout.fillWidth: false
         spacing: Theme.labelSpacing
+
+        HoverHandler { id: toolFieldHover }
+
+        ToolTip.visible: toolFieldHover.hovered && toolField.tooltip.length > 0
+        ToolTip.delay: Theme.animSlow
+        ToolTip.text: toolField.tooltip
 
         Label {
             text: toolField.caption
@@ -199,6 +212,8 @@ Rectangle {
         }
 
         ValueField {
+            id: valueField
+
             Layout.preferredWidth: toolField.fieldWidth
             Layout.preferredHeight: Theme.controlHeight
             horizontalAlignment: toolField.fieldAlignment
@@ -293,11 +308,68 @@ Rectangle {
                 editable: false
             }
         }
+        // round distance = base + step × (round − first round with data)
+        Flow {
+            Layout.fillWidth: true
+            Layout.minimumWidth: Math.max(distanceGroup.implicitWidth,
+                                          roundDistanceGroup.implicitWidth)
+            spacing: Theme.spaceMd
+
+            RowLayout {
+                id: distanceGroup
+                spacing: Theme.spaceSm
+
+                ToolField {
+                    caption: qsTr("Base distance:")
+                    value: panel.baseDistance
+                    validator: DecimalValidator { bottom: 0 }
+                    tooltip: qsTr("Distance of the first round that has ICT data, in mm.")
+                    onEdited: (value) => CalibrationController.baseDistance = parseFloat(value)
+                }
+                ToolField {
+                    caption: qsTr("Step:")
+                    value: panel.distanceStep
+                    validator: DecimalValidator {}
+                    tooltip: qsTr("How far the rig moves between rounds, in mm.")
+                    onEdited: (value) => CalibrationController.distanceStep = parseFloat(value)
+                }
+            }
+
+            RowLayout {
+                id: roundDistanceGroup
+
+                spacing: Theme.spaceSm
+                ToolField {
+                    caption: qsTr("Round %1 distance:").arg(panel.round)
+                    editable: panel.manualRoundDistance
+                    value: panel.manualRoundDistance ? panel.roundDistance.own : ""
+                    placeholderText: panel.manualRoundDistance && panel.roundDistance.own !== "" ? "" : panel.roundDistance.formula
+                    validator: DecimalValidator { bottom: 0 }
+                    allowEmpty: true
+                    tooltip: panel.manualRoundDistance
+                             ? qsTr("Type a distance for this round, or leave it empty to use base + step.")
+                             : panel.roundDistance.own !== ""
+                               ? qsTr("Base + step. Your %1 mm is kept and used again when "
+                                    + "Per-round manual set distance is on.")
+                                     .arg(panel.roundDistance.own)
+                               : qsTr("Base + step.")
+                    onEdited: (value) => CalibrationController.setRoundDistance(panel.round, value)
+                }
+
+                PatternToggleSwitch {
+                    text: qsTr("Per-round manual set distance")
+                    checked: panel.manualRoundDistance
+                    onToggled: (value) => CalibrationController.manualRoundDistance = value
+                    tooltip: qsTr("On: type a distance per round. Off: every round uses "
+                                + "base + step, and typed distances are kept for later.")
+                }
+            }
+        }
 
         Flow {
             Layout.fillWidth: true
             Layout.minimumWidth: Math.max(centreGroup.implicitWidth,
-                                          distanceGroup.implicitWidth,
+                                          aggregationField.implicitWidth,
                                           actionGroup.implicitWidth)
             spacing: Theme.spaceMd
 
@@ -312,31 +384,13 @@ Rectangle {
                 ToolField { caption: qsTr("neg_iCy:"); value: panel.negICy; editable: false }
             }
 
-            RowLayout {
-                id: distanceGroup
+            ToolField {
+                id: aggregationField
 
-                spacing: Theme.spaceSm
-
-                ToolField {
-                    caption: qsTr("Aggregation:")
-                    fieldWidth: Math.round(Theme.charUnit * 12)
-                    value: panel.aggregation
-                    editable: false
-                }
-                ToolField {
-                    caption: qsTr("Distance:")
-                    value: panel.distance
-                    onEdited: (value) => {
-                        CalibrationController.baseDistance = parseFloat(value)
-                    }
-                }
-
-                PatternToggleSwitch {
-                    text: qsTr("Per-round distance")
-                    checked: panel.singleDistance
-                    onToggled: (value) => CalibrationController.singleDistance = value
-                    tooltip: qsTr("Give each round its own distance instead of deriving every round from one base value.")
-                }
+                caption: qsTr("Aggregation:")
+                fieldWidth: Math.round(Theme.charUnit * 12)
+                value: panel.aggregation
+                editable: false
             }
 
             RowLayout {

@@ -33,8 +33,6 @@ Rectangle {
     readonly property string iCx: posCenter && posCenter.ok ? String(posCenter.x) : ""
     readonly property string iCy: posCenter && posCenter.ok ? String(posCenter.y) : ""
 
-    readonly property string distancePerRound: panel.field("lineedit_dis_per_round")
-
     // Blank means not set, not broken.
     function field(name) {
         const value = CalibrationController.fields[name]
@@ -526,15 +524,7 @@ Rectangle {
 
                             SectionTitle { text: qsTr("Configuration") }
 
-                            ParamField {
-                                caption: qsTr("Distance / Round")
-                                unit: qsTr("px")
-                                value: panel.distancePerRound
-                                // A pipeline field; it travels with the table.
-                                onEdited: (value) =>
-                                    CalibrationController.setField("lineedit_dis_per_round", value)
-                            }
-
+                            // Base, step and round distances are on the Data tab.
                             ActionButton {
                                 Layout.fillWidth: true
                                 text: qsTr("Save Configuration")
@@ -542,7 +532,7 @@ Rectangle {
 
                                 ToolTip.visible: hovered
                                 ToolTip.delay: Theme.animSlow
-                                ToolTip.text: qsTr("Write the calibration system and distance per round to main.json.")
+                                ToolTip.text: qsTr("Write the calibration system and the Data tab's distances to main.json.")
                             }
                         }
                     }

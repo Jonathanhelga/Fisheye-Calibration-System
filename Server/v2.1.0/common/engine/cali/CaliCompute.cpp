@@ -183,32 +183,45 @@ void CaliCompute::updatePctCal(int i) {
     }
 }
 
-bool CaliCompute::distanceColumnHasEmpty(int i) const {
-    if (!hasTable(i)) return true;
-    const int col = colIndex("distance");
-    const int rows = src_->rowCount(i);
-    for (int row = 0; row < rows; ++row)
-        if (cell(i, row, col).trimmed().isEmpty()) return true;
+bool CaliCompute::ownRoundDistance(int i, double *out) const {
+    const QString name = roundDistanceField(i);
+    if (!useRoundDistances_ || !src_ || !src_->hasField(name)) return false;
+    const double v = src_->field(name, std::nan(""));
+    if (!std::isfinite(v)) return false;
+    *out = v;
+    return true;
+}
+
+bool CaliCompute::roundHasRawIct(int i) const {
+    if (!hasTable(i)) return false;
+    const int maxLayer = this->maxLayer(i, 0);
+    for (const QString &d : dirs8()) {
+        const int col = colIndex("ict_" + d);
+        for (int layer = 0; layer < maxLayer; ++layer)
+            if (isFloat(cell(i, rowByLayer(layer), col))) return true;
+    }
     return false;
 }
 
-int CaliCompute::firstRoundHasIct() const {
-    for (int r = 0; r <= 10; ++r) {
-        QVector<double> xs, ys;
-        const_cast<CaliCompute *>(this)->ictZflXY(r, xs, ys);
-        if (!xs.isEmpty()) return r;
-    }
+// Raw ICT, not ict_avg, so the anchor does not depend on which round was
+// calculated first.
+int CaliCompute::firstRoundWithRawIct() const {
+    for (int r = 0; r <= 10; ++r)
+        if (roundHasRawIct(r)) return r;
     return -1;
 }
 
 void CaliCompute::updateDistance(int i, double baseDistance) {
     if (!hasTable(i)) return;
-    const int firstValid = firstRoundHasIct();
-    if (firstValid < 0 || i < firstValid) return;
-    double rv = 0;
-    if (!isFloat(cell(i, rowByLayer(-1), colIndex("round")), &rv)) return;
-    const double disPerRound = lineEdit("lineedit_dis_per_round", 10.0);
-    const double distance = baseDistance + disPerRound * (rv - firstValid);
+    double distance = 0;
+    if (!ownRoundDistance(i, &distance)) {
+        const int firstValid = firstRoundWithRawIct();
+        if (firstValid < 0 || i < firstValid) return;
+        double rv = 0;
+        if (!isFloat(cell(i, rowByLayer(-1), colIndex("round")), &rv)) return;
+        const double disPerRound = lineEdit(kDistanceStepField, 10.0);
+        distance = baseDistance + disPerRound * (rv - firstValid);
+    }
     const int col = colIndex("distance");
     const int maxLayer = this->maxLayer(i, 0);
     for (int layer = 0; layer < maxLayer; ++layer) setCell(i, rowByLayer(layer), col, distance);

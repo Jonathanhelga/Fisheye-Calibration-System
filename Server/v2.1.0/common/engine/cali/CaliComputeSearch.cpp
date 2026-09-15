@@ -52,10 +52,7 @@ void CaliCompute::calculateResultSingleRound(int i, double distance) {
 
 double CaliCompute::aggregationByDistance(int i, double distance) {
     calculateResultSingleRound(i, distance);
-    QVector<double> xs, ys;
-    ictZflXY(i, xs, ys);
-    if (xs.isEmpty() || ys.isEmpty()) return 1e300;
-    return aggregationTotal(xs, ys);
+    return roundAggregation(i);
 }
 
 void CaliCompute::calculateResultWithBaseDistance(int i, double baseDistance) {
@@ -67,7 +64,7 @@ void CaliCompute::calculateResultWithBaseDistance(int i, double baseDistance) {
     clearColumn(i, "pct_cal");
     updatePctCal(i);
     clearColumn(i, "distance");
-    updateDistance(i, baseDistance);  // base + dis_per_round*(round - firstValid)
+    updateDistance(i, baseDistance);  // own distance, else base + step*(round - first)
     for (const QString &d : dirs8()) { clearColumn(i, "alpha_" + d); clearColumn(i, "zfl_" + d); }
     updateAlpha8(i);
     updateZfl8(i);
@@ -134,7 +131,7 @@ CaliCompute::MinAggr CaliCompute::findMinAggregationInWindow(bool useWindow, dou
         const double lo = std::max(DLO, r.bestDistance - half);
         const double hi = std::min(DHI, r.bestDistance + half);
         for (int i = 0; i <= 60; ++i) {
-            if (progress_ && !progress_(121 + i, 182)) break;
+            if (progress_ && !progress_(121 + i, 182)) { canceled = true; break; }
             const double d = lo + (hi - lo) * (i / 60.0);
             const double a = probe(d);
             if (!std::isfinite(a)) continue;
@@ -142,6 +139,9 @@ CaliCompute::MinAggr CaliCompute::findMinAggregationInWindow(bool useWindow, dou
             if (a < r.bestAggr) { r.bestAggr = a; r.bestDistance = d; }
         }
     }
+    if (!canceled && r.bestAggr < 1e299 && src_)
+        src_->setFieldText(kBaseDistanceField, numText(r.bestDistance));
+    recomputeAllAtBase();
     return r;
 }
 
@@ -170,7 +170,7 @@ CaliCompute::MinAggr CaliCompute::findDistanceForTargetAggregation(double target
         const double half = std::max((DHI - DLO) * 0.02, 5.0);
         const double lo = std::max(DLO, bestD - half), hi = std::min(DHI, bestD + half);
         for (int i = 0; i <= 80; ++i) {
-            if (progress_ && !progress_(201 + i, 282)) break;
+            if (progress_ && !progress_(201 + i, 282)) { canceled = true; break; }
             const double d = lo + (hi - lo) * (i / 80.0);
             const double a = probe(d);
             if (!std::isfinite(a)) continue;
@@ -183,6 +183,8 @@ CaliCompute::MinAggr CaliCompute::findDistanceForTargetAggregation(double target
         r.bestDistance = bestD;
         r.bestAggr = bestA;
     }
+    if (any && !canceled && src_) src_->setFieldText(kBaseDistanceField, numText(bestD));
+    recomputeAllAtBase();
     return r;
 }
 
@@ -219,8 +221,9 @@ CaliCompute::MinAggr CaliCompute::findMinAggrSingleRound(int i, double distMin, 
     MinAggr r;
     long a = std::max<long>(250, long(distMin));
     long b = long(distMax);
+    bool canceled = false;
     for (int it = 0; it < maxIter; ++it) {
-        if (progress_ && !progress_(it, maxIter)) break;
+        if (progress_ && !progress_(it, maxIter)) { canceled = true; break; }
         if (b - a <= tol) break;
         const long m1 = a + (b - a) / 3;
         const long m2 = b - (b - a) / 3;
@@ -233,5 +236,8 @@ CaliCompute::MinAggr CaliCompute::findMinAggrSingleRound(int i, double distMin, 
         if (f1 < f2) b = m2 - 1;
         else a = m1 + 1;
     }
+    if (!canceled && r.bestAggr < 1e299 && src_)
+        src_->setFieldText(roundDistanceField(i), numText(r.bestDistance));
+    calculateResult(i);
     return r;
 }

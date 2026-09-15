@@ -9,6 +9,10 @@ Rectangle {
     property alias validator: input.validator
     property alias horizontalAlignment: input.horizontalAlignment
     property bool editable: false
+    // Grey text shown while empty.
+    property string placeholderText: ""
+    // Clearing emits "" despite the validator.
+    property bool allowEmpty: false
 
     signal edited(string value)
     signal moveFocusRequested(int delta)
@@ -76,12 +80,26 @@ Rectangle {
         Keys.onDownPressed:   (event) => { event.accepted = true; field.moveFocusRequested(1) }
         Keys.onUpPressed:     (event) => { event.accepted = true; field.moveFocusRequested(-1) }
 
-        onTextEdited: if (acceptableInput) field.edited(text)
+        onTextEdited: {
+            if (acceptableInput || (field.allowEmpty && text.length === 0))
+                field.edited(text)
+        }
         onActiveFocusChanged: {
             if (!activeFocus) {
                 field.forceSync()
                 cursorPosition = 0
             }
         }
+    }
+
+    Text {
+        anchors.fill: input
+        visible: input.text.length === 0 && field.placeholderText.length > 0
+        text: field.placeholderText
+        color: Theme.textCaption
+        font: input.font
+        horizontalAlignment: input.horizontalAlignment
+        verticalAlignment: input.verticalAlignment
+        elide: Text.ElideRight
     }
 }

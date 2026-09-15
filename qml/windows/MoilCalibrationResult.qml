@@ -55,10 +55,6 @@ Window {
     property alias view: viewSelector.currentIndex
     property alias round: dataPanel.round
 
-    // Alias; the toggle moved into the Data panel.
-    property alias singleDistance: dataPanel.singleDistance
-
-
     signal browseRequested()
     signal loadAllExcelRequested()
     signal loadExcelRequested()
@@ -95,11 +91,19 @@ Window {
     }
 
     function configurationDocument() {
+        // Only rounds with their own distance.
+        const own = {}
+        const distances = CalibrationController.roundDistances
+        for (let r = 0; r < distances.length; ++r)
+            if (distances[r].own !== "")
+                own[String(r)] = parseFloat(distances[r].own)
+
         return {
             "calibration_system": caliSystemCombo.currentText,
-            "distance_per_round": parseFloat(parameterPanel.distancePerRound) || 0,
+            "distance_per_round": CalibrationController.distanceStep,
             "base_distance": CalibrationController.baseDistance,
-            "single_distance": CalibrationController.singleDistance
+            "manual_round_distance": CalibrationController.manualRoundDistance,
+            "round_distances": own
         }
     }
 
@@ -698,9 +702,13 @@ Window {
             parts.push(qsTr("R%1: %2").arg(done[i].round).arg(done[i].distance.toFixed(1)))
 
         // Partial is reported as partial.
+        // Off, the stored results are not used.
+        const unused = CalibrationController.manualRoundDistance
+                       ? "" : " " + qsTr("Saved as each round's own distance; turn on "
+                                         + "Per-round manual set distance to use them.")
         toast.show((cancelled ? qsTr("Stopped after %1 round(s) -- ")
                               : qsTr("Best distance per round -- ")).arg(done.length)
-                   + parts.join(", "), cancelled)
+                   + parts.join(", ") + unused, cancelled)
     }
 
     Connections {

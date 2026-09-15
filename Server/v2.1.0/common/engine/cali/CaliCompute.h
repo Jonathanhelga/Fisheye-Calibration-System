@@ -38,15 +38,23 @@ public:
     // false to cancel. Set to nullptr to disable. Used by the distance searches.
     void setProgress(std::function<bool(int, int)> cb) { progress_ = std::move(cb); }
 
-    // cb_distance mode: when true, computeAll fills each round's distance from
-    // its per-round line-edit (lineedit_distance_round_i) instead of the global
-    // base + dis_per_round formula. Ports _is_use_single_round_distance.
-    void setUseSingleRoundDistance(bool on) { useSingleRoundDistance_ = on; }
+    // Distance fields. A round's own distance, when set and use_round_distances
+    // is on, wins over base + step * (round - first round with raw ICT). Off,
+    // every round uses the formula and own distances stay stored, unused.
+    void setUseRoundDistances(bool on) { useRoundDistances_ = on; }
+    static constexpr const char *kBaseDistanceField = "lineedit_distance_range_0";
+    static constexpr const char *kDistanceStepField = "lineedit_dis_per_round";
+    static QString roundDistanceField(int round) {
+        return QStringLiteral("lineedit_distance_round_%1").arg(round);
+    }
 
     // calculate_result(table_index): side_layer, round_num, remove 45deg side
-    // data, ict_avg, pct_cal, distance (fill only if empty), alpha/zfl 8-dir,
-    // alpha_avg/zfl_avg, aggregation line-edit.
+    // data, ict_avg, pct_cal, distance, alpha/zfl 8-dir, alpha_avg/zfl_avg,
+    // aggregation line-edit. The base comes from kBaseDistanceField.
     void calculateResult(int tableIndex);
+
+    // Aggregation of a round as its table stands (INF if no data).
+    double roundAggregation(int tableIndex);
 
     // onclick_btn_update_all_cali_result: compute rounds 1..10.
     void computeAll();
@@ -101,12 +109,14 @@ public:
         QVector<QPointF> samples;  // (distance, aggregation) probed during search
     };
     // Ternary search over [max(250,distMin), distMax] minimising aggregation.
-    // Ports find_min_aggr_single_round.
+    // Ports find_min_aggr_single_round. A finished search stores the best as the
+    // round's own distance; either way the round is recomputed at its configured
+    // distance, so the table is never left at the last probe.
     MinAggr findMinAggrSingleRound(int tableIndex, double distMin, double distMax,
                                    int maxIter = 30, double tol = 1);
 
-    // Recompute a round like calculateResult but always fill the distance column
-    // from an explicit base (distance = base + dis_per_round*(round-firstValid)).
+    // Recompute a round like calculateResult with an explicit base. A round with
+    // its own distance keeps it.
     void calculateResultWithBaseDistance(int tableIndex, double baseDistance);
 
     // Aggregation of ALL rounds' combined (ict, zfl) points when the base
@@ -124,12 +134,15 @@ public:
 
     // Search distance in [1,500] minimising the cross-round aggregation
     // (optionally within the ict window [xLo,xHi]). Ports
-    // find_min_aggregation_by_lineedit. Coarse sweep + local refine.
+    // find_min_aggregation_by_lineedit. Coarse sweep + local refine. A finished
+    // search stores the best as the base; every round is then recomputed at the
+    // configured base.
     MinAggr findMinAggregationInWindow(bool useWindow, double xLo = 0, double xHi = 0);
 
     // Search distance in [1,500] whose cross-round aggregation is CLOSEST to
     // `target` (not the minimum): 201 coarse probes then 81 in a +/-5 window
     // around the best. bestAggr is the aggregation reached, not the error.
+    // Stores and recomputes like findMinAggregationInWindow.
     //
     // Lives here rather than in the controller that used to hold the loop, because
     // each probe recomputes all 11 rounds -- ~282 of them. Driving that from the
@@ -170,7 +183,7 @@ private:
     CaliDataSource *src_;
     bool roundEnabled_[11] = {true, true, true, true, true, true,
                               true, true, true, true, true};
-    bool useSingleRoundDistance_ = false;
+    bool useRoundDistances_ = false;
     std::function<bool(int, int)> progress_;
 
     bool hasTable(int i) const { return src_ && src_->hasRound(i); }
@@ -201,8 +214,10 @@ private:
     void updateIctAvg(int i);
     void updatePctCal(int i);
     void updateDistance(int i, double baseDistance);
-    bool distanceColumnHasEmpty(int i) const;
-    int firstRoundHasIct() const;
+    bool ownRoundDistance(int i, double *out) const;
+    bool roundHasRawIct(int i) const;
+    int firstRoundWithRawIct() const;
+    void recomputeAllAtBase();
     void updateAlpha8(int i);
     void updateZfl8(int i);
     void updateAlphaAvg(int i);

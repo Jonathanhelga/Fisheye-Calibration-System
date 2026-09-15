@@ -74,8 +74,6 @@ bool isSearchOp(const QString &op) {
 void applyEnabled(CaliCompute &cc, const QJsonObject &params) {
     const QJsonArray en = params.value(QStringLiteral("enabled")).toArray();
     for (int i = 0; i < en.size() && i <= 10; ++i) cc.setRoundEnabled(i, en.at(i).toBool(true));
-    cc.setUseSingleRoundDistance(
-        params.value(QStringLiteral("use_single_round_distance")).toBool(false));
 }
 
 }  // namespace

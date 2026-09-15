@@ -12,6 +12,7 @@
 #include <QTimer>
 
 #include <atomic>
+#include <cmath>
 #include <mutex>
 #include <thread>
 
@@ -58,6 +59,25 @@ constexpr int kColZflAvg = 34;
 
 // The rig finds the side layer by this.
 const QString kSideMark = QStringLiteral("*");
+
+// Distance field names, mirrored from CaliCompute.h.
+const QString kBaseDistanceField = QStringLiteral("lineedit_distance_range_0");
+const QString kDistanceStepField = QStringLiteral("lineedit_dis_per_round");
+constexpr double kDefaultBaseDistance = 250.0;
+constexpr double kDefaultDistanceStep = 10.0;
+
+QString roundDistanceField(int round) {
+    return QStringLiteral("lineedit_distance_round_%1").arg(round);
+}
+
+// Parsed like CaliTableData::field: trimmed and finite.
+bool parseNumber(const QString &text, double *out) {
+    bool ok = false;
+    const double v = text.trimmed().toDouble(&ok);
+    if (!ok || !std::isfinite(v)) return false;
+    *out = v;
+    return true;
+}
 
 // The eight directions in table column order.
 const QStringList &dirs8() {
@@ -345,15 +365,87 @@ void CalibrationController::setFolder(const QString &path) {
     emit folderChanged();
 }
 
-void CalibrationController::setSingleDistance(bool on) {
-    if (singleDistance_ == on) return;
-    singleDistance_ = on;
-    emit optionsChanged();
+double CalibrationController::numberField(const QString &name, double fallback) const {
+    double v = fallback;
+    parseNumber(table_.value(QStringLiteral("fields")).toObject().value(name).toString(), &v);
+    return v;
+}
+
+double CalibrationController::baseDistance() const {
+    return numberField(kBaseDistanceField, kDefaultBaseDistance);
 }
 
 void CalibrationController::setBaseDistance(double distance) {
-    if (qFuzzyCompare(baseDistance_, distance)) return;
-    baseDistance_ = distance;
+    if (!std::isfinite(distance) || distance == baseDistance()) return;
+    setField(kBaseDistanceField, QString::number(distance, 'g', 15));
+}
+
+double CalibrationController::distanceStep() const {
+    return numberField(kDistanceStepField, kDefaultDistanceStep);
+}
+
+void CalibrationController::setDistanceStep(double step) {
+    if (!std::isfinite(step) || step == distanceStep()) return;
+    setField(kDistanceStepField, QString::number(step, 'g', 15));
+}
+
+void CalibrationController::setRoundDistance(int round, const QString &value) {
+    if (round < 0 || round > 10) return;
+    double v = 0;
+    const QString text = value.trimmed();
+    if (!text.isEmpty() && !parseNumber(text, &v)) return;
+    setField(roundDistanceField(round), text);
+}
+
+// Walks stored cells only; the table is sparse.
+bool CalibrationController::roundHasRawIct(int round) const {
+    const QJsonObject cells = table_.value(QStringLiteral("rounds"))
+                                  .toObject()
+                                  .value(QString::number(round))
+                                  .toObject()
+                                  .value(QStringLiteral("cells"))
+                                  .toObject();
+    for (auto rowIt = cells.constBegin(); rowIt != cells.constEnd(); ++rowIt) {
+        const int row = rowIt.key().toInt();
+        if (row < kFirstDataRow || row >= kRows) continue;
+        const QJsonObject line = rowIt.value().toObject();
+        for (int d = 0; d < 8; ++d) {
+            double v = 0;
+            if (parseNumber(line.value(QString::number(ictCol(d))).toString(), &v)) return true;
+        }
+    }
+    return false;
+}
+
+// Mirrors CaliCompute::updateDistance.
+QVariantList CalibrationController::roundDistances() const {
+    int first = -1;
+    for (int r = 0; r <= 10 && first < 0; ++r)
+        if (roundHasRawIct(r)) first = r;
+
+    const QJsonObject fields = table_.value(QStringLiteral("fields")).toObject();
+    const double base = baseDistance();
+    const double step = distanceStep();
+
+    QVariantList out;
+    for (int round = 0; round <= 10; ++round) {
+        QVariantMap entry;
+        entry[QStringLiteral("formula")] =
+            (first < 0 || round < first) ? QString()
+                                         : QString::number(base + step * (round - first), 'g', 15);
+        double own = 0;
+        entry[QStringLiteral("own")] =
+            parseNumber(fields.value(roundDistanceField(round)).toString(), &own)
+                ? QString::number(own, 'g', 15)
+                : QString();
+        out.append(entry);
+    }
+    return out;
+}
+
+void CalibrationController::setManualRoundDistance(bool on) {
+    if (manualRoundDistance_ == on) return;
+    manualRoundDistance_ = on;
     emit optionsChanged();
 }
 
@@ -367,7 +459,7 @@ void CalibrationController::setRegressionDegree(int degree) {
 QString CalibrationController::paramsJson(int round, const QJsonObject &extra) const {
     QJsonObject p = extra;
     p[QStringLiteral("round")] = round;
-    p[QStringLiteral("use_single_round_distance")] = singleDistance_;
+    p[QStringLiteral("use_round_distances")] = manualRoundDistance_;
 
     QJsonArray enabled;
     for (const QVariant &v : roundEnabled_) enabled.append(v.toBool());
@@ -549,12 +641,25 @@ void CalibrationController::clearTable(int round) {
     rounds[QString::number(round)] = r;
     table_[QStringLiteral("rounds")] = rounds;
 
-    bumpVersion(round);
+    // Its own distance belonged to the data.
+    QJsonObject fields = table_.value(QStringLiteral("fields")).toObject();
+    if (fields.contains(roundDistanceField(round))) {
+        fields.remove(roundDistanceField(round));
+        table_[QStringLiteral("fields")] = fields;
+        bumpVersion();
+    } else {
+        bumpVersion(round);
+    }
     emit notice(tr("Round %1 cleared").arg(round));
 }
 
 void CalibrationController::clearAllTables() {
+    // Rig settings survive; round distances do not.
+    QJsonObject fields = table_.value(QStringLiteral("fields")).toObject();
+    for (int r = 0; r <= 10; ++r) fields.remove(roundDistanceField(r));
+
     table_ = QJsonObject();
+    table_[QStringLiteral("fields")] = fields;
     for (int r = 0; r <= 10; ++r) ensureRound(r);
 
     loadStatus_ = ProbeStatus::Unknown;
@@ -714,10 +819,13 @@ void CalibrationController::applyCaliOp(const QString &op, int round, bool ok,
         return;
     }
 
-    if (op == QLatin1String("calculate_result") ||
-        op == QLatin1String("calculate_result_single_round") ||
-        op == QLatin1String("calculate_result_with_base_distance")) {
-        emit notice(tr("Round %1 computed").arg(round));
+    if (op == QLatin1String("calculate_result")) {
+        const bool found = r.value(QStringLiteral("found")).toBool(false);
+        aggregationText_ = found ? QString::number(r.value(QStringLiteral("value")).toDouble(), 'f', 4)
+                                 : tr("no data");
+        emit resultChanged();
+        emit notice(found ? tr("Round %1 computed, aggregation %2").arg(round).arg(aggregationText_)
+                          : tr("Round %1 computed, nothing to aggregate yet").arg(round));
         updateSeries();
         return;
     }
@@ -734,25 +842,14 @@ void CalibrationController::computeAll() {
     sendCaliOp(QStringLiteral("compute_all"), 0, {}, tr("recomputing every round"));
 }
 
+// The rig reads every distance from the table's fields.
 void CalibrationController::calculateRound(int round) {
-    if (singleDistance_) {
-        QJsonObject extra;
-        extra[QStringLiteral("distance")] = baseDistance_;
-        sendCaliOp(QStringLiteral("calculate_result_single_round"), round, extra,
-                   tr("computing round %1").arg(round));
-        return;
-    }
-
-    QJsonObject extra;
-    extra[QStringLiteral("base_distance")] = baseDistance_;
-    sendCaliOp(QStringLiteral("calculate_result_with_base_distance"), round, extra,
+    sendCaliOp(QStringLiteral("calculate_result"), round, {},
                tr("computing round %1").arg(round));
 }
 
 void CalibrationController::aggregationForRound(int round) {
-    QJsonObject extra;
-    extra[QStringLiteral("distance")] = baseDistance_;
-    sendCaliOp(QStringLiteral("aggregation_by_distance"), round, extra,
+    sendCaliOp(QStringLiteral("calculate_result"), round, {},
                tr("aggregating round %1").arg(round));
 }
 
@@ -773,7 +870,7 @@ void CalibrationController::sendNextBand() {
 
 void CalibrationController::aggregationAllRounds(bool useRange, double xLo, double xHi) {
     QJsonObject extra;
-    extra[QStringLiteral("base_distance")] = baseDistance_;
+    extra[QStringLiteral("base_distance")] = baseDistance();
     extra[QStringLiteral("use_range")] = useRange;
     extra[QStringLiteral("x_lo")] = xLo;
     extra[QStringLiteral("x_hi")] = xHi;
@@ -1120,8 +1217,8 @@ void CalibrationController::applySearchResult(bool ok, bool cancelled, const QSt
 
     setLastError(QString());
     emit searchChanged();
+    // The rig already stored the answer in the table's fields.
     emit notice(searchSummary_);
-    if (found && !cancelled) setBaseDistance(bestDistance_);
 }
 
 void CalibrationController::cancelSearch() {

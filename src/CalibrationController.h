@@ -69,8 +69,14 @@ class CalibrationController : public QObject {
     Q_PROPERTY(QVariantList roundPoints READ roundPoints NOTIFY roundPointsChanged)
     Q_PROPERTY(int roundPointsRound READ roundPointsRound NOTIFY roundPointsChanged)
 
-    Q_PROPERTY(bool singleDistance READ singleDistance WRITE setSingleDistance NOTIFY optionsChanged)
-    Q_PROPERTY(double baseDistance READ baseDistance WRITE setBaseDistance NOTIFY optionsChanged)
+    // Distances live in the table's fields.
+    Q_PROPERTY(double baseDistance READ baseDistance WRITE setBaseDistance NOTIFY tableChanged)
+    Q_PROPERTY(double distanceStep READ distanceStep WRITE setDistanceStep NOTIFY tableChanged)
+    // Per round: {formula, own}; blank when absent.
+    Q_PROPERTY(QVariantList roundDistances READ roundDistances NOTIFY tableChanged)
+    // Off: own distances are kept but unused.
+    Q_PROPERTY(bool manualRoundDistance READ manualRoundDistance WRITE setManualRoundDistance
+                   NOTIFY optionsChanged)
     Q_PROPERTY(int regressionDegree READ regressionDegree WRITE setRegressionDegree
                    NOTIFY optionsChanged)
 
@@ -119,10 +125,13 @@ public:
     QVariantList roundPoints() const { return roundPoints_; }
     int roundPointsRound() const { return roundPointsRound_; }
 
-    bool singleDistance() const { return singleDistance_; }
-    void setSingleDistance(bool on);
-    double baseDistance() const { return baseDistance_; }
+    double baseDistance() const;
     void setBaseDistance(double distance);
+    double distanceStep() const;
+    void setDistanceStep(double step);
+    QVariantList roundDistances() const;
+    bool manualRoundDistance() const { return manualRoundDistance_; }
+    void setManualRoundDistance(bool on);
     int regressionDegree() const { return degree_; }
     void setRegressionDegree(int degree);
 
@@ -134,6 +143,8 @@ public:
     Q_INVOKABLE void setSideLayer(int round, int layer);
     Q_INVOKABLE void setRoundEnabled(int round, bool enabled);
     Q_INVOKABLE void setField(const QString &name, const QString &value);
+    // Blank returns the round to the formula.
+    Q_INVOKABLE void setRoundDistance(int round, const QString &value);
     Q_INVOKABLE void clearTable(int round);
     Q_INVOKABLE void clearAllTables();
 
@@ -238,6 +249,8 @@ private:
 
     void setCell(int round, int row, int col, const QString &text);
     QString cell(int round, int row, int col) const;
+    double numberField(const QString &name, double fallback) const;
+    bool roundHasRawIct(int round) const;
     void ensureRound(int round);
 
     ProbeStatus::Status status_ = ProbeStatus::Unknown;
@@ -277,8 +290,7 @@ private:
     int bandsFound_ = 0;
     int bandsRemoved_ = 0;
 
-    bool singleDistance_ = false;
-    double baseDistance_ = 250.0;
+    bool manualRoundDistance_ = false;
     int degree_ = 4;
 
     // Which rounds a load-all is still awaiting.
