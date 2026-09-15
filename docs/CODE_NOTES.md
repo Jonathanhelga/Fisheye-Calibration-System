@@ -335,6 +335,20 @@ As the old client's Update Table did.
 The op writes the PCT and the eight ICT columns and nothing else, so without the recompute the round shows raw measurements while every derived column (`ict_avg`, `pct_cal`, `distance`, `alpha`, ZFL) still holds the previous round's numbers or is blank.
 One press, one finished round.
 
+### Aggr Round sends the distance itself
+
+*Aggr Round N* sends `aggregation_by_distance` with the distance the *Round N distance* field shows: the typed value when *Per-round manual set distance* is on and one is typed, otherwise base + step.
+It does not send `calculate_result` and leave the rig to pick the distance.
+
+Changed 2026-09-15.
+Commit `3761672` switched it to `calculate_result`, which answers with an aggregation only on a server built from that commit.
+The rig still ran the build before it, whose `calculate_result` replies with an empty result and ignores `use_round_distances` and `lineedit_distance_round_N`.
+The button then showed "no data", and a typed 200 computed at base + step, 250.
+Nothing was logged, because the old server answered successfully.
+
+`aggregation_by_distance` fills the Distance column with the number it is given and answers `found`/`value` on both server builds, so the button works whichever one the rig runs.
+If no distance can be shown, because no round has raw ICT yet, the button reports that instead of sending a request.
+
 ### The distance searches (CaliJob) are the only cancellable work
 
 Everything else in this window is a plain service that finishes on the rig whatever the client does.

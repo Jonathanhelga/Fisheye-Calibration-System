@@ -766,6 +766,7 @@ void CalibrationController::applyCaliOp(const QString &op, int round, bool ok,
         emit resultChanged();
         emit notice(found ? tr("Round %1 aggregation: %2").arg(round).arg(aggregationText_)
                           : tr("Round %1 has nothing to aggregate yet").arg(round));
+        updateSeries();
         return;
     }
 
@@ -848,8 +849,24 @@ void CalibrationController::calculateRound(int round) {
                tr("computing round %1").arg(round));
 }
 
+// The distance the Round N distance field shows.
 void CalibrationController::aggregationForRound(int round) {
-    sendCaliOp(QStringLiteral("calculate_result"), round, {},
+    if (round < 0 || round > 10) return;
+    const QVariantMap entry = roundDistances().value(round).toMap();
+    const QString own = entry.value(QStringLiteral("own")).toString();
+    const QString text = manualRoundDistance_ && !own.isEmpty()
+                             ? own
+                             : entry.value(QStringLiteral("formula")).toString();
+    double distance = 0;
+    if (!parseNumber(text, &distance)) {
+        setLastError(tr("round %1 has no distance yet -- type one, or fill a round's ICT first")
+                         .arg(round));
+        return;
+    }
+
+    QJsonObject extra;
+    extra[QStringLiteral("distance")] = distance;
+    sendCaliOp(QStringLiteral("aggregation_by_distance"), round, extra,
                tr("aggregating round %1").arg(round));
 }
 
