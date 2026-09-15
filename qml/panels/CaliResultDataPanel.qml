@@ -122,7 +122,7 @@ Rectangle {
         readonly property int spacing:      Theme.spaceXs
         readonly property int layerWidth:   Math.round(Theme.charUnit * 5)
         readonly property int pctWidth:     Math.round(Theme.charUnit * 6)
-        readonly property int ictWidth:     Math.round(Theme.charUnit * 6)
+        readonly property int ictWidth:     Math.round(Theme.charUnit * 10)
         readonly property int coreWidth:    Math.round(Theme.charUnit * 8)
         readonly property int alphaWidth:   Math.round(Theme.charUnit * 6)
         readonly property int zflWidth:     Math.round(Theme.charUnit * 7)

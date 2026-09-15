@@ -18,7 +18,7 @@ RowLayout {
 
     property int layerWidth:   Math.round(Theme.charUnit * 5)
     property int pctWidth:     Math.round(Theme.charUnit * 6)
-    property int ictWidth:     Math.round(Theme.charUnit * 6)
+    property int ictWidth:     Math.round(Theme.charUnit * 10)
     property int coreWidth:    Math.round(Theme.charUnit * 8)
     property int alphaWidth:   Math.round(Theme.charUnit * 6)
     property int zflWidth:     Math.round(Theme.charUnit * 7)
