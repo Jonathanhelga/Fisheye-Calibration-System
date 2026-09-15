@@ -121,7 +121,7 @@ int CaliCompute::startInWhichLayer(int i) const {
 
 void CaliCompute::updateSideLayer(int i) {
     int side = startInWhichLayer(i);
-    if (side == -1) side = 40;
+    if (side == -1) side = kTopLayers;
     setCell(i, rowByLayer(-1), colIndex("side"), numText(side));
 }
 
@@ -130,7 +130,7 @@ void CaliCompute::updateRoundNum(int i) {
 }
 
 int CaliCompute::sideLayer(int i) const {
-    double v = 40;
+    double v = kTopLayers;
     isFloat(cell(i, rowByLayer(-1), colIndex("side")), &v);
     return int(v);
 }

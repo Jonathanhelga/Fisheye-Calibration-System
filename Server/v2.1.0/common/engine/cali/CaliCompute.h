@@ -190,6 +190,7 @@ private:
     double lineEdit(const QString &name, double def) const;
 
     // side / metadata
+    static constexpr int kTopLayers = 25;    // TOP rings; unmarked side starts here
     int startInWhichLayer(int i) const;      // layer with '*' in round col, else -1
     void updateSideLayer(int i);             // write side_layer to row 1
     void updateRoundNum(int i);              // write i to row 1 round col

@@ -31,7 +31,7 @@ Rectangle {
     readonly property int sideLayer: round < sideLayers.length ? sideLayers[round]
                                                               : noSideLayer
     // The rig's fallback when unmarked.
-    readonly property int defaultSideLayer: 40
+    readonly property int defaultSideLayer: 25
     readonly property int sideStartLayer: sideLayer === noSideLayer ? defaultSideLayer : sideLayer
 
     readonly property bool roundHasData: {

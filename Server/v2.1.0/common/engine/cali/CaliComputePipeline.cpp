@@ -489,11 +489,10 @@ void CaliCompute::updateTableFromCapture(int i, const QVector<QString> &pctList,
     // the "*" take the TOP pattern in order; from the "*" (sideStartLayer) down
     // they take the SIDE pattern, so the side pattern's line 1 lands on the "*"
     // row. Without a split (cleaning off) it is the plain top-packing.
-    constexpr int kTopCount = 25;
     const int colPct = colIndex("pct");
     for (int layer = 0; layer < maxLayer; ++layer) {
         const int src = (sideStartLayer >= 0 && layer >= sideStartLayer)
-                            ? kTopCount + (layer - sideStartLayer)
+                            ? kTopLayers + (layer - sideStartLayer)
                             : layer;
         const QString v = (src >= 0 && src < pctList.size() && !pctList[src].trimmed().isEmpty())
                               ? pctList[src].trimmed()
